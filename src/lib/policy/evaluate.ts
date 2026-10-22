@@ -1,44 +1,48 @@
 import { formatCents } from "../money";
-import { segmentAt, stricter } from "./bands";
+import { GAP_OUTCOME, segmentAt, stricter } from "./bands";
 import { effectiveRule } from "./rules";
 import {
   CATEGORY_LABELS,
-  type Approver,
+  type Cap,
   type CategoryId,
   type HistoryEntry,
+  type Outcome,
   type PurchaseStatus,
   type RuleSet,
 } from "./types";
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PERIOD_MS = { week: 7 * DAY_MS, month: 30 * DAY_MS } as const;
+const PERIOD_TEXT = { purchase: "per-purchase", week: "weekly", month: "monthly" } as const;
 
-/** Purchases that count toward weekly totals. Pending ones count so two at once can't slip through. */
+/** Purchases that use up a budget. Pending ones count, so two at once can't slip through. */
 const COUNTED: PurchaseStatus[] = ["pending_review", "authorized", "captured"];
 
 export interface PurchaseFacts {
-  /** The amount PayPal holds for this order, never an AI-extracted figure. */
+  /** The full amount PayPal holds for this order (shipping and tax included), never an AI-extracted figure. */
   amountCents: number;
   /** From resolveCategory(); every one of these rules is checked. */
   categories: CategoryId[];
 }
 
-export type ReasonCode = "band" | "undefined_range" | "weekly_limit";
+export type ReasonCode = "band" | "undefined_range" | "cap";
 
 export interface Reason {
   code: ReasonCode;
-  category: CategoryId;
-  approver: Approver;
+  category: CategoryId | null;
+  outcome: Outcome;
   message: string;
 }
 
 export interface Decision {
-  approver: Approver;
-  /** Reasons that led to the final approver, most relevant first. */
+  outcome: Outcome;
+  /** The reasons behind the final outcome, in the order they were found. */
   reasons: Reason[];
 }
 
 export interface EvaluateOptions {
   now?: Date;
+  shopperName?: string;
   reviewerName?: string;
 }
 
@@ -48,66 +52,71 @@ function rangeText(minCents: number, maxCents: number | null): string {
   return `from ${formatCents(minCents)} to ${formatCents(maxCents - 1)}`;
 }
 
-export function weeklySpent(history: HistoryEntry[], category: CategoryId, now: Date): number {
-  const since = now.getTime() - WEEK_MS;
+function consequence(outcome: Outcome, shopper: string, reviewer: string): string {
+  switch (outcome) {
+    case "auto":
+      return `${shopper} can buy without waiting for approval`;
+    case "review":
+      return `${reviewer} reviews it`;
+    case "exception":
+      return `${reviewer} must approve an exception`;
+    case "blocked":
+      return `it can't be bought unless ${reviewer} changes the rules`;
+  }
+}
+
+/** Total of counted purchases within the period that fall under the cap. */
+export function spentWithin(history: HistoryEntry[], cap: Cap, now: Date): number {
+  if (cap.period === "purchase") return 0;
+  const since = now.getTime() - PERIOD_MS[cap.period];
   return history
-    .filter((h) => COUNTED.includes(h.status) && h.categories.includes(category) && Date.parse(h.at) > since)
+    .filter((h) => COUNTED.includes(h.status) && Date.parse(h.at) > since)
+    .filter((h) => cap.category === null || h.categories.includes(cap.category))
     .reduce((sum, h) => sum + h.amountCents, 0);
 }
 
 /**
- * Decide who approves a purchase. Pure and deterministic: the same rules,
- * facts and history always give the same answer. Every category in the facts
- * is checked and the strictest outcome wins.
+ * Decide what happens to a purchase. Pure and deterministic: the same rules,
+ * facts and history always give the same answer. Every category's bands and
+ * every relevant cap are checked, and the most restrictive outcome wins.
  */
 export function evaluatePurchase(
   rules: RuleSet,
   facts: PurchaseFacts,
   history: HistoryEntry[] = [],
-  { now = new Date(), reviewerName = "your reviewer" }: EvaluateOptions = {},
+  { now = new Date(), shopperName = "the shopper", reviewerName = "the reviewer" }: EvaluateOptions = {},
 ): Decision {
   const reasons: Reason[] = [];
+  const then = (outcome: Outcome) => consequence(outcome, shopperName, reviewerName);
 
   for (const category of facts.categories) {
-    const rule = effectiveRule(rules, category);
     const label = CATEGORY_LABELS[category];
-    const seg = segmentAt(rule.bands, facts.amountCents);
+    const seg = segmentAt(effectiveRule(rules, category).bands, facts.amountCents);
     const range = rangeText(seg.minCents, seg.maxCents);
-
-    if (seg.approver === null) {
+    if (seg.outcome === null) {
       reasons.push({
         code: "undefined_range",
         category,
-        approver: "reviewer",
-        message: `No rule covers ${label} purchases ${range} yet, so ${reviewerName} reviews it to be safe.`,
+        outcome: GAP_OUTCOME,
+        message: `No rule covers ${label} purchases ${range} yet, so ${then(GAP_OUTCOME)} to be safe.`,
       });
-      continue;
-    }
-
-    reasons.push({
-      code: "band",
-      category,
-      approver: seg.approver,
-      message:
-        seg.approver === "shopper"
-          ? `${label} purchases ${range} are yours to approve.`
-          : `${label} purchases ${range} go to ${reviewerName} for review.`,
-    });
-
-    if (seg.approver === "shopper" && rule.weeklyShopperLimitCents !== null) {
-      const spent = weeklySpent(history, category, now);
-      if (spent + facts.amountCents > rule.weeklyShopperLimitCents) {
-        reasons.push({
-          code: "weekly_limit",
-          category,
-          approver: "reviewer",
-          message: `This would bring ${label} spending this week to ${formatCents(spent + facts.amountCents)}, over your ${formatCents(rule.weeklyShopperLimitCents)} weekly limit, so ${reviewerName} reviews it.`,
-        });
-      }
+    } else {
+      reasons.push({ code: "band", category, outcome: seg.outcome, message: `${label} purchases ${range}: ${then(seg.outcome)}.` });
     }
   }
 
-  const approver = reasons.map((r) => r.approver).reduce(stricter, "shopper" as Approver);
-  const relevant = reasons.filter((r) => r.approver === approver);
-  return { approver, reasons: relevant };
+  for (const cap of rules.caps) {
+    if (cap.category !== null && !facts.categories.includes(cap.category)) continue;
+    const total = spentWithin(history, cap, now) + facts.amountCents;
+    if (total <= cap.limitCents) continue;
+    const scope = cap.category === null ? "" : `${CATEGORY_LABELS[cap.category]} `;
+    const message =
+      cap.period === "purchase"
+        ? `${formatCents(total)} is over the ${formatCents(cap.limitCents)} ${scope}per-purchase limit, so ${then(cap.over)}.`
+        : `This would bring ${scope}spending in the last ${cap.period === "week" ? "7" : "30"} days to ${formatCents(total)}, over the ${formatCents(cap.limitCents)} ${scope}${PERIOD_TEXT[cap.period]} limit, so ${then(cap.over)}.`;
+    reasons.push({ code: "cap", category: cap.category, outcome: cap.over, message });
+  }
+
+  const outcome = reasons.map((r) => r.outcome).reduce(stricter, "auto");
+  return { outcome, reasons: reasons.filter((r) => r.outcome === outcome) };
 }

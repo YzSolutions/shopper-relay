@@ -1,14 +1,11 @@
 import { segment, strictestBands, type BandIssue } from "./bands";
-import { CATEGORY_IDS, type CategoryId, type CategoryRule, type RuleSet } from "./types";
+import { CATEGORY_IDS, type Cap, type CategoryId, type CategoryRule, type RuleSet } from "./types";
 
 /** A missing general rule is one big gap: everything goes to review. */
-const UNDEFINED_RULE: CategoryRule = { bands: [], weeklyShopperLimitCents: null };
+const UNDEFINED_RULE: CategoryRule = { bands: [] };
 
 /** Recurring charges are reviewed unless the rules say otherwise. */
-const ALWAYS_REVIEW: CategoryRule = {
-  bands: [{ minCents: 0, maxCents: null, approver: "reviewer" }],
-  weeklyShopperLimitCents: null,
-};
+const ALWAYS_REVIEW: CategoryRule = { bands: [{ minCents: 0, maxCents: null, outcome: "review" }] };
 
 /**
  * The rule that actually governs a category. Most fall back to General
@@ -36,23 +33,21 @@ export function findRuleIssues(rules: RuleSet): RuleIssue[] {
   );
 }
 
-function minLimit(a: number | null, b: number | null): number | null {
-  if (a === null) return b;
-  if (b === null) return a;
-  return Math.min(a, b);
+/** Caps that limit the same thing: same category (or all) over the same period. */
+export function capKey(cap: Cap): string {
+  return `${cap.category ?? "*"}/${cap.period}`;
 }
 
-/** The pointwise-strictest of two rule sets: what applies while a loosening waits. */
+/**
+ * The pointwise-strictest of two rule sets: what applies while a loosening
+ * waits. Every cap from both sets applies, which is at least as strict as
+ * either set alone.
+ */
 export function strictestRuleSet(a: RuleSet, b: RuleSet): RuleSet {
   const categories: RuleSet["categories"] = {};
   for (const category of CATEGORY_IDS) {
     if (category !== "general" && !a.categories[category] && !b.categories[category]) continue;
-    const ra = effectiveRule(a, category);
-    const rb = effectiveRule(b, category);
-    categories[category] = {
-      bands: strictestBands(ra.bands, rb.bands),
-      weeklyShopperLimitCents: minLimit(ra.weeklyShopperLimitCents, rb.weeklyShopperLimitCents),
-    };
+    categories[category] = { bands: strictestBands(effectiveRule(a, category).bands, effectiveRule(b, category).bands) };
   }
-  return { categories };
+  return { categories, caps: [...a.caps, ...b.caps] };
 }

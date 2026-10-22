@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { parseToCents } from "../money";
-import { DEMO_RULES } from "./demo";
+import { numberToCents, parseToCents } from "../money";
 import {
   activeRules,
   approvePendingChange,
   checkPayPalAmount,
   evaluatePurchase,
+  FAMILY_ELDER_RULES,
   findRuleIssues,
+  PARENT_CHILD_RULES,
+  PERSONAL_SHOPPER_RULES,
   requestRuleChange,
   resolveCategory,
   summarizeChange,
+  type CategoryId,
   type HistoryEntry,
   type RuleSet,
   type RulesState,
@@ -17,6 +20,17 @@ import {
 
 const NOW = new Date("2026-11-01T12:00:00Z");
 const hoursFrom = (d: Date, h: number) => new Date(d.getTime() + h * 3600_000);
+const daysAgo = (d: number) => hoursFrom(NOW, -24 * d).toISOString();
+const bought = (amountCents: number, categories: CategoryId[], at = daysAgo(1)): HistoryEntry => ({
+  at,
+  categories,
+  amountCents,
+  status: "captured",
+});
+
+function judge(rules: RuleSet, amountCents: number, categories: CategoryId[], history: HistoryEntry[] = []) {
+  return evaluatePurchase(rules, { amountCents, categories }, history, { now: NOW, shopperName: "Mom", reviewerName: "Sarah" });
+}
 
 describe("money", () => {
   it("parses PayPal decimal strings without floats", () => {
@@ -24,6 +38,12 @@ describe("money", () => {
     expect(parseToCents("9.5")).toBe(950);
     expect(parseToCents("0.07")).toBe(7);
     expect(() => parseToCents("12.345")).toThrow();
+  });
+
+  it("converts catalog number prices once, rounding float noise", () => {
+    expect(numberToCents(69.49)).toBe(6949);
+    expect(numberToCents(14.6)).toBe(1460);
+    expect(numberToCents(0.1 + 0.2)).toBe(30);
   });
 });
 
@@ -33,95 +53,167 @@ describe("rule gaps", () => {
       categories: {
         general: {
           bands: [
-            { minCents: 0, maxCents: 7500, approver: "shopper" },
-            { minCents: 15000, maxCents: null, approver: "reviewer" },
+            { minCents: 0, maxCents: 7500, outcome: "auto" },
+            { minCents: 15000, maxCents: null, outcome: "review" },
           ],
-          weeklyShopperLimitCents: null,
         },
       },
+      caps: [],
     };
     expect(findRuleIssues(rules)).toEqual([{ kind: "gap", category: "general", minCents: 7500, maxCents: 15000 }]);
-
-    const decision = evaluatePurchase(rules, { amountCents: 10000, categories: ["general"] }, [], { now: NOW });
-    expect(decision.approver).toBe("reviewer");
-    expect(decision.reasons[0].code).toBe("undefined_range");
+    const d = judge(rules, 10000, ["general"]);
+    expect(d.outcome).toBe("review");
+    expect(d.reasons[0].code).toBe("undefined_range");
   });
 
   it("reports a missing general rule as a gap over everything", () => {
-    expect(findRuleIssues({ categories: {} })).toEqual([
+    expect(findRuleIssues({ categories: {}, caps: [] })).toEqual([
       { kind: "gap", category: "general", minCents: 0, maxCents: null },
     ]);
   });
 
-  it("resolves conflicting bands to review and reports them", () => {
+  it("resolves conflicting bands to the stricter outcome and reports them", () => {
     const rules: RuleSet = {
       categories: {
         general: {
           bands: [
-            { minCents: 0, maxCents: 10000, approver: "shopper" },
-            { minCents: 5000, maxCents: null, approver: "reviewer" },
+            { minCents: 0, maxCents: 10000, outcome: "auto" },
+            { minCents: 5000, maxCents: null, outcome: "review" },
           ],
-          weeklyShopperLimitCents: null,
         },
       },
+      caps: [],
     };
     expect(findRuleIssues(rules)).toEqual([{ kind: "conflict", category: "general", minCents: 5000, maxCents: 10000 }]);
-    expect(evaluatePurchase(rules, { amountCents: 6000, categories: ["general"] }).approver).toBe("reviewer");
+    expect(judge(rules, 6000, ["general"]).outcome).toBe("review");
   });
 
-  it("demo rules have no issues", () => {
-    expect(findRuleIssues(DEMO_RULES)).toEqual([]);
+  it("all three presets are complete", () => {
+    expect(findRuleIssues(FAMILY_ELDER_RULES)).toEqual([]);
+    expect(findRuleIssues(PARENT_CHILD_RULES)).toEqual([]);
+    expect(findRuleIssues(PERSONAL_SHOPPER_RULES)).toEqual([]);
   });
 });
 
-describe("evaluatePurchase", () => {
-  const evalAt = (amountCents: number, categories: HistoryEntry["categories"], history: HistoryEntry[] = []) =>
-    evaluatePurchase(DEMO_RULES, { amountCents, categories }, history, { now: NOW, reviewerName: "Sarah" });
+describe("Mom + Sarah preset", () => {
+  const mom = (amountCents: number, categories: CategoryId[], history?: HistoryEntry[]) =>
+    judge(FAMILY_ELDER_RULES, amountCents, categories, history).outcome;
 
-  it("applies per-category thresholds at the boundary", () => {
-    expect(evalAt(9999, ["medical_device"]).approver).toBe("shopper");
-    expect(evalAt(10000, ["medical_device"]).approver).toBe("reviewer");
-    expect(evalAt(7999, ["clothing"]).approver).toBe("shopper");
-    expect(evalAt(8000, ["clothing"]).approver).toBe("reviewer");
+  it("sends the $149 blood pressure monitor to Sarah, and says why", () => {
+    const d = judge(FAMILY_ELDER_RULES, 14900, ["medical_device"]);
+    expect(d.outcome).toBe("review");
+    expect(d.reasons[0].message).toBe("Medical Devices purchases of $100.00 and up: Sarah reviews it.");
   });
 
-  it("explains a $149 medical device going to Sarah", () => {
-    const d = evalAt(14900, ["medical_device"]);
-    expect(d.approver).toBe("reviewer");
-    expect(d.reasons[0].message).toBe("Medical Device purchases of $100.00 and up go to Sarah for review.");
+  it("lets Mom buy under each limit, and sends the limit itself to Sarah", () => {
+    expect(mom(9999, ["medical_device"])).toBe("auto");
+    expect(mom(10000, ["medical_device"])).toBe("review");
+    expect(mom(7999, ["clothing"])).toBe("auto");
+    expect(mom(8000, ["clothing"])).toBe("review");
+    expect(mom(9999, ["food"])).toBe("auto");
+    expect(mom(14999, ["medical_visit"])).toBe("auto");
+    expect(mom(15000, ["medical_visit"])).toBe("review");
+    expect(mom(7499, ["general"])).toBe("auto");
+    expect(mom(7500, ["general"])).toBe("review");
   });
 
   it("falls back to General Shopping for categories without a rule", () => {
-    expect(evalAt(7000, ["food"]).approver).toBe("shopper");
-    expect(evalAt(7500, ["food"]).approver).toBe("reviewer");
+    expect(mom(7000, ["toys"])).toBe("auto");
+    expect(mom(7500, ["toys"])).toBe("review");
+  });
+
+  it("always reviews subscriptions, even tiny ones", () => {
+    expect(mom(100, ["subscription"])).toBe("review");
+  });
+
+  it("has no spending caps by default", () => {
+    expect(mom(9000, ["medical_device"], [bought(9000, ["medical_device"])])).toBe("auto");
   });
 
   it("takes the strictest rule when several categories apply", () => {
     // $78 is under clothing's $80 but over general's $75.
-    expect(evalAt(7800, ["clothing"]).approver).toBe("shopper");
-    expect(evalAt(7800, ["clothing", "general"]).approver).toBe("reviewer");
+    expect(mom(7800, ["clothing"])).toBe("auto");
+    expect(mom(7800, ["clothing", "general"])).toBe("review");
   });
 
-  it("sends anything recurring to review, even with no subscription rule", () => {
-    const noSubRule: RuleSet = { categories: { general: DEMO_RULES.categories.general! } };
-    const d = evaluatePurchase(noSubRule, { amountCents: 500, categories: ["general", "subscription"] });
-    expect(d.approver).toBe("reviewer");
+  it("reviews anything recurring even with no subscription rule at all", () => {
+    const noSubRule: RuleSet = { categories: { general: FAMILY_ELDER_RULES.categories.general! }, caps: [] };
+    expect(judge(noSubRule, 500, ["general", "subscription"]).outcome).toBe("review");
+  });
+});
+
+describe("Kids + parents preset", () => {
+  const kid = (amountCents: number, categories: CategoryId[], history: HistoryEntry[] = []) =>
+    evaluatePurchase(PARENT_CHILD_RULES, { amountCents, categories }, history, { now: NOW, shopperName: "Leo", reviewerName: "Dana" });
+
+  it("needs the parent for every purchase, even within budget", () => {
+    expect(kid(500, ["toys"]).outcome).toBe("review");
+    expect(kid(1500, ["toys"]).outcome).toBe("review"); // "up to $15" includes $15
   });
 
-  it("stops two $70 purchases from slipping under a $100 weekly limit", () => {
-    const history: HistoryEntry[] = [
-      { at: hoursFrom(NOW, -48).toISOString(), categories: ["medical_device"], amountCents: 7000, status: "captured" },
-    ];
-    const d = evalAt(7000, ["medical_device"], history);
-    expect(d.approver).toBe("reviewer");
-    expect(d.reasons[0].code).toBe("weekly_limit");
+  it("needs an exception over a category budget", () => {
+    const d = kid(1501, ["toys"]);
+    expect(d.outcome).toBe("exception");
+    expect(d.reasons[0].message).toBe("Toys purchases of $15.01 and up: Dana must approve an exception.");
+    expect(kid(6900, ["video_games"]).outcome).toBe("exception");
   });
 
-  it("counts pending purchases toward the weekly limit but not voided or old ones", () => {
-    const at = (h: number) => hoursFrom(NOW, h).toISOString();
-    expect(evalAt(7000, ["medical_device"], [{ at: at(-1), categories: ["medical_device"], amountCents: 7000, status: "pending_review" }]).approver).toBe("reviewer");
-    expect(evalAt(7000, ["medical_device"], [{ at: at(-1), categories: ["medical_device"], amountCents: 7000, status: "voided" }]).approver).toBe("shopper");
-    expect(evalAt(7000, ["medical_device"], [{ at: at(-24 * 8), categories: ["medical_device"], amountCents: 7000, status: "captured" }]).approver).toBe("shopper");
+  it("needs an exception when the weekly total would pass $30", () => {
+    const history = [bought(1000, ["toys"]), bought(1500, ["books"])]; // $25 this week
+    const d = kid(1500, ["toys"], history);
+    expect(d.outcome).toBe("exception");
+    expect(d.reasons[0].code).toBe("cap");
+    expect(d.reasons[0].message).toContain("$40.00, over the $30.00 weekly limit");
+    expect(kid(500, ["toys"], history).outcome).toBe("review"); // $30 exactly is fine
+  });
+
+  it("needs an exception when the 30-day total would pass $100, even across quiet weeks", () => {
+    const history = [10, 17, 24].map((d) => bought(3000, ["clothing"], daysAgo(d))); // $90, none this week
+    expect(kid(1500, ["toys"], history).outcome).toBe("exception");
+    expect(kid(1000, ["toys"], history).outcome).toBe("review");
+  });
+
+  it("reserves budget for pending requests but not declined ones", () => {
+    const pending: HistoryEntry = { ...bought(2500, ["toys"]), status: "pending_review" };
+    const declined: HistoryEntry = { ...bought(2500, ["toys"]), status: "declined" };
+    expect(kid(1000, ["books"], [pending]).outcome).toBe("exception");
+    expect(kid(1000, ["books"], [declined]).outcome).toBe("review");
+  });
+
+  it("blocks subscriptions", () => {
+    expect(kid(299, ["subscription"]).outcome).toBe("blocked");
+    expect(kid(1000, ["video_games", "subscription"]).outcome).toBe("blocked");
+  });
+});
+
+describe("Personal shopper preset", () => {
+  const shop = (amountCents: number, categories: CategoryId[], history: HistoryEntry[] = []) =>
+    evaluatePurchase(PERSONAL_SHOPPER_RULES, { amountCents, categories }, history, {
+      now: NOW,
+      shopperName: "Priya",
+      reviewerName: "Marcus",
+    });
+
+  it("lets the shopper grab an $89 flash-sale pair of shoes right away", () => {
+    const d = shop(8900, ["shoes_handbags"]);
+    expect(d.outcome).toBe("auto");
+    expect(d.reasons[0].message).toContain("Priya can buy without waiting for approval");
+  });
+
+  it("sends $179 headphones to the customer", () => {
+    expect(shop(17900, ["electronics"]).outcome).toBe("review");
+    expect(shop(12500, ["electronics"]).outcome).toBe("auto"); // "up to $125"
+  });
+
+  it("enforces the per-purchase, weekly and monthly caps", () => {
+    expect(shop(12000, ["electronics"], [bought(14000, ["clothing"])]).outcome).toBe("review"); // week: $260 > $250
+    const month = [10, 15, 20, 25].map((d) => bought(13000, ["home_decor"], daysAgo(d))); // $520
+    expect(shop(9000, ["clothing"], month).outcome).toBe("review"); // month: $610 > $600
+    expect(shop(7000, ["clothing"], month).outcome).toBe("auto"); // $590
+  });
+
+  it("never auto-buys a subscription", () => {
+    expect(shop(500, ["subscription"]).outcome).toBe("review");
   });
 });
 
@@ -131,6 +223,11 @@ describe("resolveCategory", () => {
   it("trusts the catalog over the AI", () => {
     const r = resolveCategory({ catalogPath: bpPath, ai: { category: "medical_device", confidence: 0.95 }, recurring: "no" });
     expect(r).toMatchObject({ categories: ["medical_device"], primary: "medical_device", basis: "catalog" });
+  });
+
+  it("maps real Channel3 paths", () => {
+    const coat = ["Apparel & Accessories", "Clothing", "Outerwear", "Coats & Jackets"];
+    expect(resolveCategory({ catalogPath: coat, recurring: "no" }).primary).toBe("clothing");
   });
 
   it("applies both rules when catalog and a confident AI disagree", () => {
@@ -144,7 +241,7 @@ describe("resolveCategory", () => {
     expect(r.basis).toBe("ambiguous");
     expect(r.categories).toEqual(["clothing", "general"]);
     // $78 is under clothing's $80 but over general's $75, so it goes to review.
-    expect(evaluatePurchase(DEMO_RULES, { amountCents: 7800, categories: r.categories }).approver).toBe("reviewer");
+    expect(judge(FAMILY_ELDER_RULES, 7800, r.categories).outcome).toBe("review");
   });
 
   it("adds the subscription rule when recurring is yes or uncertain", () => {
@@ -154,24 +251,24 @@ describe("resolveCategory", () => {
 });
 
 describe("rule changes", () => {
-  const withMedicalLimit = (maxCents: number): RuleSet => ({
+  const withMedicalLimit = (thresholdCents: number): RuleSet => ({
+    ...FAMILY_ELDER_RULES,
     categories: {
-      ...DEMO_RULES.categories,
+      ...FAMILY_ELDER_RULES.categories,
       medical_device: {
         bands: [
-          { minCents: 0, maxCents, approver: "shopper" },
-          { minCents: maxCents, maxCents: null, approver: "reviewer" },
+          { minCents: 0, maxCents: thresholdCents, outcome: "auto" },
+          { minCents: thresholdCents, maxCents: null, outcome: "review" },
         ],
-        weeklyShopperLimitCents: null,
       },
     },
   });
-  // Elderly parent: Mom owns her rules, Sarah reviews.
+  // Mom owns her rules, Sarah reviews.
   const start: RulesState = { owner: "shopper", rules: withMedicalLimit(15000), pending: null };
   // Kids: the parent owns the rules and reviews.
   const kid: RulesState = { ...start, owner: "reviewer" };
-  const approverFor = (s: RulesState, at: Date, amountCents = 30000) =>
-    evaluatePurchase(activeRules(s, at), { amountCents, categories: ["medical_device"] }).approver;
+  const outcomeFor = (s: RulesState, at: Date, amountCents = 30000) =>
+    evaluatePurchase(activeRules(s, at), { amountCents, categories: ["medical_device"] }).outcome;
   const ok = (r: ReturnType<typeof requestRuleChange>) => {
     if (!r.ok) throw new Error(r.message);
     return r;
@@ -182,7 +279,7 @@ describe("rule changes", () => {
       const r = ok(requestRuleChange(state, withMedicalLimit(10000), by, NOW));
       expect(r.summary.kind).toBe("tighten");
       expect(r.notify).toBeNull();
-      expect(approverFor(r.state, NOW, 12000)).toBe("reviewer");
+      expect(outcomeFor(r.state, NOW, 12000)).toBe("review");
     }
   });
 
@@ -190,10 +287,9 @@ describe("rule changes", () => {
     const { state, summary, notify } = ok(requestRuleChange(start, withMedicalLimit(50000), "shopper", NOW));
     expect(summary.kind).toBe("loosen");
     expect(notify).toBe("reviewer");
-
-    expect(approverFor(state, hoursFrom(NOW, 23))).toBe("reviewer");
-    expect(approverFor(state, hoursFrom(NOW, 24))).toBe("shopper"); // Sarah can't block it forever
-    expect(approverFor(approvePendingChange(state, hoursFrom(NOW, 1)), hoursFrom(NOW, 1))).toBe("shopper");
+    expect(outcomeFor(state, hoursFrom(NOW, 23))).toBe("review");
+    expect(outcomeFor(state, hoursFrom(NOW, 24))).toBe("auto"); // Sarah can't block it forever
+    expect(outcomeFor(approvePendingChange(state, hoursFrom(NOW, 1)), hoursFrom(NOW, 1))).toBe("auto");
   });
 
   it("doesn't let Sarah loosen Mom's rules", () => {
@@ -202,47 +298,63 @@ describe("rule changes", () => {
 
   it("applies a parent's loosening at once", () => {
     const { state } = ok(requestRuleChange(kid, withMedicalLimit(50000), "reviewer", NOW));
-    expect(approverFor(state, NOW)).toBe("shopper");
+    expect(outcomeFor(state, NOW)).toBe("auto");
   });
 
   it("makes a child's loosening wait for the parent, with no time-out", () => {
     const { state, notify } = ok(requestRuleChange(kid, withMedicalLimit(50000), "shopper", NOW));
     expect(notify).toBe("reviewer");
-    expect(approverFor(state, hoursFrom(NOW, 24 * 30))).toBe("reviewer");
-    expect(approverFor(approvePendingChange(state, NOW), NOW)).toBe("shopper");
+    expect(outcomeFor(state, hoursFrom(NOW, 24 * 30))).toBe("review");
+    expect(outcomeFor(approvePendingChange(state, NOW), NOW)).toBe("auto");
   });
 
   it("applies the tightening half of a mixed change now and the loosening half later", () => {
     const proposed: RuleSet = {
+      ...withMedicalLimit(50000),
       categories: {
         ...withMedicalLimit(50000).categories,
         clothing: {
           bands: [
-            { minCents: 0, maxCents: 5000, approver: "shopper" },
-            { minCents: 5000, maxCents: null, approver: "reviewer" },
+            { minCents: 0, maxCents: 5000, outcome: "auto" },
+            { minCents: 5000, maxCents: null, outcome: "review" },
           ],
-          weeklyShopperLimitCents: null,
         },
       },
     };
     const { state, summary } = ok(requestRuleChange(start, proposed, "shopper", NOW));
     expect(summary.kind).toBe("mixed");
     const now = activeRules(state, hoursFrom(NOW, 1));
-    expect(evaluatePurchase(now, { amountCents: 6000, categories: ["clothing"] }).approver).toBe("reviewer");
-    expect(evaluatePurchase(now, { amountCents: 30000, categories: ["medical_device"] }).approver).toBe("reviewer");
+    expect(evaluatePurchase(now, { amountCents: 6000, categories: ["clothing"] }).outcome).toBe("review");
+    expect(evaluatePurchase(now, { amountCents: 30000, categories: ["medical_device"] }).outcome).toBe("review");
   });
 
-  it("treats removing a weekly limit as loosening", () => {
-    const noLimit: RuleSet = {
-      categories: { ...DEMO_RULES.categories, medical_device: { ...DEMO_RULES.categories.medical_device!, weeklyShopperLimitCents: null } },
+  it("treats softening an outcome as loosening (exception -> review, blocked -> review)", () => {
+    const softer: RuleSet = {
+      ...PARENT_CHILD_RULES,
+      categories: { ...PARENT_CHILD_RULES.categories, subscription: { bands: [{ minCents: 0, maxCents: null, outcome: "review" }] } },
     };
-    expect(summarizeChange(DEMO_RULES, noLimit).kind).toBe("loosen");
+    expect(summarizeChange(PARENT_CHILD_RULES, softer).kind).toBe("loosen");
+  });
+
+  it("treats removing or raising a cap as loosening, and adding or lowering one as tightening", () => {
+    const [week, month] = PARENT_CHILD_RULES.caps;
+    expect(summarizeChange(PARENT_CHILD_RULES, { ...PARENT_CHILD_RULES, caps: [month] }).kind).toBe("loosen");
+    expect(summarizeChange(PARENT_CHILD_RULES, { ...PARENT_CHILD_RULES, caps: [{ ...week, limitCents: 5000 }, month] }).kind).toBe("loosen");
+    expect(summarizeChange(PARENT_CHILD_RULES, { ...PARENT_CHILD_RULES, caps: [{ ...week, limitCents: 2000 }, month] }).kind).toBe("tighten");
+    expect(summarizeChange(FAMILY_ELDER_RULES, { ...FAMILY_ELDER_RULES, caps: [week] }).kind).toBe("tighten");
+  });
+
+  it("keeps both old and new caps while a loosening waits", () => {
+    const raised: RuleSet = { ...PERSONAL_SHOPPER_RULES, caps: PERSONAL_SHOPPER_RULES.caps.map((c) => ({ ...c, limitCents: c.limitCents * 2 })) };
+    const owned: RulesState = { owner: "reviewer", rules: PERSONAL_SHOPPER_RULES, pending: null };
+    const { state } = ok(requestRuleChange(owned, raised, "shopper", NOW));
+    expect(evaluatePurchase(activeRules(state, NOW), { amountCents: 9000, categories: ["clothing"] }, [bought(20000, ["gifts"])], { now: NOW }).outcome).toBe("review");
   });
 
   it("treats deleting a category rule by what the fallback allows", () => {
     // Dropping the $80 clothing rule makes clothing fall back to general's $75: a tightening.
-    const { clothing: _, ...rest } = DEMO_RULES.categories;
-    expect(summarizeChange(DEMO_RULES, { categories: rest }).kind).toBe("tighten");
+    const { clothing: _, ...rest } = FAMILY_ELDER_RULES.categories;
+    expect(summarizeChange(FAMILY_ELDER_RULES, { ...FAMILY_ELDER_RULES, categories: rest }).kind).toBe("tighten");
   });
 });
 

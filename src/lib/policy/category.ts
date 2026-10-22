@@ -6,7 +6,15 @@ import type { CategoryId, RecurringFinding } from "./types";
  */
 const CATALOG_PATTERNS: Array<[RegExp, CategoryId]> = [
   [/blood pressure|biometric monitor|medical (device|suppl)|glucose|pulse oximeter|thermometer|hearing aid|mobility aid|health care/i, "medical_device"],
-  [/apparel|clothing|outerwear|coat|jacket|shoe|footwear|dress|pants|shirt|sweater/i, "clothing"],
+  [/video game|game console|gaming/i, "video_games"],
+  [/shoe|footwear|sneaker|boot|handbag|purse|wallet/i, "shoes_handbags"],
+  [/apparel|clothing|outerwear|coat|jacket|dress|pants|shirt|sweater/i, "clothing"],
+  [/toy|puzzle|board game|doll|action figure/i, "toys"],
+  [/school suppl|office suppl|notebook|backpack|stationery/i, "school_supplies"],
+  [/\bbooks?\b/i, "books"],
+  [/collectible|trading card|memorabilia/i, "collectibles"],
+  [/electronic|computer|phone|tablet|audio|headphone|camera/i, "electronics"],
+  [/home ?(&|and) ?garden|decor|furniture|lighting|bedding/i, "home_decor"],
   [/grocer|food|beverage|snack|pantry/i, "food"],
 ];
 

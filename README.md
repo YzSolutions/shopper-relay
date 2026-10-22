@@ -6,16 +6,57 @@ to someone else for review. PayPal holds the payment until it's settled.
 
 **AI understands. Rules enforce. People approve. PayPal executes.**
 
-## Three applications
+## Three applications, one rules engine
 
-| | Who shops | Who reviews | Whose rules | Who's in control |
-| --- | --- | --- | --- | --- |
-| **Elderly parent + adult child** | Mom | Her daughter, when Mom's rules ask | Mom's | Mom keeps control of her money. |
-| **Kids + parents** | A child finds shoes, a game or school supplies and sends a request | The parent reviews the price, then approves or declines | The parent's | The parent controls spending and payment for a minor. |
-| **Personal shopper + customer** | Someone who knows your taste finds products and deals | You review their recommendations | Yours | You make the buying decision. |
+| | Mom + Sarah | Kids + parents | Personal shopper + customer |
+| --- | --- | --- | --- |
+| Finds products | Mom | Child | Trusted shopper |
+| Sets the rules | Mom | Parent | Customer |
+| Pays | Mom | Parent | Customer |
+| Can buy without a second person? | Mom, within her own rules | Never | The shopper, within delegated limits |
+| Over a limit | Sarah reviews | Parent must approve an exception | Customer approves |
+| Weekly / monthly caps | Optional | $30 / $100 | $250 / $600, plus $125 per purchase |
+| Hackathon build | **Working end to end** | Planned | Planned |
 
-All three use the same engine. The roles are `shopper` and `reviewer`, and the setup
-decides whose rules they are. That ownership changes how rule changes work:
+Each purchase gets one outcome: **auto** (the shopper can buy now), **review**,
+**exception** (over a limit, so the reviewer must knowingly approve it) or **blocked**.
+The default limits for each preset are in [`presets.ts`](src/lib/policy/presets.ts).
+
+| Mom + Sarah: Mom buys on her own | Under |
+| --- | --- |
+| General Shopping | $75 |
+| Clothing | $80 |
+| Medical Devices | $100 |
+| Food & Groceries | $100 |
+| Medical Visits | $150 (kept in the rules; not part of product search) |
+| Subscriptions | Always reviewed |
+
+| Kids: per-item budget (parent approves everything) | Up to |
+| --- | --- |
+| Food / snacks | $8 |
+| General Shopping | $10 |
+| Toys, Books | $15 |
+| Video Games, School Supplies | $20 |
+| Clothing, Shoes | $25 |
+| Electronics | $30 |
+| Subscriptions | Blocked |
+
+| Personal shopper: may buy immediately | Up to |
+| --- | --- |
+| General Shopping | $50 |
+| Gifts, Collectibles | $75 |
+| Clothing, Shoes & Handbags, Home & Décor | $100 |
+| Electronics | $125 |
+| Subscriptions | Customer must approve |
+
+All limits apply to the full PayPal total, shipping and tax included. Weeks and months are
+rolling (the last 7 or 30 days), and pending purchases count until they finish or are
+cancelled. For the personal shopper preset, buying without the customer present will need a
+saved, customer-authorized PayPal payment method. That isn't built yet, and the PayPal
+capability still has to be confirmed.
+
+The roles are `shopper` and `reviewer`, and each preset says whose rules they are. That
+ownership changes how rule changes work:
 
 - **Tightening** a rule always takes effect immediately, whoever asks.
 - **Loosening, when the shopper owns the rules (Mom):** the reviewer is notified and can
@@ -52,7 +93,8 @@ the order with the retailer is simulated.**
 
 | Piece | State |
 | --- | --- |
-| Policy engine: per-category thresholds, weekly limits, gap detection, strictest-rule category handling | Done, with tests |
+| Policy engine: outcomes (auto/review/exception/blocked), per-category limits, per-purchase/weekly/monthly caps, gap detection, strictest-rule categories | Done, with tests |
+| Three presets: Mom + Sarah, kids + parents, personal shopper | Done, with tests (only Mom + Sarah gets screens in the hackathon build) |
 | Rule changes: depend on whose rules they are (24h cooling-off, or reviewer approval) | Done, with tests |
 | PayPal amount check (an exact match to the held amount is required) | Done, with tests |
 | PayPal authorize / capture / void client and sandbox check script | Written, not yet run against sandbox |
@@ -78,9 +120,12 @@ npm run dev
 - `src/lib/policy/`: the deterministic rules engine. It has no I/O and no AI.
 - `src/lib/paypal/client.ts`: PayPal Orders v2 / Payments v2 (authorize, capture, void).
 - `src/config/brand.ts`: the product name.
-- `src/config/relationships.ts`: the three applications, with their roles and demo names.
+- `src/lib/policy/presets.ts`: default limits for the three applications.
+- `src/config/relationships.ts`: the three applications: roles, who pays, demo names.
+- `public/brand/`: logo (not MIT licensed).
 - `scripts/paypal-sandbox-check.ts`: the day-1 PayPal lifecycle test.
 
 ## License
 
-MIT
+The code is MIT licensed. The ShopperRelay name and logo (`public/brand/`) are not covered by
+the MIT license and may not be used without permission.

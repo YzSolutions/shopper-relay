@@ -1,52 +1,66 @@
-import { loosenedRanges, tightenedRanges, type BandIssue } from "./bands";
-import { effectiveRule, strictestRuleSet } from "./rules";
-import { CATEGORY_IDS, type Approver, type CategoryId, type RuleSet } from "./types";
+import { loosenedRanges, tightenedRanges, isStricter, type Range } from "./bands";
+import { capKey, effectiveRule, strictestRuleSet } from "./rules";
+import { CATEGORY_IDS, type Cap, type CategoryId, type Role, type RuleSet } from "./types";
 
 /** How long a shopper's loosening waits if the reviewer doesn't approve it sooner. */
 export const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
 
 export interface CategoryChange {
   category: CategoryId;
-  loosened: BandIssue[];
-  tightened: BandIssue[];
-  weeklyLimit: "loosened" | "tightened" | "same";
+  loosened: Range[];
+  tightened: Range[];
+}
+
+export interface CapChange {
+  key: string;
+  direction: "loosened" | "tightened";
 }
 
 export interface ChangeSummary {
   kind: "none" | "tighten" | "loosen" | "mixed";
-  changes: CategoryChange[];
+  categories: CategoryChange[];
+  caps: CapChange[];
 }
 
-function compareLimits(prev: number | null, next: number | null): CategoryChange["weeklyLimit"] {
-  if (prev === next) return "same";
-  if (next === null) return "loosened"; // limit removed
-  if (prev === null) return "tightened"; // limit added
-  return next > prev ? "loosened" : "tightened";
+/**
+ * How one cap changed. Removing a cap or raising its limit loosens; adding one
+ * or lowering it tightens. A softer over-limit outcome also loosens.
+ */
+function compareCap(prev: Cap | undefined, next: Cap | undefined): CapChange["direction"][] {
+  if (!prev && !next) return [];
+  if (!next) return ["loosened"];
+  if (!prev) return ["tightened"];
+  const out: CapChange["direction"][] = [];
+  if (next.limitCents > prev.limitCents || isStricter(prev.over, next.over)) out.push("loosened");
+  if (next.limitCents < prev.limitCents || isStricter(next.over, prev.over)) out.push("tightened");
+  return out;
 }
 
-/** Compare two rule sets by what each one actually allows, category by category. */
+/** Compare two rule sets by what each one actually allows. */
 export function summarizeChange(prev: RuleSet, next: RuleSet): ChangeSummary {
-  const changes: CategoryChange[] = [];
+  const categories: CategoryChange[] = [];
   for (const category of CATEGORY_IDS) {
-    const a = effectiveRule(prev, category);
-    const b = effectiveRule(next, category);
-    const change: CategoryChange = {
-      category,
-      loosened: loosenedRanges(a.bands, b.bands),
-      tightened: tightenedRanges(a.bands, b.bands),
-      weeklyLimit: compareLimits(a.weeklyShopperLimitCents, b.weeklyShopperLimitCents),
-    };
-    if (change.loosened.length || change.tightened.length || change.weeklyLimit !== "same") changes.push(change);
+    const a = effectiveRule(prev, category).bands;
+    const b = effectiveRule(next, category).bands;
+    const change = { category, loosened: loosenedRanges(a, b), tightened: tightenedRanges(a, b) };
+    if (change.loosened.length || change.tightened.length) categories.push(change);
   }
-  const loosens = changes.some((c) => c.loosened.length || c.weeklyLimit === "loosened");
-  const tightens = changes.some((c) => c.tightened.length || c.weeklyLimit === "tightened");
+
+  const prevCaps = new Map(prev.caps.map((c) => [capKey(c), c]));
+  const nextCaps = new Map(next.caps.map((c) => [capKey(c), c]));
+  const caps: CapChange[] = [...new Set([...prevCaps.keys(), ...nextCaps.keys()])].flatMap((key) =>
+    compareCap(prevCaps.get(key), nextCaps.get(key)).map((direction) => ({ key, direction })),
+  );
+
+  const loosens = categories.some((c) => c.loosened.length) || caps.some((c) => c.direction === "loosened");
+  const tightens = categories.some((c) => c.tightened.length) || caps.some((c) => c.direction === "tightened");
   const kind = loosens && tightens ? "mixed" : loosens ? "loosen" : tightens ? "tighten" : "none";
-  return { kind, changes };
+  return { kind, categories, caps };
 }
 
 export interface PendingChange {
   proposed: RuleSet;
-  requestedBy: Approver;
+  requestedBy: Role;
   requestedAt: string;
   /** When the change applies on its own; null means it waits for approval. */
   autoActivateAt: string | null;
@@ -58,15 +72,15 @@ export interface RulesState {
   /**
    * Whose rules these are. "shopper" for a parent who sets their own
    * safeguards; "reviewer" for a parent of a child, or a customer who sets
-   * what their personal shopper may buy without asking.
+   * what their personal shopper may buy.
    */
-  owner: Approver;
+  owner: Role;
   rules: RuleSet;
   pending: PendingChange | null;
 }
 
 export type ChangeResult =
-  | { ok: true; state: RulesState; summary: ChangeSummary; notify: Approver | null }
+  | { ok: true; state: RulesState; summary: ChangeSummary; notify: Role | null }
   | { ok: false; summary: ChangeSummary; message: string };
 
 /**
@@ -82,7 +96,7 @@ export type ChangeResult =
 export function requestRuleChange(
   state: RulesState,
   proposed: RuleSet,
-  requestedBy: Approver,
+  requestedBy: Role,
   now = new Date(),
 ): ChangeResult {
   const current = settle(state, now);
