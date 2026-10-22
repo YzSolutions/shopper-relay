@@ -2,12 +2,12 @@ import { segment, strictestBands, type BandIssue } from "./bands";
 import { CATEGORY_IDS, type CategoryId, type CategoryRule, type RuleSet } from "./types";
 
 /** A missing general rule is one big gap: everything goes to review. */
-const UNDEFINED_RULE: CategoryRule = { bands: [], weeklySelfLimitCents: null };
+const UNDEFINED_RULE: CategoryRule = { bands: [], weeklyShopperLimitCents: null };
 
-/** Recurring charges are reviewed unless the owner has said otherwise. */
+/** Recurring charges are reviewed unless the rules say otherwise. */
 const ALWAYS_REVIEW: CategoryRule = {
-  bands: [{ minCents: 0, maxCents: null, approver: "trusted_contact" }],
-  weeklySelfLimitCents: null,
+  bands: [{ minCents: 0, maxCents: null, approver: "reviewer" }],
+  weeklyShopperLimitCents: null,
 };
 
 /**
@@ -27,7 +27,7 @@ export interface RuleIssue extends BandIssue {
 
 /**
  * Every gap or conflict in a rule set. A rule set with issues must not go live
- * until the owner resolves them; until then the gaps are treated as "review".
+ * until they are resolved; until then the gaps are treated as "review".
  */
 export function findRuleIssues(rules: RuleSet): RuleIssue[] {
   const categories = new Set<CategoryId>(["general", ...(Object.keys(rules.categories) as CategoryId[])]);
@@ -51,7 +51,7 @@ export function strictestRuleSet(a: RuleSet, b: RuleSet): RuleSet {
     const rb = effectiveRule(b, category);
     categories[category] = {
       bands: strictestBands(ra.bands, rb.bands),
-      weeklySelfLimitCents: minLimit(ra.weeklySelfLimitCents, rb.weeklySelfLimitCents),
+      weeklyShopperLimitCents: minLimit(ra.weeklyShopperLimitCents, rb.weeklyShopperLimitCents),
     };
   }
   return { categories };

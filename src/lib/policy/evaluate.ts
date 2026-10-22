@@ -39,7 +39,7 @@ export interface Decision {
 
 export interface EvaluateOptions {
   now?: Date;
-  contactName?: string;
+  reviewerName?: string;
 }
 
 function rangeText(minCents: number, maxCents: number | null): string {
@@ -64,7 +64,7 @@ export function evaluatePurchase(
   rules: RuleSet,
   facts: PurchaseFacts,
   history: HistoryEntry[] = [],
-  { now = new Date(), contactName = "your trusted contact" }: EvaluateOptions = {},
+  { now = new Date(), reviewerName = "your reviewer" }: EvaluateOptions = {},
 ): Decision {
   const reasons: Reason[] = [];
 
@@ -78,8 +78,8 @@ export function evaluatePurchase(
       reasons.push({
         code: "undefined_range",
         category,
-        approver: "trusted_contact",
-        message: `No rule covers ${label} purchases ${range} yet, so ${contactName} reviews it to be safe.`,
+        approver: "reviewer",
+        message: `No rule covers ${label} purchases ${range} yet, so ${reviewerName} reviews it to be safe.`,
       });
       continue;
     }
@@ -89,25 +89,25 @@ export function evaluatePurchase(
       category,
       approver: seg.approver,
       message:
-        seg.approver === "self"
+        seg.approver === "shopper"
           ? `${label} purchases ${range} are yours to approve.`
-          : `${label} purchases ${range} go to ${contactName} for review.`,
+          : `${label} purchases ${range} go to ${reviewerName} for review.`,
     });
 
-    if (seg.approver === "self" && rule.weeklySelfLimitCents !== null) {
+    if (seg.approver === "shopper" && rule.weeklyShopperLimitCents !== null) {
       const spent = weeklySpent(history, category, now);
-      if (spent + facts.amountCents > rule.weeklySelfLimitCents) {
+      if (spent + facts.amountCents > rule.weeklyShopperLimitCents) {
         reasons.push({
           code: "weekly_limit",
           category,
-          approver: "trusted_contact",
-          message: `This would bring ${label} spending this week to ${formatCents(spent + facts.amountCents)}, over your ${formatCents(rule.weeklySelfLimitCents)} weekly limit, so ${contactName} reviews it.`,
+          approver: "reviewer",
+          message: `This would bring ${label} spending this week to ${formatCents(spent + facts.amountCents)}, over your ${formatCents(rule.weeklyShopperLimitCents)} weekly limit, so ${reviewerName} reviews it.`,
         });
       }
     }
   }
 
-  const approver = reasons.map((r) => r.approver).reduce(stricter, "self" as Approver);
+  const approver = reasons.map((r) => r.approver).reduce(stricter, "shopper" as Approver);
   const relevant = reasons.filter((r) => r.approver === approver);
   return { approver, reasons: relevant };
 }

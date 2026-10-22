@@ -33,17 +33,17 @@ describe("rule gaps", () => {
       categories: {
         general: {
           bands: [
-            { minCents: 0, maxCents: 7500, approver: "self" },
-            { minCents: 15000, maxCents: null, approver: "trusted_contact" },
+            { minCents: 0, maxCents: 7500, approver: "shopper" },
+            { minCents: 15000, maxCents: null, approver: "reviewer" },
           ],
-          weeklySelfLimitCents: null,
+          weeklyShopperLimitCents: null,
         },
       },
     };
     expect(findRuleIssues(rules)).toEqual([{ kind: "gap", category: "general", minCents: 7500, maxCents: 15000 }]);
 
     const decision = evaluatePurchase(rules, { amountCents: 10000, categories: ["general"] }, [], { now: NOW });
-    expect(decision.approver).toBe("trusted_contact");
+    expect(decision.approver).toBe("reviewer");
     expect(decision.reasons[0].code).toBe("undefined_range");
   });
 
@@ -58,15 +58,15 @@ describe("rule gaps", () => {
       categories: {
         general: {
           bands: [
-            { minCents: 0, maxCents: 10000, approver: "self" },
-            { minCents: 5000, maxCents: null, approver: "trusted_contact" },
+            { minCents: 0, maxCents: 10000, approver: "shopper" },
+            { minCents: 5000, maxCents: null, approver: "reviewer" },
           ],
-          weeklySelfLimitCents: null,
+          weeklyShopperLimitCents: null,
         },
       },
     };
     expect(findRuleIssues(rules)).toEqual([{ kind: "conflict", category: "general", minCents: 5000, maxCents: 10000 }]);
-    expect(evaluatePurchase(rules, { amountCents: 6000, categories: ["general"] }).approver).toBe("trusted_contact");
+    expect(evaluatePurchase(rules, { amountCents: 6000, categories: ["general"] }).approver).toBe("reviewer");
   });
 
   it("demo rules have no issues", () => {
@@ -76,36 +76,36 @@ describe("rule gaps", () => {
 
 describe("evaluatePurchase", () => {
   const evalAt = (amountCents: number, categories: HistoryEntry["categories"], history: HistoryEntry[] = []) =>
-    evaluatePurchase(DEMO_RULES, { amountCents, categories }, history, { now: NOW, contactName: "Sarah" });
+    evaluatePurchase(DEMO_RULES, { amountCents, categories }, history, { now: NOW, reviewerName: "Sarah" });
 
   it("applies per-category thresholds at the boundary", () => {
-    expect(evalAt(9999, ["medical_device"]).approver).toBe("self");
-    expect(evalAt(10000, ["medical_device"]).approver).toBe("trusted_contact");
-    expect(evalAt(7999, ["clothing"]).approver).toBe("self");
-    expect(evalAt(8000, ["clothing"]).approver).toBe("trusted_contact");
+    expect(evalAt(9999, ["medical_device"]).approver).toBe("shopper");
+    expect(evalAt(10000, ["medical_device"]).approver).toBe("reviewer");
+    expect(evalAt(7999, ["clothing"]).approver).toBe("shopper");
+    expect(evalAt(8000, ["clothing"]).approver).toBe("reviewer");
   });
 
   it("explains a $149 medical device going to Sarah", () => {
     const d = evalAt(14900, ["medical_device"]);
-    expect(d.approver).toBe("trusted_contact");
+    expect(d.approver).toBe("reviewer");
     expect(d.reasons[0].message).toBe("Medical Device purchases of $100.00 and up go to Sarah for review.");
   });
 
   it("falls back to General Shopping for categories without a rule", () => {
-    expect(evalAt(7000, ["food"]).approver).toBe("self");
-    expect(evalAt(7500, ["food"]).approver).toBe("trusted_contact");
+    expect(evalAt(7000, ["food"]).approver).toBe("shopper");
+    expect(evalAt(7500, ["food"]).approver).toBe("reviewer");
   });
 
   it("takes the strictest rule when several categories apply", () => {
     // $78 is under clothing's $80 but over general's $75.
-    expect(evalAt(7800, ["clothing"]).approver).toBe("self");
-    expect(evalAt(7800, ["clothing", "general"]).approver).toBe("trusted_contact");
+    expect(evalAt(7800, ["clothing"]).approver).toBe("shopper");
+    expect(evalAt(7800, ["clothing", "general"]).approver).toBe("reviewer");
   });
 
   it("sends anything recurring to review, even with no subscription rule", () => {
     const noSubRule: RuleSet = { categories: { general: DEMO_RULES.categories.general! } };
     const d = evaluatePurchase(noSubRule, { amountCents: 500, categories: ["general", "subscription"] });
-    expect(d.approver).toBe("trusted_contact");
+    expect(d.approver).toBe("reviewer");
   });
 
   it("stops two $70 purchases from slipping under a $100 weekly limit", () => {
@@ -113,15 +113,15 @@ describe("evaluatePurchase", () => {
       { at: hoursFrom(NOW, -48).toISOString(), categories: ["medical_device"], amountCents: 7000, status: "captured" },
     ];
     const d = evalAt(7000, ["medical_device"], history);
-    expect(d.approver).toBe("trusted_contact");
+    expect(d.approver).toBe("reviewer");
     expect(d.reasons[0].code).toBe("weekly_limit");
   });
 
   it("counts pending purchases toward the weekly limit but not voided or old ones", () => {
     const at = (h: number) => hoursFrom(NOW, h).toISOString();
-    expect(evalAt(7000, ["medical_device"], [{ at: at(-1), categories: ["medical_device"], amountCents: 7000, status: "pending_review" }]).approver).toBe("trusted_contact");
-    expect(evalAt(7000, ["medical_device"], [{ at: at(-1), categories: ["medical_device"], amountCents: 7000, status: "voided" }]).approver).toBe("self");
-    expect(evalAt(7000, ["medical_device"], [{ at: at(-24 * 8), categories: ["medical_device"], amountCents: 7000, status: "captured" }]).approver).toBe("self");
+    expect(evalAt(7000, ["medical_device"], [{ at: at(-1), categories: ["medical_device"], amountCents: 7000, status: "pending_review" }]).approver).toBe("reviewer");
+    expect(evalAt(7000, ["medical_device"], [{ at: at(-1), categories: ["medical_device"], amountCents: 7000, status: "voided" }]).approver).toBe("shopper");
+    expect(evalAt(7000, ["medical_device"], [{ at: at(-24 * 8), categories: ["medical_device"], amountCents: 7000, status: "captured" }]).approver).toBe("shopper");
   });
 });
 
@@ -144,7 +144,7 @@ describe("resolveCategory", () => {
     expect(r.basis).toBe("ambiguous");
     expect(r.categories).toEqual(["clothing", "general"]);
     // $78 is under clothing's $80 but over general's $75, so it goes to review.
-    expect(evaluatePurchase(DEMO_RULES, { amountCents: 7800, categories: r.categories }).approver).toBe("trusted_contact");
+    expect(evaluatePurchase(DEMO_RULES, { amountCents: 7800, categories: r.categories }).approver).toBe("reviewer");
   });
 
   it("adds the subscription rule when recurring is yes or uncertain", () => {
@@ -159,33 +159,57 @@ describe("rule changes", () => {
       ...DEMO_RULES.categories,
       medical_device: {
         bands: [
-          { minCents: 0, maxCents, approver: "self" },
-          { minCents: maxCents, maxCents: null, approver: "trusted_contact" },
+          { minCents: 0, maxCents, approver: "shopper" },
+          { minCents: maxCents, maxCents: null, approver: "reviewer" },
         ],
-        weeklySelfLimitCents: null,
+        weeklyShopperLimitCents: null,
       },
     },
   });
-  const start: RulesState = { rules: withMedicalLimit(15000), pending: null };
+  // Elderly parent: Mom owns her rules, Sarah reviews.
+  const start: RulesState = { owner: "shopper", rules: withMedicalLimit(15000), pending: null };
+  // Kids: the parent owns the rules and reviews.
+  const kid: RulesState = { ...start, owner: "reviewer" };
+  const approverFor = (s: RulesState, at: Date, amountCents = 30000) =>
+    evaluatePurchase(activeRules(s, at), { amountCents, categories: ["medical_device"] }).approver;
+  const ok = (r: ReturnType<typeof requestRuleChange>) => {
+    if (!r.ok) throw new Error(r.message);
+    return r;
+  };
 
-  it("applies tightening immediately", () => {
-    const { state, summary, notifyContact } = requestRuleChange(start, withMedicalLimit(10000), NOW);
-    expect(summary.kind).toBe("tighten");
-    expect(notifyContact).toBe(false);
-    expect(state.pending).toBeNull();
-    expect(evaluatePurchase(activeRules(state, NOW), { amountCents: 12000, categories: ["medical_device"] }).approver).toBe("trusted_contact");
+  it("applies tightening immediately, whoever asks", () => {
+    for (const [state, by] of [[start, "shopper"], [kid, "shopper"], [kid, "reviewer"]] as const) {
+      const r = ok(requestRuleChange(state, withMedicalLimit(10000), by, NOW));
+      expect(r.summary.kind).toBe("tighten");
+      expect(r.notify).toBeNull();
+      expect(approverFor(r.state, NOW, 12000)).toBe("reviewer");
+    }
   });
 
-  it("holds a loosening for 24 hours unless Sarah approves", () => {
-    const { state, summary, notifyContact } = requestRuleChange(start, withMedicalLimit(50000), NOW);
+  it("holds Mom's loosening for 24 hours unless Sarah approves", () => {
+    const { state, summary, notify } = ok(requestRuleChange(start, withMedicalLimit(50000), "shopper", NOW));
     expect(summary.kind).toBe("loosen");
-    expect(notifyContact).toBe(true);
-    const check = (s: RulesState, at: Date) =>
-      evaluatePurchase(activeRules(s, at), { amountCents: 30000, categories: ["medical_device"] }).approver;
+    expect(notify).toBe("reviewer");
 
-    expect(check(state, hoursFrom(NOW, 23))).toBe("trusted_contact");
-    expect(check(state, hoursFrom(NOW, 24))).toBe("self"); // Sarah can't block it forever
-    expect(check(approvePendingChange(state, hoursFrom(NOW, 1)), hoursFrom(NOW, 1))).toBe("self");
+    expect(approverFor(state, hoursFrom(NOW, 23))).toBe("reviewer");
+    expect(approverFor(state, hoursFrom(NOW, 24))).toBe("shopper"); // Sarah can't block it forever
+    expect(approverFor(approvePendingChange(state, hoursFrom(NOW, 1)), hoursFrom(NOW, 1))).toBe("shopper");
+  });
+
+  it("doesn't let Sarah loosen Mom's rules", () => {
+    expect(requestRuleChange(start, withMedicalLimit(50000), "reviewer", NOW).ok).toBe(false);
+  });
+
+  it("applies a parent's loosening at once", () => {
+    const { state } = ok(requestRuleChange(kid, withMedicalLimit(50000), "reviewer", NOW));
+    expect(approverFor(state, NOW)).toBe("shopper");
+  });
+
+  it("makes a child's loosening wait for the parent, with no time-out", () => {
+    const { state, notify } = ok(requestRuleChange(kid, withMedicalLimit(50000), "shopper", NOW));
+    expect(notify).toBe("reviewer");
+    expect(approverFor(state, hoursFrom(NOW, 24 * 30))).toBe("reviewer");
+    expect(approverFor(approvePendingChange(state, NOW), NOW)).toBe("shopper");
   });
 
   it("applies the tightening half of a mixed change now and the loosening half later", () => {
@@ -194,23 +218,23 @@ describe("rule changes", () => {
         ...withMedicalLimit(50000).categories,
         clothing: {
           bands: [
-            { minCents: 0, maxCents: 5000, approver: "self" },
-            { minCents: 5000, maxCents: null, approver: "trusted_contact" },
+            { minCents: 0, maxCents: 5000, approver: "shopper" },
+            { minCents: 5000, maxCents: null, approver: "reviewer" },
           ],
-          weeklySelfLimitCents: null,
+          weeklyShopperLimitCents: null,
         },
       },
     };
-    const { state, summary } = requestRuleChange(start, proposed, NOW);
+    const { state, summary } = ok(requestRuleChange(start, proposed, "shopper", NOW));
     expect(summary.kind).toBe("mixed");
     const now = activeRules(state, hoursFrom(NOW, 1));
-    expect(evaluatePurchase(now, { amountCents: 6000, categories: ["clothing"] }).approver).toBe("trusted_contact");
-    expect(evaluatePurchase(now, { amountCents: 30000, categories: ["medical_device"] }).approver).toBe("trusted_contact");
+    expect(evaluatePurchase(now, { amountCents: 6000, categories: ["clothing"] }).approver).toBe("reviewer");
+    expect(evaluatePurchase(now, { amountCents: 30000, categories: ["medical_device"] }).approver).toBe("reviewer");
   });
 
   it("treats removing a weekly limit as loosening", () => {
     const noLimit: RuleSet = {
-      categories: { ...DEMO_RULES.categories, medical_device: { ...DEMO_RULES.categories.medical_device!, weeklySelfLimitCents: null } },
+      categories: { ...DEMO_RULES.categories, medical_device: { ...DEMO_RULES.categories.medical_device!, weeklyShopperLimitCents: null } },
     };
     expect(summarizeChange(DEMO_RULES, noLimit).kind).toBe("loosen");
   });

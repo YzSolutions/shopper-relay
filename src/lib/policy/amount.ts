@@ -6,7 +6,7 @@ export type AmountCheck =
 
 /**
  * PayPal's authorized amount is the only figure that counts. If it differs by
- * even a cent from what the owner reviewed, stop and re-review.
+ * even a cent from what the shopper reviewed, stop and re-review.
  */
 export function checkPayPalAmount(
   reviewedCents: number,

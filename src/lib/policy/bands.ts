@@ -1,6 +1,6 @@
 import type { AmountBand, Approver } from "./types";
 
-const RANK: Record<Approver, number> = { self: 0, trusted_contact: 1 };
+const RANK: Record<Approver, number> = { shopper: 0, reviewer: 1 };
 
 export function stricter(a: Approver, b: Approver): Approver {
   return RANK[a] >= RANK[b] ? a : b;
@@ -58,7 +58,7 @@ function mergeAdjacent<T extends { minCents: number; maxCents: number | null }>(
 /**
  * Split [0, ∞) into pieces and say who approves each one. Gaps (no band) and
  * conflicts (bands disagree) are reported; a conflict resolves to the stricter
- * approver, and a gap has no approver until the owner fills it in.
+ * approver, and a gap has no approver until the rule owner fills it in.
  */
 export function segment(bands: AmountBand[]): { segments: Segment[]; issues: BandIssue[] } {
   const segments: Segment[] = [];
@@ -88,7 +88,7 @@ export function segmentAt(bands: AmountBand[], cents: number): Segment {
 
 /** Who approves this amount, treating an undefined range as needing review. */
 export function approverAt(bands: AmountBand[], cents: number): Approver {
-  return segmentAt(bands, cents).approver ?? "trusted_contact";
+  return segmentAt(bands, cents).approver ?? "reviewer";
 }
 
 /** Pointwise-strictest combination of two band sets, with no gaps. */
@@ -101,14 +101,14 @@ export function strictestBands(a: AmountBand[], b: AmountBand[]): AmountBand[] {
   return mergeAdjacent(out, (x, y) => x.approver === y.approver);
 }
 
-/** Ranges where `next` lets the owner approve alone but `prev` did not. */
+/** Ranges where `next` lets the shopper approve alone but `prev` did not. */
 export function loosenedRanges(prev: AmountBand[], next: AmountBand[]): BandIssue[] {
-  return diffRanges(prev, next, "self");
+  return diffRanges(prev, next, "shopper");
 }
 
-/** Ranges where `next` sends to review but `prev` let the owner approve alone. */
+/** Ranges where `next` sends to review but `prev` let the shopper approve alone. */
 export function tightenedRanges(prev: AmountBand[], next: AmountBand[]): BandIssue[] {
-  return diffRanges(prev, next, "trusted_contact");
+  return diffRanges(prev, next, "reviewer");
 }
 
 function diffRanges(prev: AmountBand[], next: AmountBand[], becomes: Approver): BandIssue[] {

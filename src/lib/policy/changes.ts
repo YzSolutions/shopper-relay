@@ -1,8 +1,8 @@
 import { loosenedRanges, tightenedRanges, type BandIssue } from "./bands";
 import { effectiveRule, strictestRuleSet } from "./rules";
-import { CATEGORY_IDS, type CategoryId, type RuleSet } from "./types";
+import { CATEGORY_IDS, type Approver, type CategoryId, type RuleSet } from "./types";
 
-/** How long a loosening waits if the trusted contact doesn't approve it sooner. */
+/** How long a shopper's loosening waits if the reviewer doesn't approve it sooner. */
 export const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
 
 export interface CategoryChange {
@@ -34,7 +34,7 @@ export function summarizeChange(prev: RuleSet, next: RuleSet): ChangeSummary {
       category,
       loosened: loosenedRanges(a.bands, b.bands),
       tightened: tightenedRanges(a.bands, b.bands),
-      weeklyLimit: compareLimits(a.weeklySelfLimitCents, b.weeklySelfLimitCents),
+      weeklyLimit: compareLimits(a.weeklyShopperLimitCents, b.weeklyShopperLimitCents),
     };
     if (change.loosened.length || change.tightened.length || change.weeklyLimit !== "same") changes.push(change);
   }
@@ -46,63 +46,90 @@ export function summarizeChange(prev: RuleSet, next: RuleSet): ChangeSummary {
 
 export interface PendingChange {
   proposed: RuleSet;
+  requestedBy: Approver;
   requestedAt: string;
-  /** When the change applies on its own if the contact never responds. */
-  effectiveAt: string;
-  contactApprovedAt: string | null;
+  /** When the change applies on its own; null means it waits for approval. */
+  autoActivateAt: string | null;
+  approvedAt: string | null;
 }
 
-/** The owner's rules plus any loosening still in its cooling-off period. */
+/** The current rules plus any loosening that hasn't taken effect yet. */
 export interface RulesState {
+  /**
+   * Whose rules these are. "shopper" for a parent who sets their own
+   * safeguards; "reviewer" for a parent of a child, or a customer who sets
+   * what their personal shopper may buy without asking.
+   */
+  owner: Approver;
   rules: RuleSet;
   pending: PendingChange | null;
 }
 
+export type ChangeResult =
+  | { ok: true; state: RulesState; summary: ChangeSummary; notify: Approver | null }
+  | { ok: false; summary: ChangeSummary; message: string };
+
 /**
- * The owner asks for new rules. Tightening applies at once. Anything that
- * loosens a safeguard waits: the contact is notified and can approve it
- * early, and otherwise it applies by itself after the cooling-off period.
- * The contact can never block the owner's change, only speed it up.
+ * Someone asks for new rules. Tightening always applies at once. Loosening
+ * depends on who asks:
+ * - The owner, when the owner is the reviewer: applies at once.
+ * - The owner, when the owner is the shopper: the reviewer is notified and
+ *   can approve it early; otherwise it applies by itself after the
+ *   cooling-off period. The reviewer can speed it up, never block it.
+ * - The shopper, when the reviewer owns the rules: waits for the reviewer.
+ * The reviewer can't loosen rules the shopper owns.
  */
 export function requestRuleChange(
   state: RulesState,
   proposed: RuleSet,
+  requestedBy: Approver,
   now = new Date(),
-): { state: RulesState; summary: ChangeSummary; notifyContact: boolean } {
-  const current = settle(state, now).rules;
-  const summary = summarizeChange(current, proposed);
-  if (summary.kind === "none" || summary.kind === "tighten") {
-    return { state: { rules: proposed, pending: null }, summary, notifyContact: false };
+): ChangeResult {
+  const current = settle(state, now);
+  const summary = summarizeChange(current.rules, proposed);
+  const isOwner = requestedBy === current.owner;
+
+  if (summary.kind === "none" || summary.kind === "tighten" || (isOwner && current.owner === "reviewer")) {
+    return { ok: true, state: { ...current, rules: proposed, pending: null }, summary, notify: null };
   }
+  if (!isOwner && requestedBy === "reviewer") {
+    return { ok: false, summary, message: "Only the shopper can loosen their own safeguards." };
+  }
+  const coolingOff = isOwner; // shopper loosening their own rules
   return {
+    ok: true,
     state: {
-      rules: current,
+      ...current,
       pending: {
         proposed,
+        requestedBy,
         requestedAt: now.toISOString(),
-        effectiveAt: new Date(now.getTime() + COOLING_OFF_MS).toISOString(),
-        contactApprovedAt: null,
+        autoActivateAt: coolingOff ? new Date(now.getTime() + COOLING_OFF_MS).toISOString() : null,
+        approvedAt: null,
       },
     },
     summary,
-    notifyContact: true,
+    notify: "reviewer",
   };
 }
 
+/** The reviewer approves a pending change, so it applies now. */
 export function approvePendingChange(state: RulesState, now = new Date()): RulesState {
   if (!state.pending) return state;
-  return settle({ ...state, pending: { ...state.pending, contactApprovedAt: now.toISOString() } }, now);
+  return settle({ ...state, pending: { ...state.pending, approvedAt: now.toISOString() } }, now);
 }
 
-export function withdrawPendingChange(state: RulesState): RulesState {
-  return { rules: state.rules, pending: null };
+/** The requester withdraws it, or the reviewer turns down a shopper's request. */
+export function dropPendingChange(state: RulesState): RulesState {
+  return { ...state, pending: null };
 }
 
 /** Apply a pending change once it's approved or its time has come. */
 export function settle(state: RulesState, now = new Date()): RulesState {
   const p = state.pending;
-  if (p && (p.contactApprovedAt !== null || now.getTime() >= Date.parse(p.effectiveAt))) {
-    return { rules: p.proposed, pending: null };
+  const due = p?.autoActivateAt != null && now.getTime() >= Date.parse(p.autoActivateAt);
+  if (p && (p.approvedAt !== null || due)) {
+    return { ...state, rules: p.proposed, pending: null };
   }
   return state;
 }

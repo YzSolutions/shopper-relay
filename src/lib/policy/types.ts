@@ -20,25 +20,25 @@ export const CATEGORY_LABELS: Record<CategoryId, string> = {
   medical_visit: "Medical Visit",
 };
 
-/** Who signs off on a purchase. "self" is the account owner (Mom). */
-export type Approver = "self" | "trusted_contact";
+/** Who signs off on a purchase. "shopper" is whoever found the item (Mom, a child, a personal shopper); "reviewer" is who signs off when the rules say so. */
+export type Approver = "shopper" | "reviewer";
 
 export const AmountBandSchema = z.object({
   /** Inclusive lower bound in cents. */
   minCents: z.number().int().nonnegative(),
   /** Exclusive upper bound in cents; null means "and up". */
   maxCents: z.number().int().positive().nullable(),
-  approver: z.enum(["self", "trusted_contact"]),
+  approver: z.enum(["shopper", "reviewer"]),
 });
 export type AmountBand = z.infer<typeof AmountBandSchema>;
 
 export const CategoryRuleSchema = z.object({
   bands: z.array(AmountBandSchema),
   /**
-   * Rolling 7-day cap on what the owner can approve alone in this category.
-   * Once it would be exceeded, the purchase goes to the trusted contact.
+   * Rolling 7-day cap on what the shopper can approve alone in this category.
+   * Once it would be exceeded, the purchase goes to the reviewer.
    */
-  weeklySelfLimitCents: z.number().int().positive().nullable(),
+  weeklyShopperLimitCents: z.number().int().positive().nullable(),
 });
 export type CategoryRule = z.infer<typeof CategoryRuleSchema>;
 

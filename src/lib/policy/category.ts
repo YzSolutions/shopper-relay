@@ -24,7 +24,7 @@ export interface CategoryEvidence {
 export interface CategoryResolution {
   /** Every category whose rule applies; the policy engine takes the strictest. */
   categories: CategoryId[];
-  /** The one shown to the owner as "Counted as". */
+  /** The one shown as "Counted as". */
   primary: CategoryId;
   basis: "catalog" | "ai" | "ambiguous";
   note: string;
