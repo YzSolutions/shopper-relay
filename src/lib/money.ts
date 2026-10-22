@@ -9,6 +9,12 @@ export function parseToCents(value: string): number {
   return minus ? -cents : cents;
 }
 
+/** Catalog prices that arrive as JSON numbers (Channel3 sends 69.49). Rounded once, at the edge. */
+export function numberToCents(value: number): number {
+  if (!Number.isFinite(value)) throw new Error(`Not a money amount: ${value}`);
+  return Math.round(value * 100);
+}
+
 /** Cents to the decimal string PayPal expects, e.g. 17900 -> "179.00". */
 export function centsToDecimal(cents: number): string {
   const sign = cents < 0 ? "-" : "";

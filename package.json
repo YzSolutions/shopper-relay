@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "paypal:check": "tsx scripts/paypal-sandbox-check.ts"
+    "paypal:check": "tsx scripts/paypal-sandbox-check.ts",
+    "channel3:check": "tsx scripts/channel3-check.ts",
+    "gemini:check": "tsx scripts/gemini-check.ts"
   },
   "dependencies": {
     "@channel3/sdk": "^4.4.1",

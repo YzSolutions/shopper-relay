@@ -68,6 +68,8 @@ cp .env.example .env.local   # fill in keys
 npm test                     # policy engine tests
 npm run paypal:check         # sandbox: authorize then capture
 npm run paypal:check -- --void
+npm run channel3:check -- "winter coat"   # product search, and how each result is categorized
+npm run gemini:check         # models your key can use, and a structured-output test
 npm run dev
 ```
 
