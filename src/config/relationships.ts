@@ -1,28 +1,20 @@
-import {
-  FAMILY_ELDER_RULES,
-  PARENT_CHILD_RULES,
-  PERSONAL_SHOPPER_RULES,
-  type Role,
-  type RuleSet,
-} from "@/lib/policy";
+import { FAMILY_ELDER_RULES, PARENT_CHILD_RULES, PERSONAL_SHOPPER_RULES, type Role, type RuleSet } from "@/lib/policy";
+import type { Flow } from "@/lib/purchases/lifecycle";
 
 // One engine, three relationships. What differs is who finds products, whose
-// rules they are, and whether the person shopping can ever buy on their own.
+// rules they are, who pays, and the words each person sees.
 
-export type RelationshipId = "family_elder" | "parent_child" | "personal_shopper";
+export const RELATIONSHIP_IDS = ["family_elder", "parent_child", "personal_shopper"] as const;
+export type RelationshipId = (typeof RELATIONSHIP_IDS)[number];
 
-/**
- * How a purchase can complete without a second person:
- * - self: the shopper pays with their own PayPal, within their own rules.
- * - none: someone else always approves and pays.
- * - delegated: the shopper buys on the customer's behalf within limits the
- *   customer granted. Needs a saved, customer-authorized PayPal payment
- *   method; not built for the hackathon and not yet validated with PayPal.
- */
-export type AutoPurchase = "self" | "none" | "delegated";
+export function isRelationshipId(v: unknown): v is RelationshipId {
+  return typeof v === "string" && (RELATIONSHIP_IDS as readonly string[]).includes(v);
+}
 
 export interface Relationship {
   id: RelationshipId;
+  /** Short name for tabs. */
+  tab: string;
   title: string;
   summary: string;
   /** Who keeps the final say over money. */
@@ -32,54 +24,96 @@ export interface Relationship {
   ruleOwner: Role;
   /** Who pays; their PayPal account is charged. */
   payer: Role;
-  autoPurchase: AutoPurchase;
+  /**
+   * hold: the shopper pays; PayPal holds it while the reviewer looks.
+   * request: the shopper asks; the reviewer approves and pays.
+   */
+  flow: Flow;
+  /** Whether the reviewer can grant a One-Time Purchase Authorization. */
+  otpa: boolean;
   defaultRules: RuleSet;
-  /** Only the elder preset is a working end-to-end flow in the hackathon build. */
-  implemented: boolean;
+  /** Words on the shopper's screens. */
+  words: {
+    shopHeading: string;
+    placeholder: string;
+    suggestions: string[];
+    /** The button on a result: "Choose this", "Ask Dana". */
+    choose: (reviewer: string) => string;
+    /** Sent from the purchase page in the request flow. */
+    sendRequest: (reviewer: string) => string;
+  };
 }
 
 export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
   family_elder: {
     id: "family_elder",
+    tab: "Mom + Sarah",
     title: "Elderly parent + adult child",
-    summary: "Mom shops independently. Sarah reviews purchases when Mom's own rules call for it.",
+    summary: "Mom shops on her own. Sarah takes a look only when Mom's own rules say so.",
     controlNote: "Mom keeps control of her money.",
     shopper: { role: "Parent", demoName: "Mom" },
     reviewer: { role: "Trusted contact", demoName: "Sarah" },
     ruleOwner: "shopper",
     payer: "shopper",
-    autoPurchase: "self",
+    flow: "hold",
+    otpa: false,
     defaultRules: FAMILY_ELDER_RULES,
-    implemented: true,
+    words: {
+      shopHeading: "What are you shopping for?",
+      placeholder: "For example, a blood pressure monitor",
+      suggestions: ["Blood pressure monitor", "Winter coat", "Reading glasses", "Walking shoes"],
+      choose: () => "Choose this",
+      sendRequest: () => "Pay with PayPal",
+    },
   },
   parent_child: {
     id: "parent_child",
+    tab: "Kids + parent",
     title: "Kids + parents",
-    summary: "A child browses, compares and requests. A parent approves or declines every purchase, within weekly and monthly budgets.",
-    controlNote: "The parent controls spending and payment. No child PayPal account is assumed.",
+    summary: "Leo finds things and asks. Dana approves and pays, or says no. Weekly and monthly budgets keep it in check.",
+    controlNote: "The parent controls spending and payment. Leo never needs a parent's PayPal login.",
     shopper: { role: "Child", demoName: "Leo" },
     reviewer: { role: "Parent", demoName: "Dana" },
     ruleOwner: "reviewer",
     payer: "reviewer",
-    autoPurchase: "none",
+    flow: "request",
+    otpa: false,
     defaultRules: PARENT_CHILD_RULES,
-    implemented: false,
+    words: {
+      shopHeading: "What would you like?",
+      placeholder: "For example, a Lego set",
+      suggestions: ["Lego set", "Kids book", "Art supplies", "Video game controller"],
+      choose: (r) => `Ask ${r}`,
+      sendRequest: (r) => `Send to ${r}`,
+    },
   },
   personal_shopper: {
     id: "personal_shopper",
+    tab: "Personal shopper",
     title: "Personal shopper + customer",
-    summary: "A trusted shopper finds deals and can buy right away within the customer's limits. Anything over goes to the customer.",
-    controlNote: "The customer sets the shopper's authority and can revoke it.",
+    summary: "Priya finds things Marcus will like. Marcus approves and pays, or lets her buy one exact item once, at his price.",
+    controlNote: "The customer makes every buying decision. A one-time authorization is for one product, once.",
     shopper: { role: "Personal shopper", demoName: "Priya" },
     reviewer: { role: "Customer", demoName: "Marcus" },
     ruleOwner: "reviewer",
     payer: "reviewer",
-    autoPurchase: "delegated",
+    flow: "request",
+    otpa: true,
     defaultRules: PERSONAL_SHOPPER_RULES,
-    implemented: false,
+    words: {
+      shopHeading: "What are you finding for Marcus?",
+      placeholder: "For example, running shoes",
+      suggestions: ["Running shoes", "Leather jacket", "Wireless headphones", "Blood pressure monitor"],
+      choose: (r) => `Request for ${r}`,
+      sendRequest: (r) => `Send to ${r}`,
+    },
   },
 };
 
-/** The hackathon demo tells the elderly parent story. */
-export const DEMO_RELATIONSHIP: RelationshipId =
-  (process.env.NEXT_PUBLIC_DEMO_RELATIONSHIP as RelationshipId | undefined) ?? "family_elder";
+/** The relationship a fresh visitor sees. */
+export const DEMO_RELATIONSHIP: RelationshipId = isRelationshipId(process.env.NEXT_PUBLIC_DEMO_RELATIONSHIP)
+  ? process.env.NEXT_PUBLIC_DEMO_RELATIONSHIP
+  : "family_elder";
+
+/** The cookie that remembers which relationship the demo is showing. */
+export const MODE_COOKIE = "sr_mode";

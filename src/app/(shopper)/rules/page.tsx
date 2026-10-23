@@ -6,8 +6,12 @@ import { Button, ErrorNotice, Notice, PageTitle, Spinner } from "@/components/ui
 import { api, ApiError, type ParsedRules } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
-const EXAMPLE =
-  "I can buy clothes under $80 and medical devices under $100 on my own. Anything else under $75. Above that, Sarah takes a look. Any subscription goes to Sarah.";
+const EXAMPLES: Record<string, string> = {
+  family_elder:
+    "I can buy clothes under $80 and medical devices under $100 on my own. Anything else under $75. Above that, Sarah takes a look. Any subscription goes to Sarah. Video games go to Dad, Tom.",
+  parent_child: "Leo can ask for toys up to $15 and books up to $20. Anything over that is an exception. No more than $30 a week. Video games go to Dad, Tom.",
+  personal_shopper: "Clothing budget $200, shoes and handbags $150, electronics $400. Anything over budget is an exception. Watches budget $300.",
+};
 
 export default function RulesPage() {
   const { session, error: loadError, reload } = useSession();
@@ -20,7 +24,12 @@ export default function RulesPage() {
 
   if (!session) return loadError ? <ErrorNotice error={loadError} /> : <Spinner label="Loading your rules…" />;
   const reviewer = session.household.reviewerName;
+  const shopper = session.household.shopperName;
   const pending = session.pending;
+  const flow = session.relationship.flow;
+  // Whose rules: Mom's own, or the parent's / customer's (the shopper can only ask).
+  const shopperOwns = session.owner === "shopper";
+  const EXAMPLE = EXAMPLES[session.household.relationship] ?? EXAMPLES.family_elder;
 
   async function read() {
     setBusy("read");
@@ -35,12 +44,12 @@ export default function RulesPage() {
     }
   }
 
-  async function save() {
+  async function save(by: "shopper" | "reviewer") {
     if (!parsed) return;
     setBusy("save");
     setError(null);
     try {
-      const res = await api<{ message: string }>("/api/rules", { method: "POST", json: { rules: parsed.rules, by: "shopper" } });
+      const res = await api<{ message: string }>("/api/rules", { method: "POST", json: { rules: parsed.rules, by } });
       setSaved(res.message);
       setParsed(null);
       setText("");
@@ -57,8 +66,8 @@ export default function RulesPage() {
     setBusy("pending");
     setError(null);
     try {
-      await api("/api/rules/pending", { method: "POST", json: { action: "drop", by: "shopper" } });
-      setSaved("You withdrew the change. Your current rules stay as they are.");
+      await api("/api/rules/pending", { method: "POST", json: { action: "drop", by: pending?.requestedBy ?? "shopper" } });
+      setSaved("The change was withdrawn. The current rules stay as they are.");
       await reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -72,9 +81,13 @@ export default function RulesPage() {
   return (
     <div className="max-w-4xl space-y-12">
       <PageTitle
-        lead={`You decide when ${reviewer} takes a look. A stricter rule works right away. If you loosen one, ${reviewer} is told, and it starts after 24 hours unless ${reviewer} says yes sooner.`}
+        lead={
+          shopperOwns
+            ? `You decide when ${reviewer} takes a look. A stricter rule works right away. If you loosen one, or change who reviews something, ${reviewer} is told, and it starts after 24 hours unless ${reviewer} says yes sooner.`
+            : `${reviewer} sets these rules for ${shopper}. ${reviewer}'s changes apply right away. ${shopper} can ask for a change; it waits for ${reviewer}.`
+        }
       >
-        My rules
+        {shopperOwns ? "My rules" : `${reviewer}'s rules for ${shopper}`}
       </PageTitle>
 
       {saved && <Notice tone="ledger">{saved}</Notice>}
@@ -82,7 +95,7 @@ export default function RulesPage() {
       {pending && (
         <Notice tone="signal" title="A change is waiting">
           <p>
-            You loosened a safeguard. {reviewer} has been told.{" "}
+            {shopperOwns ? "You loosened a safeguard." : `${shopper} asked to loosen a rule.`} {reviewer} has been told.{" "}
             {pending.autoActivateAt
               ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}, or sooner if ${reviewer} says yes.`
               : `It starts when ${reviewer} says yes.`}{" "}
@@ -98,14 +111,14 @@ export default function RulesPage() {
 
       <section aria-labelledby="current">
         <h2 id="current" className="mb-4 text-2xl font-bold">
-          {pending ? "Rules in force right now" : "Your rules"}
+          {pending ? "Rules in force right now" : shopperOwns ? "Your rules" : "The rules"}
         </h2>
-        <RulesTable rules={session.active} reviewer={reviewer} />
+        <RulesTable rules={session.active} reviewer={reviewer} flow={flow} />
       </section>
 
       <section aria-labelledby="change" className="space-y-4">
         <h2 id="change" className="text-2xl font-bold">
-          Change your rules
+          {shopperOwns ? "Change your rules" : "Change the rules"}
         </h2>
         <p className="text-ink-soft">Write it the way you&apos;d say it. You&apos;ll see exactly what we understood before anything changes.</p>
         <label htmlFor="rules-text" className="sr-only">
@@ -128,7 +141,7 @@ export default function RulesPage() {
           </button>
           <label className="flex items-center gap-3 text-lg">
             <input type="checkbox" checked={startFresh} onChange={(e) => setStartFresh(e.target.checked)} className="size-6 accent-relay" />
-            Replace all my rules with this
+            Replace all the rules with this
           </label>
         </div>
         <ErrorNotice error={error} />
@@ -160,12 +173,23 @@ export default function RulesPage() {
               </Notice>
             )}
 
-            <RulesTable rules={parsed.rules} reviewer={reviewer} caption="Your rules after this change" />
+            <RulesTable rules={parsed.rules} reviewer={reviewer} flow={flow} caption="The rules after this change" />
 
             <div className="flex flex-wrap gap-3">
-              <Button tone="ledger" onClick={save} disabled={busy !== null || hasQuestions}>
-                {busy === "save" ? "Saving…" : "Save these rules"}
-              </Button>
+              {shopperOwns ? (
+                <Button tone="ledger" onClick={() => save("shopper")} disabled={busy !== null || hasQuestions}>
+                  {busy === "save" ? "Saving…" : "Save these rules"}
+                </Button>
+              ) : (
+                <>
+                  <Button tone="ledger" onClick={() => save("reviewer")} disabled={busy !== null || hasQuestions}>
+                    {busy === "save" ? "Saving…" : `Save as ${reviewer}`}
+                  </Button>
+                  <Button onClick={() => save("shopper")} disabled={busy !== null || hasQuestions}>
+                    {`Ask ${reviewer} (as ${shopper})`}
+                  </Button>
+                </>
+              )}
               <Button tone="quiet" onClick={() => setParsed(null)} disabled={busy !== null}>
                 Not right, start again
               </Button>

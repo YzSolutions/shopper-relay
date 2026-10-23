@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 import type { Outcome } from "@/lib/policy";
-import { CATEGORY_LABELS, type CategoryId } from "@/lib/policy/types";
+import { categoryLabel, type CategoryKey } from "@/lib/policy/types";
 
 // Small, shared pieces. Buttons are large on purpose (at least 52px tall).
 
@@ -31,16 +31,16 @@ export function Money({ cents, currency = "USD", className = "" }: { cents: numb
 }
 
 /** What happens if the shopper goes ahead, said to the shopper. */
-export function outcomeText(outcome: Outcome, reviewer: string): string {
+export function outcomeText(outcome: Outcome, reviewer: string, flow: "hold" | "request" = "hold"): string {
   switch (outcome) {
     case "auto":
-      return "You can buy this yourself";
+      return flow === "hold" ? "You can buy this yourself" : `${reviewer} decides`;
     case "review":
-      return `${reviewer} takes a look first`;
+      return flow === "hold" ? `${reviewer} takes a look first` : `${reviewer} decides`;
     case "exception":
-      return `Over your limit, so ${reviewer} decides`;
+      return flow === "hold" ? `Over your limit, so ${reviewer} decides` : `Over budget, so ${reviewer} decides`;
     case "blocked":
-      return "Not allowed by your rules";
+      return flow === "hold" ? "Not allowed by your rules" : "Not allowed";
   }
 }
 
@@ -51,20 +51,65 @@ const OUTCOME_STYLE: Record<Outcome, { dot: string; text: string }> = {
   blocked: { dot: "bg-stop", text: "text-stop" },
 };
 
-export function OutcomeLine({ outcome, reviewer, text, className = "" }: { outcome: Outcome; reviewer: string; text?: string; className?: string }) {
-  const s = OUTCOME_STYLE[outcome];
+export function OutcomeLine({
+  outcome,
+  reviewer,
+  flow = "hold",
+  text,
+  className = "",
+}: {
+  outcome: Outcome;
+  reviewer: string;
+  flow?: "hold" | "request";
+  text?: string;
+  className?: string;
+}) {
+  // In the request flow everything needs the reviewer, so only "over budget" and "not allowed" stand out.
+  const s = flow === "request" && outcome !== "exception" && outcome !== "blocked" ? { dot: "bg-relay", text: "text-relay-deep" } : OUTCOME_STYLE[outcome];
   return (
     <p className={`flex items-center gap-2.5 font-semibold ${s.text} ${className}`}>
       <span aria-hidden className={`size-3 shrink-0 rounded-full ${s.dot}`} />
-      {text ?? outcomeText(outcome, reviewer)}
+      {text ?? outcomeText(outcome, reviewer, flow)}
     </p>
   );
 }
 
-export function CountedAs({ category }: { category: CategoryId }) {
+/** Weekly and monthly budgets: what's paid, what's reserved by open requests, and what's left. */
+export function BudgetBars({ lines, title }: { lines: Array<{ label: string; period: "week" | "month"; limitCents: number; spentCents: number; reservedCents: number; leftCents: number }>; title?: string }) {
+  if (!lines.length) return null;
+  const pct = (n: number, of: number) => `${Math.min(100, (n / of) * 100)}%`;
+  return (
+    <div className="space-y-3">
+      {title && <p className="font-bold">{title}</p>}
+      {lines.map((l) => (
+        <div key={`${l.label}${l.period}`}>
+          <p className="flex flex-wrap justify-between gap-x-4">
+            <span>
+              {l.label}, {l.period === "week" ? "this week" : "this month"}
+            </span>
+            <span className="font-semibold">
+              <Money cents={l.leftCents} /> left of <Money cents={l.limitCents} />
+            </span>
+          </p>
+          <div className="mt-1 flex h-3 overflow-hidden rounded-full bg-line" aria-hidden>
+            <div className="bg-ledger" style={{ width: pct(l.spentCents, l.limitCents) }} />
+            <div className="bg-signal/70" style={{ width: pct(l.reservedCents, l.limitCents) }} />
+          </div>
+          {l.reservedCents > 0 && (
+            <p className="mt-1 text-base text-ink-soft">
+              <Money cents={l.reservedCents} /> is set aside for requests still waiting.
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function CountedAs({ category }: { category: CategoryKey }) {
   return (
     <span className="text-ink-soft">
-      Counted as <span className="font-semibold text-ink">{CATEGORY_LABELS[category]}</span>
+      Counted as <span className="font-semibold text-ink">{categoryLabel(category)}</span>
     </span>
   );
 }

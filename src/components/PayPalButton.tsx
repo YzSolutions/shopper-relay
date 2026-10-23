@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { api, type PurchaseView } from "@/lib/client/api";
 
 // PayPal's own Smart Buttons, loaded with intent=authorize: approving only
-// places a hold. Our server creates the order and decides whether to capture.
+// places a hold. Our server creates the order and decides what happens next.
 
 type PayPalNamespace = {
   Buttons: (options: {
@@ -47,22 +46,26 @@ function loadSdk(clientId: string): Promise<PayPalNamespace> {
   return sdk;
 }
 
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 export function PayPalButton({
   clientId,
-  purchaseId,
-  onDone,
+  createOrder,
+  onApprove,
   onError,
 }: {
   clientId: string;
-  purchaseId: string;
-  onDone: (purchase: PurchaseView) => void;
+  /** Ask our server for a PayPal order id to approve. */
+  createOrder: () => Promise<string>;
+  /** The payer approved in PayPal; tell our server. */
+  onApprove: (orderId: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
-  const callbacks = useRef({ onDone, onError });
+  const callbacks = useRef({ createOrder, onApprove, onError });
   useEffect(() => {
-    callbacks.current = { onDone, onError };
+    callbacks.current = { createOrder, onApprove, onError };
   });
 
   useEffect(() => {
@@ -73,25 +76,31 @@ export function PayPalButton({
         if (cancelled || !box.current) return;
         buttons = paypal.Buttons({
           style: { layout: "vertical", shape: "rect", height: 52, label: "pay" },
-          createOrder: async () => (await api<{ orderId: string }>(`/api/purchases/${purchaseId}/checkout`, { method: "POST" })).orderId,
+          createOrder: async () => {
+            try {
+              return await callbacks.current.createOrder();
+            } catch (e) {
+              callbacks.current.onError(message(e));
+              throw e;
+            }
+          },
           onApprove: async ({ orderID }) => {
             try {
-              const { purchase } = await api<{ purchase: PurchaseView }>(`/api/purchases/${purchaseId}/approve`, { method: "POST", json: { orderId: orderID } });
-              callbacks.current.onDone(purchase);
+              await callbacks.current.onApprove(orderID);
             } catch (e) {
-              callbacks.current.onError(e instanceof Error ? e.message : String(e));
+              callbacks.current.onError(message(e));
             }
           },
           onError: () => callbacks.current.onError("PayPal couldn't finish. Nothing was charged. Please try again."),
         });
         return buttons.render(box.current).then(() => !cancelled && setReady(true));
       })
-      .catch((e) => !cancelled && callbacks.current.onError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => !cancelled && callbacks.current.onError(message(e)));
     return () => {
       cancelled = true;
       void buttons?.close?.().catch(() => undefined);
     };
-  }, [clientId, purchaseId]);
+  }, [clientId]);
 
   return (
     <div className="max-w-md">

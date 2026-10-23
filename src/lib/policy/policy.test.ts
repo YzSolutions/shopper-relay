@@ -12,7 +12,7 @@ import {
   requestRuleChange,
   resolveCategory,
   summarizeChange,
-  type CategoryId,
+  type CategoryKey,
   type HistoryEntry,
   type RuleSet,
   type RulesState,
@@ -21,14 +21,14 @@ import {
 const NOW = new Date("2026-11-01T12:00:00Z");
 const hoursFrom = (d: Date, h: number) => new Date(d.getTime() + h * 3600_000);
 const daysAgo = (d: number) => hoursFrom(NOW, -24 * d).toISOString();
-const bought = (amountCents: number, categories: CategoryId[], at = daysAgo(1)): HistoryEntry => ({
+const bought = (amountCents: number, categories: CategoryKey[], at = daysAgo(1)): HistoryEntry => ({
   at,
   categories,
   amountCents,
   status: "captured",
 });
 
-function judge(rules: RuleSet, amountCents: number, categories: CategoryId[], history: HistoryEntry[] = []) {
+function judge(rules: RuleSet, amountCents: number, categories: CategoryKey[], history: HistoryEntry[] = []) {
   return evaluatePurchase(rules, { amountCents, categories }, history, { now: NOW, shopperName: "Mom", reviewerName: "Sarah" });
 }
 
@@ -96,7 +96,7 @@ describe("rule gaps", () => {
 });
 
 describe("Mom + Sarah preset", () => {
-  const mom = (amountCents: number, categories: CategoryId[], history?: HistoryEntry[]) =>
+  const mom = (amountCents: number, categories: CategoryKey[], history?: HistoryEntry[]) =>
     judge(FAMILY_ELDER_RULES, amountCents, categories, history).outcome;
 
   it("sends the $149 blood pressure monitor to Sarah, and says why", () => {
@@ -143,7 +143,7 @@ describe("Mom + Sarah preset", () => {
 });
 
 describe("Kids + parents preset", () => {
-  const kid = (amountCents: number, categories: CategoryId[], history: HistoryEntry[] = []) =>
+  const kid = (amountCents: number, categories: CategoryKey[], history: HistoryEntry[] = []) =>
     evaluatePurchase(PARENT_CHILD_RULES, { amountCents, categories }, history, { now: NOW, shopperName: "Leo", reviewerName: "Dana" });
 
   it("needs the parent for every purchase, even within budget", () => {
@@ -187,32 +187,22 @@ describe("Kids + parents preset", () => {
 });
 
 describe("Personal shopper preset", () => {
-  const shop = (amountCents: number, categories: CategoryId[], history: HistoryEntry[] = []) =>
-    evaluatePurchase(PERSONAL_SHOPPER_RULES, { amountCents, categories }, history, {
-      now: NOW,
-      shopperName: "Priya",
-      reviewerName: "Marcus",
-    });
+  const shop = (amountCents: number, categories: CategoryKey[]) =>
+    evaluatePurchase(PERSONAL_SHOPPER_RULES, { amountCents, categories }, [], { now: NOW, shopperName: "Priya", reviewerName: "Marcus" });
 
-  it("lets the shopper grab an $89 flash-sale pair of shoes right away", () => {
-    const d = shop(8900, ["shoes_handbags"]);
-    expect(d.outcome).toBe("auto");
-    expect(d.reasons[0].message).toBe("Priya can make shoe and handbag purchases up to $100.00 without waiting for anyone.");
+  it("never lets the shopper buy alone: every find goes to the customer", () => {
+    expect(shop(2000, ["shoes_handbags"]).outcome).toBe("review");
+    expect(shop(8900, ["shoes_handbags"]).reviewer).toBe("Marcus");
   });
 
-  it("sends $179 headphones to the customer", () => {
-    expect(shop(17900, ["electronics"]).outcome).toBe("review");
-    expect(shop(12500, ["electronics"]).outcome).toBe("auto"); // "up to $125"
+  it("flags finds over the customer's target budget", () => {
+    expect(shop(15000, ["shoes_handbags"]).outcome).toBe("review"); // "up to $150"
+    const d = shop(17900, ["shoes_handbags"]);
+    expect(d.outcome).toBe("exception");
+    expect(d.reasons[0].message).toBe("Shoe and handbag purchases over $150.00 are over the limit, so Marcus must approve an exception.");
   });
 
-  it("enforces the per-purchase, weekly and monthly caps", () => {
-    expect(shop(12000, ["electronics"], [bought(14000, ["clothing"])]).outcome).toBe("review"); // week: $260 > $250
-    const month = [10, 15, 20, 25].map((d) => bought(13000, ["home_decor"], daysAgo(d))); // $520
-    expect(shop(9000, ["clothing"], month).outcome).toBe("review"); // month: $610 > $600
-    expect(shop(7000, ["clothing"], month).outcome).toBe("auto"); // $590
-  });
-
-  it("never auto-buys a subscription", () => {
+  it("needs the customer's consent for subscriptions", () => {
     expect(shop(500, ["subscription"]).outcome).toBe("review");
   });
 });

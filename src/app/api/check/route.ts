@@ -2,7 +2,7 @@ import { readCheckoutScreenshot } from "@/lib/ai/terms";
 import { FlowError } from "@/lib/purchases/service";
 import { handle } from "@/lib/http";
 import { saveCheck } from "@/lib/store/checks";
-import { demoHousehold } from "@/lib/store/households";
+import { currentHousehold } from "@/lib/store/current";
 
 const MAX_BYTES = 6 * 1024 * 1024;
 const TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     if (!TYPES.has(file.type)) throw new FlowError("Screenshots need to be PNG, JPEG or WebP images.");
     if (file.size > MAX_BYTES) throw new FlowError("That image is too large (6 MB at most).");
 
-    const household = await demoHousehold();
+    const household = await currentHousehold();
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const terms = await readCheckoutScreenshot({ base64, mimeType: file.type });
     const checkId = await saveCheck(household.id, terms.raw);

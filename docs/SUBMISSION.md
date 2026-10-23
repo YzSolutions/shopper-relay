@@ -33,9 +33,19 @@ look.
   it's captured straight away. Otherwise Sarah gets a simple mobile page with the same facts,
   the reason she's asked, and the amount PayPal is holding. Approve captures; decline or no answer
   within 24 hours voids the hold. Nothing is charged unless the purchase goes through.
-- **Scam-resistant rule changes.** Tightening is instant. Loosening a safeguard tells Sarah and
-  only starts after 24 hours, unless Sarah approves sooner. She can't block it: these are Mom's
-  rules.
+- **Her own categories and reviewers.** "I can buy cars under $10,000" creates a Cars category.
+  "Video games go to Dad, Tom" sends those to Tom instead of Sarah.
+- **Scam-resistant rule changes.** Tightening is instant. Loosening a safeguard, including changing
+  who reviews something, tells Sarah and only starts after 24 hours, unless Sarah approves sooner.
+  She can't block it: these are Mom's rules.
+- **Kids + parent.** Leo browses and taps "Ask Dana". Dana sees the request and Leo's weekly and
+  monthly budget, then approves and pays with her own PayPal or says no. Open requests reserve
+  budget; declined ones release it. Subscriptions are blocked.
+- **Personal shopper + One-Time Purchase Authorization.** Priya finds something for Marcus. Marcus
+  can approve and pay, or say "find this exact product for $100 or less, size 10, by Friday". That
+  places a PayPal hold of $100. When Priya finds it for $89, ShopperRelay checks it's the same
+  product and within the price, then captures exactly $89. PayPal releases the rest and refuses
+  a second capture: one product, once.
 - **Why log.** Every step, and why it happened.
 
 ### How we built it
@@ -43,7 +53,7 @@ look.
 - **Next.js 16 and TypeScript** on Vercel, with Neon Postgres.
 - **PayPal:**
   - Orders v2 with `intent: AUTHORIZE`.
-  - Payments v2 capture and void.
+  - Payments v2 capture (full and partial final capture) and void.
   - Smart Buttons.
   - Idempotency keys on every money-moving call.
   - Signature-verified webhooks.
@@ -57,8 +67,8 @@ look.
 
   Every answer is schema-checked, retried, backed by fallback models, and cached.
 - **Channel3** for product search, real prices and catalog categories.
-- **A deterministic rules engine** with no I/O and no AI, plus 60+ unit tests and an
-  end-to-end test that runs the full flow against the PayPal sandbox.
+- **A deterministic rules engine** with no I/O and no AI, plus 70+ unit tests and an
+  end-to-end test that runs all three relationships against the PayPal sandbox.
 - **Development assisted by Claude Code.**
 
 ### Challenges we ran into
@@ -70,29 +80,29 @@ look.
 - **Giving the reviewer real power without a permanent veto** over another adult's money. The
   24-hour cooling-off is the answer.
 - **Making "same product" an honest claim.** We only say it with catalog grouping or an exact
-  brand-and-model match.
+  brand-and-model match, and the One-Time Purchase Authorization uses the same test.
+- **Delegated buying without a blank cheque.** A personal shopper needs to grab a deal fast, but
+  "can spend up to $X a week" is too much power. Tying one PayPal hold to one exact product, then
+  capturing only the real price, gave speed with a hard ceiling.
 
 ### Accomplishments we're proud of
 
-- The whole flow runs for real against the PayPal sandbox: authorize, then capture, wait for
-  review, or void.
+- All three relationships run for real against the PayPal sandbox: authorize, capture, partial
+  capture, void.
 - The rules engine catches gaps and conflicts before they go live.
 - It speaks plainly to someone who isn't comfortable with technology.
 
 ### What we learned
 
 - PayPal's authorize-then-capture flow is a natural fit for "ask someone first". The hold makes
-  waiting for a reviewer safe for both sides.
+  waiting for a reviewer safe for both sides, and a partial final capture turns a hold into a
+  precise, one-time spending permission.
 
 ### What's next
 
-The engine already supports two more relationships with tested presets, which need screens:
-- **Kids + parents:** every request needs a parent, with small per-item budgets and weekly and
-  monthly caps.
-- **Personal shopper + customer:** a trusted shopper can grab a time-sensitive deal within
-  limits the customer grants. This needs a saved, customer-authorized PayPal payment method.
-
-Beyond that: real text-message notifications, sign-in, and more product sources.
+Real text-message notifications, sign-in, more than one child or customer per household, and more
+product sources. In production, ShopperRelay would also need commercial relationships with stores
+(or to send the buyer to the store's own PayPal checkout).
 
 ### Built with
 
@@ -104,7 +114,7 @@ tailwindcss, vitest
 ## Video script (target 2:45, hard limit 3:00)
 
 **Before recording:**
-- Open https://shopper-relay.vercel.app/demo and click **Reset demo**.
+- Open https://shopper-relay.vercel.app/demo and click **Reset this demo** on each of the three tabs.
 - Tick **Hide real store and brand names**. The rules don't allow third-party trademarks in the
   video; this swaps in invented store names and blurs product photos.
 - Have a sandbox buyer login ready, or use **Debit or Credit Card** with the test card.
@@ -119,9 +129,10 @@ tailwindcss, vitest
 | 1:05–1:25 | Choose one under $100, pay with PayPal, relay track runs to **Paid** | "Under her limit: PayPal holds the payment, we check PayPal's amount matches to the cent, and it completes. No one else involved." |
 | 1:25–1:50 | Check a checkout: the membership example | "Found something elsewhere? A screenshot is enough. Gemini reads the small print: $149 today, then $39 a month after a free trial. That's a subscription, so Sarah takes a look." |
 | 1:50–2:15 | Buy it through ShopperRelay, pay; Mom's screen says "Order placed. Waiting for Sarah"; Sarah's phone lights up; open it, scroll the facts, **Approve** | "Mom has done her part. PayPal is holding the money; nothing's charged yet. Sarah sees exactly what Mom saw, why she's asked, and the amount PayPal is holding. She approves, and PayPal captures." |
-| 2:15–2:30 | My rules: loosen a rule; show "A change is waiting"; Sarah's inbox shows it | "If someone pressures Mom to switch a safeguard off, it doesn't happen instantly. Sarah is told, and it starts after 24 hours unless she says yes sooner. She can't block it: these are Mom's rules." |
-| 2:30–2:40 | History (why log) | "Every step is logged with its reason." |
-| 2:40–2:50 | Back to /demo or the logo | "The same engine already handles kids asking parents, and personal shoppers buying within a customer's limits. ShopperRelay: AI understands, rules enforce, people approve, PayPal executes." |
+| 2:15–2:25 | My rules: loosen a rule; show "A change is waiting"; Sarah's inbox shows it | "If someone pressures Mom to switch a safeguard off, it doesn't happen instantly. Sarah is told, and it starts after 24 hours unless she says yes sooner." |
+| 2:25–2:35 | /demo, Kids + parent tab: Leo taps **Ask Dana**; Dana's phone shows his budget; she pays | "The same engine works for kids: Leo asks, Dana sees his budget, and pays with her own PayPal." |
+| 2:35–2:50 | Personal shopper tab: Marcus taps **Find it for less**, sets $100; Priya buys it for $89 | "And for a personal shopper: Marcus authorizes one exact product at his price. PayPal holds $100, Priya finds it for $89, and only $89 is charged. One product, once." |
+| 2:50–2:58 | Logo | "ShopperRelay: AI understands, rules enforce, people approve, PayPal executes." |
 
 **Tips:**
 - Record each scene separately and cut them together. Do the screenshot check once before

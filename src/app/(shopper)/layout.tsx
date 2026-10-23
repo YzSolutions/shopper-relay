@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { brand } from "@/config/brand";
+import { DemoSwitcher } from "@/components/DemoSwitcher";
 import { ShopperNav } from "@/components/ShopperNav";
 import logo from "../../../public/brand/shopperrelay-logo-trimmed.png";
 
@@ -21,9 +22,10 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-5 pt-10 pb-20">{children}</main>
       <footer className="border-t border-line bg-mist">
-        <p className="mx-auto max-w-5xl px-5 py-5 text-base text-ink-soft">
-          Payments by PayPal (sandbox). In this prototype, {brand.name} receives the payment and placing the order with the store is simulated.
-        </p>
+        <div className="mx-auto max-w-5xl space-y-3 px-5 py-5 text-base text-ink-soft">
+          <DemoSwitcher />
+          <p>Payments by PayPal (sandbox). In this prototype, {brand.name} receives the payment and placing the order with the store is simulated.</p>
+        </div>
       </footer>
     </div>
   );

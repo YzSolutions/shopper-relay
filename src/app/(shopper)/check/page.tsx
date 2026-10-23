@@ -19,6 +19,12 @@ export default function CheckPage() {
   const [result, setResult] = useState<CheckResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [buying, setBuying] = useState(false);
+
+  // Next.js keeps this page alive on back navigation; don't leave the button stuck on "Opening…".
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- runs each time the page is shown again
+    setBuying(false);
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => () => void (preview?.startsWith("blob:") && URL.revokeObjectURL(preview)), [preview]);
@@ -58,6 +64,7 @@ export default function CheckPage() {
   }
 
   const reviewer = session?.household.reviewerName ?? "your trusted contact";
+  const request = session?.relationship.flow === "request";
   const t = result?.terms;
 
   return (
@@ -186,10 +193,12 @@ export default function CheckPage() {
                 {result.totalDueTodayCents !== null && (
                   <div className="space-y-3">
                     <p className="text-ink-soft">
-                      You can buy it through ShopperRelay. Your rules decide whether {reviewer} takes a look first, and PayPal holds the payment until it&apos;s settled.
+                      {request
+                        ? `You can send it to ${reviewer}. ${reviewer} sees what you saw here, then decides and pays.`
+                        : `You can buy it through ShopperRelay. Your rules decide whether ${reviewer} takes a look first, and PayPal holds the payment until it's settled.`}
                     </p>
                     <Button onClick={buy} disabled={buying}>
-                      {buying ? "Opening…" : "Buy it through ShopperRelay"}
+                      {buying ? "Opening…" : request ? `Ask ${reviewer} about it` : "Buy it through ShopperRelay"}
                     </Button>
                   </div>
                 )}

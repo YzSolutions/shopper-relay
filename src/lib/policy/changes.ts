@@ -1,14 +1,18 @@
 import { loosenedRanges, tightenedRanges, isStricter, type Range } from "./bands";
-import { capKey, effectiveRule, strictestRuleSet } from "./rules";
-import { CATEGORY_IDS, type Cap, type CategoryId, type Role, type RuleSet } from "./types";
+import { allCategoryKeys, capKey, effectiveRule, strictestRuleSet } from "./rules";
+import { isCustomCategory, type Cap, type CategoryKey, type Role, type RuleSet } from "./types";
 
 /** How long a shopper's loosening waits if the reviewer doesn't approve it sooner. */
 export const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
 
 export interface CategoryChange {
-  category: CategoryId;
+  category: CategoryKey;
   loosened: Range[];
   tightened: Range[];
+  /** A different person reviews this category. Always treated as loosening. */
+  reviewer?: { from: string | null; to: string | null };
+  /** More products now count as this (looser-than-general) custom category. */
+  widened?: boolean;
 }
 
 export interface CapChange {
@@ -36,14 +40,28 @@ function compareCap(prev: Cap | undefined, next: Cap | undefined): CapChange["di
   return out;
 }
 
+/**
+ * Whether new match words send more products to a custom category that is
+ * looser than General Shopping somewhere: that loosens the rules too.
+ */
+function widensLooserCategory(prev: RuleSet, next: RuleSet, category: CategoryKey): boolean {
+  if (!isCustomCategory(category)) return false;
+  const before = new Set((prev.custom?.[category]?.match ?? []).map((w) => w.toLowerCase()));
+  const added = (next.custom?.[category]?.match ?? []).some((w) => !before.has(w.toLowerCase()));
+  if (!added) return false;
+  return loosenedRanges(effectiveRule(next, "general").bands, effectiveRule(next, category).bands).length > 0;
+}
+
 /** Compare two rule sets by what each one actually allows. */
 export function summarizeChange(prev: RuleSet, next: RuleSet): ChangeSummary {
   const categories: CategoryChange[] = [];
-  for (const category of CATEGORY_IDS) {
-    const a = effectiveRule(prev, category).bands;
-    const b = effectiveRule(next, category).bands;
-    const change = { category, loosened: loosenedRanges(a, b), tightened: tightenedRanges(a, b) };
-    if (change.loosened.length || change.tightened.length) categories.push(change);
+  for (const category of allCategoryKeys(prev, next)) {
+    const ra = effectiveRule(prev, category);
+    const rb = effectiveRule(next, category);
+    const change: CategoryChange = { category, loosened: loosenedRanges(ra.bands, rb.bands), tightened: tightenedRanges(ra.bands, rb.bands) };
+    if ((ra.reviewer ?? null) !== (rb.reviewer ?? null)) change.reviewer = { from: ra.reviewer ?? null, to: rb.reviewer ?? null };
+    if (widensLooserCategory(prev, next, category)) change.widened = true;
+    if (change.loosened.length || change.tightened.length || change.reviewer || change.widened) categories.push(change);
   }
 
   const prevCaps = new Map(prev.caps.map((c) => [capKey(c), c]));
@@ -52,7 +70,7 @@ export function summarizeChange(prev: RuleSet, next: RuleSet): ChangeSummary {
     compareCap(prevCaps.get(key), nextCaps.get(key)).map((direction) => ({ key, direction })),
   );
 
-  const loosens = categories.some((c) => c.loosened.length) || caps.some((c) => c.direction === "loosened");
+  const loosens = categories.some((c) => c.loosened.length || c.reviewer || c.widened) || caps.some((c) => c.direction === "loosened");
   const tightens = categories.some((c) => c.tightened.length) || caps.some((c) => c.direction === "tightened");
   const kind = loosens && tightens ? "mixed" : loosens ? "loosen" : tightens ? "tighten" : "none";
   return { kind, categories, caps };

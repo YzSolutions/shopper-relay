@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FAMILY_ELDER_RULES, PARENT_CHILD_RULES } from "../policy";
-import { assertTransition, canTransition, decideAfterHold, historyFrom, isFinal, type PurchaseSummary } from "./lifecycle";
+import { assertTransition, canTransition, decideAfterHold, historyFrom, isFinal, otpaAllows, type Otpa, type PurchaseSummary } from "./lifecycle";
 
 const NOW = new Date("2026-11-01T12:00:00Z");
 const base = { currency: "USD", history: [], now: NOW, shopperName: "Mom", reviewerName: "Sarah" };
@@ -84,5 +84,38 @@ describe("historyFrom", () => {
   it("counts held and completed purchases only, never the current one", () => {
     const h = historyFrom([p("a", "awaiting_review"), p("b", "completed"), p("c", "declined"), p("d", "checkout"), p("e", "evaluated")], "b");
     expect(h.map((x) => x.status)).toEqual(["pending_review"]);
+  });
+});
+
+describe("one-time purchase authorization", () => {
+  const otpa: Otpa = {
+    status: "active",
+    maxCents: 10000,
+    details: "size 10",
+    expiresAt: "2026-11-08T12:00:00Z",
+    product: { sourceId: "shoe1", title: "Running shoes", brand: "Fleetfoot", modelNumber: "FF-210" },
+  };
+  const listing = { sourceId: "shoe1", brand: "Fleetfoot", modelNumber: "FF-210", priceCents: 8900, available: true };
+
+  it("allows the exact product at or under the price", () => {
+    expect(otpaAllows(otpa, listing, NOW)).toEqual({ ok: true });
+    expect(otpaAllows(otpa, { ...listing, priceCents: 10000 }, NOW)).toEqual({ ok: true });
+  });
+
+  it("allows the same brand and model listed as another product", () => {
+    expect(otpaAllows(otpa, { ...listing, sourceId: "other-listing", brand: "fleetfoot" }, NOW).ok).toBe(true);
+  });
+
+  it("refuses substitutions, higher prices, out-of-stock listings and expired or used authorizations", () => {
+    expect(otpaAllows(otpa, { ...listing, sourceId: "x", modelNumber: "FF-300" }, NOW)).toMatchObject({ ok: false, reason: expect.stringContaining("different product") });
+    expect(otpaAllows(otpa, { ...listing, priceCents: 10001 }, NOW)).toMatchObject({ ok: false, reason: expect.stringContaining("over the approved price") });
+    expect(otpaAllows(otpa, { ...listing, available: false }, NOW).ok).toBe(false);
+    expect(otpaAllows(otpa, listing, new Date("2026-11-09T00:00:00Z")).ok).toBe(false);
+    expect(otpaAllows({ ...otpa, status: "used" }, listing, NOW).ok).toBe(false);
+  });
+
+  it("reserves budget while requests and authorizations are open", () => {
+    const open = (state: PurchaseSummary["state"]): PurchaseSummary => ({ id: state, state, createdAt: "2026-10-31T12:00:00Z", categories: ["toys"], amountCents: 1000 });
+    expect(historyFrom([open("requested"), open("hunting"), open("declined"), open("expired")]).map((h) => h.status)).toEqual(["pending_review", "pending_review"]);
   });
 });

@@ -1,8 +1,8 @@
 import { handle } from "@/lib/http";
 import { householdLog } from "@/lib/store/events";
-import { demoHousehold } from "@/lib/store/households";
+import { currentHousehold } from "@/lib/store/current";
 
 /** The why log: every purchase step and rule change, newest first. */
 export async function GET() {
-  return handle(async () => ({ events: await householdLog((await demoHousehold()).id) }));
+  return handle(async () => ({ events: await householdLog((await currentHousehold()).id) }));
 }

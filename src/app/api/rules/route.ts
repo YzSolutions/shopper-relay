@@ -4,11 +4,12 @@ import { body, handle } from "@/lib/http";
 import { FlowError } from "@/lib/purchases/service";
 import { activeRules, findRuleIssues, requestRuleChange, RuleSetSchema, settle } from "@/lib/policy";
 import { logEvent } from "@/lib/store/events";
-import { demoHousehold, getRulesState, saveRulesState } from "@/lib/store/households";
+import { getRulesState, saveRulesState } from "@/lib/store/households";
+import { currentHousehold } from "@/lib/store/current";
 
 export async function GET() {
   return handle(async () => {
-    const household = await demoHousehold();
+    const household = await currentHousehold();
     const state = settle(await getRulesState(household.id));
     return { owner: state.owner, rules: state.rules, pending: state.pending, active: activeRules(state), issues: findRuleIssues(state.rules) };
   });
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
   return handle(async () => {
     // No sign-in in the prototype, so the caller says which role it's acting as.
     const { rules, by } = await body(req, z.object({ rules: RuleSetSchema, by: z.enum(["shopper", "reviewer"]) }));
-    const household = await demoHousehold();
+    const household = await currentHousehold();
     const names = { shopper: household.shopperName, reviewer: household.reviewerName };
     const issues = findRuleIssues(rules);
     if (issues.length) {

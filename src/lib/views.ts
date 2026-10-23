@@ -7,6 +7,8 @@ export function purchaseView(p: Purchase, { includeReviewLink = false }: { inclu
   return {
     id: p.id,
     state: p.state,
+    flow: p.flow,
+    reviewerName: p.reviewerName,
     item: p.item,
     reviewedCents: p.reviewedCents,
     paypalAmountCents: p.paypalAmountCents,
@@ -15,6 +17,13 @@ export function purchaseView(p: Purchase, { includeReviewLink = false }: { inclu
     recurring: p.recurring,
     terms: p.terms,
     decision: p.decision,
+    otpa: p.otpa && {
+      status: p.otpa.status,
+      maxCents: p.otpa.maxCents,
+      details: p.otpa.details,
+      expiresAt: p.otpa.expiresAt,
+      usedAt: p.otpa.usedAt ?? null,
+    },
     paypal: {
       orderId: p.paypalOrderId,
       authorizationId: p.paypalAuthorizationId,

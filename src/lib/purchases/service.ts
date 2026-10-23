@@ -1,9 +1,10 @@
-// The purchase flow, end to end: choose -> PayPal hold -> capture, or wait for
-// the reviewer -> capture or void. Each step re-reads the purchase and moves
-// it with a guarded state change, so double clicks and races can't charge twice.
+// The purchase flows, end to end (see lifecycle.ts for the states). Each step
+// re-reads the purchase and moves it with a guarded state change, so double
+// clicks and races can't charge twice; PayPal request ids back that up.
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { brand } from "@/config/brand";
+import { RELATIONSHIPS } from "@/config/relationships";
 import { classifyProduct } from "../ai/products";
 import { recurringFinding } from "../ai/terms";
 import { anonymizeProduct } from "../catalog/anonymize";
@@ -11,7 +12,7 @@ import { createChannel3Source } from "../catalog/channel3";
 import { bestOffer } from "../catalog/compare";
 import type { Product } from "../catalog/types";
 import { formatCents, numberToCents } from "../money";
-import { activeRules, CATEGORY_LABELS, evaluatePurchase, resolveCategory, type RecurringFinding } from "../policy";
+import { activeRules, categoryLabel, checkPayPalAmount, evaluatePurchase, resolveCategory, type CategoryId, type RecurringFinding } from "../policy";
 import { configFromEnv, createPayPalClient, firstAuthorization, PayPalError, type PayPalClient } from "../paypal/client";
 import { getCheck } from "../store/checks";
 import { logEvent } from "../store/events";
@@ -26,7 +27,7 @@ import {
   type Purchase,
   type PurchaseItem,
 } from "../store/purchases";
-import { decideAfterHold, historyFrom, isFinal, reviewExpiresAt } from "./lifecycle";
+import { decideAfterHold, historyFrom, isFinal, OTPA_MAX_DAYS, otpaAllows, REQUEST_WINDOW_MS, reviewExpiresAt, type Otpa } from "./lifecycle";
 
 export class FlowError extends Error {
   constructor(
@@ -52,12 +53,19 @@ async function evaluateFor(household: Household, amountCents: number, categories
   });
 }
 
-async function categorize(categoryPath: string[], fallback: () => Promise<{ category: Purchase["category"]["primary"]; confidence: number }>, recurring: RecurringFinding) {
-  let resolution = resolveCategory({ catalogPath: categoryPath, recurring });
-  if (resolution.basis === "ambiguous" && !categoryPath.length) {
+async function categorize(
+  household: Household,
+  item: { categoryPath: string[]; title: string },
+  fallback: () => Promise<{ category: CategoryId; confidence: number }>,
+  recurring: RecurringFinding,
+) {
+  const custom = activeRules(await getRulesState(household.id)).custom;
+  const evidence = { catalogPath: item.categoryPath, title: item.title, custom, recurring };
+  let resolution = resolveCategory(evidence);
+  if (resolution.basis === "ambiguous" && !item.categoryPath.length) {
     // No catalog category at all: ask the AI, and let resolveCategory decide how far to trust it.
     const ai = await fallback().catch(() => null);
-    resolution = resolveCategory({ catalogPath: categoryPath, ai, recurring });
+    resolution = resolveCategory({ ...evidence, ai });
   }
   return resolution;
 }
@@ -75,7 +83,7 @@ export async function chooseCatalogItem(household: Household, sourceId: string, 
 
   // Catalog listings carry no purchase terms, so nothing recurring is known. Shown as "No recurring charge listed".
   const recurring: RecurringFinding = "no";
-  const category = await categorize(product.categoryPath, () => classifyProduct(product), recurring);
+  const category = await categorize(household, real, () => classifyProduct(product), recurring);
   const decision = await evaluateFor(household, offer.priceCents, category.categories);
   return recordChoice(household, {
     item: itemFromProduct(product, offer.merchant, offer.url),
@@ -110,7 +118,7 @@ export async function chooseCheckedItem(household: Household, checkId: string): 
     attributes: {},
     offers: [],
   };
-  const category = await categorize([], () => classifyProduct(pseudoProduct), recurring);
+  const category = await categorize(household, pseudoProduct, () => classifyProduct(pseudoProduct), recurring);
   const reviewedCents = numberToCents(terms.totalDueTodayDollars);
   const decision = await evaluateFor(household, reviewedCents, category.categories);
   return recordChoice(household, {
@@ -135,6 +143,7 @@ function itemFromProduct(p: Product, merchant: string, url: string): PurchaseIte
     source: p.source,
     sourceId: p.sourceId,
     categoryPath: p.categoryPath,
+    modelNumber: p.modelNumber,
     ...(p.imageHidden && { imageHidden: true }),
   };
 }
@@ -144,8 +153,9 @@ async function recordChoice(
   c: Pick<Purchase, "item" | "reviewedCents" | "currency" | "category" | "recurring" | "terms" | "decision">,
 ): Promise<Purchase> {
   const state = c.decision.outcome === "blocked" ? "blocked" : "evaluated";
-  const purchase = await insertPurchase({ householdId: household.id, state, ...c });
-  const label = CATEGORY_LABELS[c.category.primary];
+  const flow = RELATIONSHIPS[household.relationship].flow;
+  const purchase = await insertPurchase({ householdId: household.id, state, ...c, flow, reviewerName: c.decision.reviewer });
+  const label = categoryLabel(c.category.primary);
   await logEvent({
     householdId: household.id,
     purchaseId: purchase.id,
@@ -171,9 +181,18 @@ async function load(household: Household, id: string): Promise<Purchase> {
   return p;
 }
 
+const reviewerOf = (household: Household, p: Purchase) => p.reviewerName ?? household.reviewerName;
+const describe = (p: Purchase) => `${p.item.title}${p.item.merchant ? ` (${p.item.merchant})` : ""}`;
+const newToken = () => randomBytes(24).toString("base64url");
+
+// ---------------------------------------------------------------------------
+// "hold" flow: the shopper pays; PayPal holds it while the reviewer looks.
+// ---------------------------------------------------------------------------
+
 /** Create the PayPal order. The buyer approves it in PayPal's own window; no money moves yet. */
 export async function startCheckout(household: Household, id: string): Promise<{ orderId: string }> {
   let p = await load(household, id);
+  if (p.flow !== "hold") throw new FlowError(`${household.shopperName} doesn't pay for this; ${reviewerOf(household, p)} does.`, 409);
   if (p.state === "evaluated") {
     p = (await transitionPurchase(p.id, "evaluated", "checkout")) ?? (await load(household, id));
   }
@@ -182,7 +201,7 @@ export async function startCheckout(household: Household, id: string): Promise<{
   const order = await paypal().createAuthorizeOrder({
     amountCents: p.reviewedCents,
     currency: p.currency,
-    description: `${p.item.title}${p.item.merchant ? ` (${p.item.merchant})` : ""}`,
+    description: describe(p),
     customId: p.id,
     brandName: brand.name,
     requestId: `order-${p.id}-${randomUUID()}`,
@@ -199,6 +218,15 @@ export async function startCheckout(household: Household, id: string): Promise<{
   return { orderId: order.id };
 }
 
+/** Place the hold for an approved order and read it back from PayPal. Null if PayPal didn't place it. */
+async function placeHold(p: Purchase, orderId: string) {
+  const authorized = await paypal().authorizeOrder(orderId, `authorize-${p.id}-${orderId}`);
+  const auth = firstAuthorization(authorized);
+  if (!auth || (auth.status !== "CREATED" && auth.status !== "PENDING")) return { held: null, order: authorized };
+  // Read the hold back from PayPal; this amount is the one that counts.
+  return { held: await paypal().getAuthorization(auth.id), order: authorized };
+}
+
 /**
  * The buyer approved the order in PayPal. Place the hold, check PayPal's
  * amount, run the rules again, then capture, wait for the reviewer, or void.
@@ -211,15 +239,12 @@ export async function completeApproval(household: Household, id: string, orderId
   }
   if (p.paypalOrderId !== orderId) throw new FlowError("That PayPal order doesn't belong to this purchase.", 400);
 
-  const authorized = await paypal().authorizeOrder(orderId, `authorize-${p.id}-${orderId}`);
-  const auth = firstAuthorization(authorized);
-  if (!auth || (auth.status !== "CREATED" && auth.status !== "PENDING")) {
+  const { held, order } = await placeHold(p, orderId);
+  if (!held) {
     const failed = await transitionPurchase(p.id, "checkout", "failed");
-    await logEvent({ householdId: household.id, purchaseId: p.id, type: "failed", actor: "paypal", message: "PayPal didn't place the hold, so nothing was charged.", detail: { order: authorized } });
+    await logEvent({ householdId: household.id, purchaseId: p.id, type: "failed", actor: "paypal", message: "PayPal didn't place the hold, so nothing was charged.", detail: { order } });
     return failed ?? load(household, id);
   }
-  // Read the hold back from PayPal; this amount is the one that counts.
-  const held = await paypal().getAuthorization(auth.id);
   await logEvent({
     householdId: household.id,
     purchaseId: p.id,
@@ -261,12 +286,13 @@ export async function completeApproval(household: Household, id: string, orderId
     return capture(household, moved);
   }
 
-  const token = randomBytes(24).toString("base64url");
+  const reviewer = outcome.decision.reviewer;
   const waiting = await transitionPurchase(p.id, "checkout", "awaiting_review", {
     decision: outcome.decision,
+    reviewerName: reviewer,
     paypalAuthorizationId: held.id,
     paypalAmountCents,
-    reviewToken: token,
+    reviewToken: newToken(),
     reviewExpiresAt: reviewExpiresAt(now).toISOString(),
   });
   if (!waiting) return load(household, id);
@@ -275,23 +301,27 @@ export async function completeApproval(household: Household, id: string, orderId
     purchaseId: p.id,
     type: "review_requested",
     actor: "system",
-    message: `${outcome.decision.reasons.map((r) => r.message).join(" ")} ${household.reviewerName} has been asked to review it. If there's no answer within 24 hours, the hold is released.`,
+    message: `${outcome.decision.reasons.map((r) => r.message).join(" ")} ${reviewer} has been asked to review it. If there's no answer within 24 hours, the hold is released.`,
     detail: outcome.decision,
   });
   return waiting;
 }
 
-/** Take the held money. Only called once the purchase is already marked completed. */
-async function capture(household: Household, p: Purchase): Promise<Purchase> {
+/** Take the held money (all of it, or `amountCents` of it). Only called once the purchase is already marked completed. */
+async function capture(household: Household, p: Purchase, amountCents?: number): Promise<Purchase> {
   try {
-    const c = await paypal().captureAuthorization(p.paypalAuthorizationId!, `capture-${p.id}`);
+    const c = await paypal().captureAuthorization(
+      p.paypalAuthorizationId!,
+      `capture-${p.id}`,
+      amountCents === undefined ? undefined : { cents: amountCents, currency: p.currency },
+    );
     await transitionPurchase(p.id, "completed", "completed", { paypalCaptureId: c.id });
     await logEvent({
       householdId: household.id,
       purchaseId: p.id,
       type: "captured",
       actor: "paypal",
-      message: `PayPal payment completed: ${c.amount.value} ${c.amount.currency_code}. Retailer order placement is simulated in this prototype.`,
+      message: `PayPal payment completed: ${c.amount.value} ${c.amount.currency_code}. Placing the order with the store is simulated in this prototype.`,
       detail: { captureId: c.id, status: c.status },
     });
   } catch (err) {
@@ -310,7 +340,7 @@ async function capture(household: Household, p: Purchase): Promise<Purchase> {
   return (await getPurchase(p.id))!;
 }
 
-/** Release a hold and finish the purchase in the given state. */
+/** Finish a purchase without paying, releasing any PayPal hold. */
 async function release(household: Household, p: Purchase, to: "declined" | "expired" | "canceled", message: string, actor: "shopper" | "reviewer" | "system") {
   const moved = await transitionPurchase(p.id, p.state, to, { reviewToken: null });
   if (!moved) return (await getPurchase(p.id))!;
@@ -326,31 +356,280 @@ async function release(household: Household, p: Purchase, to: "declined" | "expi
   return moved;
 }
 
-/** The reviewer's answer, from their private link. */
-export async function reviewerDecides(household: Household, p: Purchase, decision: "approve" | "decline"): Promise<Purchase> {
+// ---------------------------------------------------------------------------
+// "request" flow: the shopper asks; the reviewer approves and pays, or
+// (personal shopper) grants a One-Time Purchase Authorization.
+// ---------------------------------------------------------------------------
+
+/** The shopper sends the request. The rules run again now, against the latest spending. */
+export async function sendRequest(household: Household, id: string): Promise<Purchase> {
+  const p = await load(household, id);
+  if (p.flow !== "request") throw new FlowError("This purchase is paid for at checkout, not requested.", 409);
+  if (p.state === "requested") return p;
+  if (p.state !== "evaluated") throw new FlowError(`This purchase is already ${p.state}.`, 409);
+
+  const decision = await evaluateFor(household, p.reviewedCents, p.category.categories, p.id);
+  if (decision.outcome === "blocked") {
+    const blocked = await transitionPurchase(p.id, "evaluated", "blocked", { decision });
+    await logEvent({ householdId: household.id, purchaseId: p.id, type: "blocked", actor: "system", message: decision.reasons.map((r) => r.message).join(" ") });
+    return blocked ?? load(household, id);
+  }
+  const reviewer = decision.reviewer;
+  const sent = await transitionPurchase(p.id, "evaluated", "requested", {
+    decision,
+    reviewerName: reviewer,
+    reviewToken: newToken(),
+    reviewExpiresAt: new Date(Date.now() + REQUEST_WINDOW_MS).toISOString(),
+  });
+  if (!sent) return load(household, id);
+  const flag = decision.outcome === "exception" ? ` ${decision.reasons.map((r) => r.message).join(" ")}` : "";
+  await logEvent({
+    householdId: household.id,
+    purchaseId: p.id,
+    type: "requested",
+    actor: "shopper",
+    message: `${household.shopperName} asked ${reviewer} for ${p.item.title} (${formatCents(p.reviewedCents)}).${flag} Nothing is paid until ${reviewer} approves.`,
+    detail: decision,
+  });
+  return sent;
+}
+
+export interface OtpaTerms {
+  maxCents: number;
+  details: string;
+  expiresInDays: number;
+}
+
+/**
+ * The reviewer starts paying: either for this exact purchase now, or a hold
+ * up to their maximum price for a One-Time Purchase Authorization.
+ */
+export async function reviewerStartPayment(household: Household, p: Purchase, kind: "pay" | "otpa", terms?: OtpaTerms): Promise<{ orderId: string }> {
   p = await expireIfOverdue(household, p);
-  if (p.state !== "awaiting_review") throw new FlowError(`This purchase is already ${p.state}.`, 409);
+  if (p.flow !== "request" || p.state !== "requested") throw new FlowError(`This request is ${p.state} and can't be paid for.`, 409);
+  const reviewer = reviewerOf(household, p);
+
+  let otpa: Otpa | null = null;
+  let amountCents = p.reviewedCents;
+  if (kind === "otpa") {
+    if (!RELATIONSHIPS[household.relationship].otpa) throw new FlowError("One-time authorizations aren't available here.", 400);
+    if (!terms) throw new FlowError("Set the most you'll pay and when it expires.", 400);
+    const days = Math.min(Math.max(Math.round(terms.expiresInDays), 1), OTPA_MAX_DAYS);
+    otpa = {
+      status: "draft",
+      maxCents: terms.maxCents,
+      details: terms.details.trim().slice(0, 160),
+      expiresAt: new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString(),
+      product: { sourceId: p.item.sourceId, title: p.item.title, brand: p.item.brand, modelNumber: p.item.modelNumber ?? null },
+    };
+    amountCents = terms.maxCents;
+  }
+
+  const order = await paypal().createAuthorizeOrder({
+    amountCents,
+    currency: p.currency,
+    description: kind === "otpa" ? `Up to ${formatCents(amountCents)}: ${describe(p)}` : describe(p),
+    customId: p.id,
+    brandName: brand.name,
+    requestId: `order-${p.id}-${randomUUID()}`,
+  });
+  await setPayPalOrder(p.id, order.id, otpa);
+  await logEvent({
+    householdId: household.id,
+    purchaseId: p.id,
+    type: "reviewer_checkout",
+    actor: "reviewer",
+    message:
+      kind === "otpa"
+        ? `${reviewer} is authorizing ${household.shopperName} to buy it once for up to ${formatCents(amountCents)}.`
+        : `${reviewer} is approving and paying ${formatCents(amountCents)} with PayPal.`,
+    detail: { orderId: order.id },
+  });
+  return { orderId: order.id };
+}
+
+/** The reviewer approved in PayPal: pay for the purchase now, or activate the one-time authorization. */
+export async function reviewerCompletePayment(household: Household, p: Purchase, orderId: string): Promise<Purchase> {
+  if (p.state !== "requested") {
+    if (isFinal(p.state) || p.state === "hunting") return p; // already handled
+    throw new FlowError(`This request is ${p.state}.`, 409);
+  }
+  if (p.paypalOrderId !== orderId) throw new FlowError("That PayPal order doesn't belong to this request.", 400);
+  const reviewer = reviewerOf(household, p);
+  const draft = p.otpa?.status === "draft" ? p.otpa : null;
+
+  const { held, order } = await placeHold(p, orderId);
+  if (!held) {
+    await logEvent({ householdId: household.id, purchaseId: p.id, type: "failed", actor: "paypal", message: "PayPal didn't accept the payment. Nothing was charged. You can try again.", detail: { order } });
+    throw new FlowError("PayPal didn't accept the payment. Nothing was charged.", 402);
+  }
+  const expected = draft ? draft.maxCents : p.reviewedCents;
+  const amount = checkPayPalAmount(expected, held.amount, p.currency);
+  if (!amount.ok) {
+    await paypal().voidAuthorization(held.id, `void-${p.id}`).catch(() => undefined);
+    const failed = await transitionPurchase(p.id, "requested", "failed", { paypalAuthorizationId: held.id });
+    await logEvent({ householdId: household.id, purchaseId: p.id, type: "voided", actor: "system", message: `${amount.message} The hold was released.` });
+    return failed ?? (await getPurchase(p.id))!;
+  }
+
+  if (draft) {
+    const active: Otpa = { ...draft, status: "active", authorizationId: held.id };
+    const hunting = await transitionPurchase(p.id, "requested", "hunting", {
+      otpa: active,
+      paypalAuthorizationId: held.id,
+      paypalAmountCents: amount.paypalCents,
+      reviewExpiresAt: active.expiresAt,
+    });
+    if (!hunting) return (await getPurchase(p.id))!;
+    await logEvent({
+      householdId: household.id,
+      purchaseId: p.id,
+      type: "otpa_granted",
+      actor: "reviewer",
+      message: `${reviewer} authorized ${household.shopperName} to buy ${p.item.title} once, for ${formatCents(active.maxCents)} or less${active.details ? ` (${active.details})` : ""}, by ${new Date(active.expiresAt).toDateString()}. PayPal is holding ${formatCents(active.maxCents)}; only the actual price will be charged.`,
+      detail: active,
+    });
+    return hunting;
+  }
+
+  // Paying now: the rules run once more against PayPal's amount. The reviewer is
+  // approving knowingly, so an over-budget exception goes ahead; a blocked one doesn't.
+  const decision = await evaluateFor(household, amount.paypalCents, p.category.categories, p.id);
+  if (decision.outcome === "blocked") {
+    await paypal().voidAuthorization(held.id, `void-${p.id}`).catch(() => undefined);
+    const blocked = await transitionPurchase(p.id, "requested", "blocked", { decision, paypalAuthorizationId: held.id });
+    await logEvent({ householdId: household.id, purchaseId: p.id, type: "blocked", actor: "system", message: `${decision.reasons.map((r) => r.message).join(" ")} The hold was released.` });
+    return blocked ?? (await getPurchase(p.id))!;
+  }
+  const moved = await transitionPurchase(p.id, "requested", "completed", {
+    decision,
+    paypalAuthorizationId: held.id,
+    paypalAmountCents: amount.paypalCents,
+    reviewToken: null,
+  });
+  if (!moved) return (await getPurchase(p.id))!;
+  const exception = decision.outcome === "exception" ? " as an exception" : "";
+  await logEvent({ householdId: household.id, purchaseId: p.id, type: "approved", actor: "reviewer", message: `${reviewer} approved${exception} and paid with PayPal.` });
+  return capture(household, moved);
+}
+
+export interface OtpaOption {
+  sourceId: string;
+  title: string;
+  merchant: string;
+  priceCents: number;
+  currency: string;
+  available: boolean;
+  allowed: boolean;
+  reason: string | null;
+}
+
+/** Listings the shopper could buy under the authorization: this product at every store that carries it. */
+export async function otpaOptions(household: Household, id: string): Promise<OtpaOption[]> {
+  const p = await expireIfOverdue(household, await load(household, id));
+  if (p.state !== "hunting" || !p.otpa?.product.sourceId) return [];
+  const real = await createChannel3Source().get(p.otpa.product.sourceId);
+  if (!real) return [];
+  const shown = household.hideBrands ? anonymizeProduct(real) : real;
+  return real.offers.map((o, i) => {
+    const check = otpaAllows(p.otpa!, { sourceId: real.sourceId, brand: real.brand, modelNumber: real.modelNumber, priceCents: o.priceCents, available: o.available });
+    return {
+      sourceId: real.sourceId,
+      title: shown.title,
+      merchant: shown.offers[i].merchant,
+      priceCents: o.priceCents,
+      currency: o.currency,
+      available: o.available,
+      allowed: check.ok,
+      reason: check.ok ? null : check.reason,
+    };
+  });
+}
+
+/**
+ * The shopper found it. ShopperRelay checks it is the authorized product at or
+ * under the price, then takes exactly that amount from the hold. PayPal
+ * releases the rest and refuses any second capture: one purchase, once.
+ */
+export async function buyWithOtpa(household: Household, id: string, sourceId: string, merchant: string): Promise<Purchase> {
+  const p = await expireIfOverdue(household, await load(household, id));
+  if (p.state !== "hunting" || !p.otpa) throw new FlowError(`This authorization is ${p.state === "hunting" ? "not ready" : p.state}.`, 409);
+  const real = await createChannel3Source().get(sourceId);
+  if (!real) throw new FlowError("That listing is no longer available.", 404);
+  const shown = household.hideBrands ? anonymizeProduct(real) : real;
+  const i = real.offers.findIndex((o, k) => o.merchant === merchant || shown.offers[k].merchant === merchant);
+  if (i < 0) throw new FlowError("That store no longer lists it.", 404);
+  const offer = real.offers[i];
+
+  const check = otpaAllows(p.otpa, { sourceId: real.sourceId, brand: real.brand, modelNumber: real.modelNumber, priceCents: offer.priceCents, available: offer.available });
+  if (!check.ok) throw new FlowError(check.reason, 409);
+
+  const item = itemFromProduct(shown, shown.offers[i].merchant, offer.url);
+  const moved = await transitionPurchase(p.id, "hunting", "completed", {
+    item,
+    reviewedCents: offer.priceCents,
+    otpa: { ...p.otpa, status: "used", usedAt: new Date().toISOString() },
+    reviewToken: null,
+  });
+  if (!moved) return (await getPurchase(p.id))!;
+  await logEvent({
+    householdId: household.id,
+    purchaseId: p.id,
+    type: "otpa_used",
+    actor: "shopper",
+    message: `${household.shopperName} found it for ${formatCents(offer.priceCents)} at ${item.merchant}, within ${reviewerOf(household, p)}'s ${formatCents(p.otpa.maxCents)}. Checked: same product, at or under the price, before the authorization expired.`,
+  });
+  return capture(household, moved, offer.priceCents);
+}
+
+// ---------------------------------------------------------------------------
+// Answers, cancellations and timeouts, for both flows.
+// ---------------------------------------------------------------------------
+
+/** The reviewer's answer from their private link: approve a held purchase, decline, or cancel an authorization. */
+export async function reviewerDecides(household: Household, p: Purchase, decision: "approve" | "decline" | "cancel"): Promise<Purchase> {
+  p = await expireIfOverdue(household, p);
+  const reviewer = reviewerOf(household, p);
+
+  if (decision === "cancel") {
+    if (p.state !== "hunting") throw new FlowError(`There's no active authorization to cancel; this is ${p.state}.`, 409);
+    return release(household, p, "canceled", `${reviewer} canceled the authorization. PayPal released the hold; nothing was charged.`, "reviewer");
+  }
+  if (p.state !== "awaiting_review" && p.state !== "requested") throw new FlowError(`This purchase is already ${p.state}.`, 409);
 
   if (decision === "decline") {
-    return release(household, p, "declined", `${household.reviewerName} declined. The PayPal hold was released; nothing was charged.`, "reviewer");
+    const paid = p.state === "awaiting_review" ? " The PayPal hold was released; nothing was charged." : " Nothing was charged.";
+    return release(household, p, "declined", `${reviewer} declined.${paid}`, "reviewer");
   }
+  if (p.state === "requested") throw new FlowError(`${reviewer} approves this by paying with PayPal.`, 409);
   const moved = await transitionPurchase(p.id, "awaiting_review", "completed", { reviewToken: null });
   if (!moved) return (await getPurchase(p.id))!;
   const exception = p.decision.outcome === "exception" ? " as an exception" : "";
-  await logEvent({ householdId: household.id, purchaseId: p.id, type: "approved", actor: "reviewer", message: `${household.reviewerName} approved${exception}.` });
+  await logEvent({ householdId: household.id, purchaseId: p.id, type: "approved", actor: "reviewer", message: `${reviewer} approved${exception}.` });
   return capture(household, moved);
 }
 
 export async function cancelPurchase(household: Household, id: string): Promise<Purchase> {
   const p = await load(household, id);
-  if (!["evaluated", "checkout", "awaiting_review"].includes(p.state)) throw new FlowError(`This purchase is already ${p.state}.`, 409);
-  return release(household, p, "canceled", `${household.shopperName} canceled. Nothing was charged.`, "shopper");
+  if (!["evaluated", "checkout", "awaiting_review", "requested", "hunting"].includes(p.state)) throw new FlowError(`This purchase is already ${p.state}.`, 409);
+  const message =
+    p.state === "hunting"
+      ? `${household.shopperName} stopped looking. PayPal released ${reviewerOf(household, p)}'s hold; nothing was charged.`
+      : `${household.shopperName} canceled. Nothing was charged.`;
+  return release(household, p, "canceled", message, "shopper");
 }
 
-/** Waiting reviews past their deadline release their hold. Checked whenever a purchase is read. */
+/** Waiting reviews, requests and authorizations past their deadline end, releasing any hold. */
 export async function expireIfOverdue(household: Household, p: Purchase, now = new Date()): Promise<Purchase> {
-  if (p.state !== "awaiting_review" || !p.reviewExpiresAt || now.getTime() < Date.parse(p.reviewExpiresAt)) return p;
-  return release(household, p, "expired", `${household.reviewerName} didn't respond within 24 hours, so the PayPal hold was released. Nothing was charged.`, "system");
+  const deadline = p.state === "hunting" ? p.otpa?.expiresAt : p.reviewExpiresAt;
+  if (!["awaiting_review", "requested", "hunting"].includes(p.state) || !deadline || now.getTime() < Date.parse(deadline)) return p;
+  const reviewer = reviewerOf(household, p);
+  const message = {
+    awaiting_review: `${reviewer} didn't respond within 24 hours, so the PayPal hold was released. Nothing was charged.`,
+    requested: `${reviewer} didn't answer the request in time, so it closed. Nothing was charged.`,
+    hunting: `The one-time authorization expired before it was used. PayPal released the hold; nothing was charged.`,
+  }[p.state as "awaiting_review" | "requested" | "hunting"];
+  return release(household, p, "expired", message, "system");
 }
 
 export async function expireOverdue(household: Household): Promise<void> {

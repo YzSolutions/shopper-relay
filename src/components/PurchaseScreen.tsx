@@ -1,84 +1,93 @@
 "use client";
 
 import Link from "next/link";
-import { use, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { RELATIONSHIPS } from "@/config/relationships";
 import { PayPalButton } from "@/components/PayPalButton";
 import { Facts, ItemHeader, LogList, Reasons } from "@/components/PurchaseParts";
 import { RelayTrack } from "@/components/RelayTrack";
-import { Button, ErrorNotice, Notice, OutcomeLine, Spinner } from "@/components/ui";
-import { api, type PurchaseView } from "@/lib/client/api";
+import { BudgetBars, Button, ErrorNotice, Money, Notice, OutcomeLine, Spinner } from "@/components/ui";
+import { api, type OtpaOption, type PurchaseView, type Session } from "@/lib/client/api";
 import { usePurchase } from "@/lib/client/usePurchase";
 import { useSession } from "@/lib/client/useSession";
 
-export function PurchaseScreen({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const { session } = useSession();
+const when = (iso: string) => new Date(iso).toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+export function PurchaseScreen({ id }: { id: string }) {
+  const { session, reload: reloadSession } = useSession();
   const { purchase, log, error: loadError, reload, setPurchase } = usePurchase(id);
   const [error, setError] = useState<string | null>(null);
-  const [canceling, setCanceling] = useState(false);
+  const [busy, setBusy] = useState<"cancel" | "send" | null>(null);
 
   if (loadError && !purchase) return <ErrorNotice error={loadError} />;
   if (!purchase || !session) return <Spinner label="Loading…" />;
 
-  const reviewer = session.household.reviewerName;
+  const shopper = session.household.shopperName;
+  const reviewer = purchase.reviewerName ?? session.household.reviewerName;
   const outcome = purchase.decision.outcome;
   const needsReview = outcome === "review" || outcome === "exception";
-  const canPay = purchase.state === "evaluated" || purchase.state === "checkout";
+  const words = RELATIONSHIPS[session.household.relationship].words;
+  const isRequest = purchase.flow === "request";
 
-  async function cancel() {
-    setCanceling(true);
+  const update = (p: PurchaseView) => {
+    setPurchase(p);
+    void reload();
+    void reloadSession();
+  };
+
+  async function act(kind: "cancel" | "send") {
+    setBusy(kind);
     setError(null);
     try {
-      const { purchase: p } = await api<{ purchase: PurchaseView }>(`/api/purchases/${id}/cancel`, { method: "POST" });
-      setPurchase(p);
-      void reload();
+      const path = kind === "cancel" ? "cancel" : "request";
+      const { purchase: p } = await api<{ purchase: PurchaseView }>(`/api/purchases/${id}/${path}`, { method: "POST" });
+      update(p);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setCanceling(false);
+      setBusy(null);
     }
   }
+
+  const canPay = !isRequest && (purchase.state === "evaluated" || purchase.state === "checkout");
+  const canSend = isRequest && purchase.state === "evaluated";
+  const cancelLabel = {
+    awaiting_review: "Cancel and release the hold",
+    requested: `Take back the request`,
+    hunting: "Stop looking and release the hold",
+  }[purchase.state as string] ?? "Cancel";
+  const canCancel = canPay || canSend || ["awaiting_review", "requested", "hunting"].includes(purchase.state);
 
   return (
     <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-8">
         <ItemHeader purchase={purchase} />
-        <RelayTrack state={purchase.state} reviewer={reviewer} needsReview={needsReview} />
+        <RelayTrack state={purchase.state} flow={purchase.flow} shopper={shopper} reviewer={reviewer} needsReview={needsReview} otpa={!!purchase.otpa} />
         <ErrorNotice error={error} />
-        <Status purchase={purchase} reviewer={reviewer} />
+        <Status purchase={purchase} shopper={shopper} reviewer={reviewer} />
 
-        {canPay && (
-          <section aria-labelledby="pay" className="space-y-4">
-            <h2 id="pay" className="text-2xl font-bold">
-              Pay with PayPal
-            </h2>
+        {purchase.state === "hunting" && purchase.otpa && <OtpaHunt purchase={purchase} reviewer={reviewer} onDone={update} onError={setError} />}
+
+        {canSend && (
+          <section className="space-y-4">
+            {session.budget.length > 0 && <BudgetBars lines={session.budget} title="Your budget" />}
             <p className="max-w-[38rem] text-ink-soft">
-              {needsReview
-                ? `PayPal will hold the money while ${reviewer} takes a look. Nothing is charged unless ${reviewer} approves. If there's no answer within 24 hours, the hold is released.`
-                : "PayPal holds the money, checks the amount, and completes the payment straight away."}
+              {reviewer} gets the details and decides. Nothing is paid unless {reviewer} approves and pays with PayPal.
             </p>
-            {session.paypal.clientId ? (
-              <PayPalButton
-                clientId={session.paypal.clientId}
-                purchaseId={purchase.id}
-                onDone={(p) => {
-                  setPurchase(p);
-                  void reload();
-                }}
-                onError={setError}
-              />
-            ) : (
-              <Notice tone="stop">PayPal isn&apos;t set up on this server.</Notice>
-            )}
+            <Button onClick={() => act("send")} disabled={busy !== null}>
+              {busy === "send" ? "Sending…" : words.sendRequest(reviewer)}
+            </Button>
           </section>
         )}
+
+        {canPay && <PaySection session={session} purchase={purchase} reviewer={reviewer} needsReview={needsReview} onDone={update} onError={setError} />}
 
         <Facts purchase={purchase} />
 
         <div className="flex flex-wrap gap-3">
-          {(canPay || purchase.state === "awaiting_review") && (
-            <Button tone="quiet" onClick={cancel} disabled={canceling}>
-              {canceling ? "Canceling…" : purchase.state === "awaiting_review" ? "Cancel and release the hold" : "Cancel"}
+          {canCancel && (
+            <Button tone="quiet" onClick={() => act("cancel")} disabled={busy !== null}>
+              {busy === "cancel" ? "Canceling…" : cancelLabel}
             </Button>
           )}
           <Link href="/" className="inline-flex min-h-13 items-center px-2 text-lg font-semibold text-relay underline-offset-4 hover:underline">
@@ -91,20 +100,130 @@ export function PurchaseScreen({ params }: { params: Promise<{ id: string }> }) 
         <h2 id="happened" className="mb-4 text-xl font-bold">
           What happened
         </h2>
-        <LogList events={log} names={{ shopper: session.household.shopperName, reviewer }} />
+        <LogList events={log} names={{ shopper, reviewer }} />
       </aside>
     </div>
   );
 }
 
-function Status({ purchase, reviewer }: { purchase: PurchaseView; reviewer: string }) {
+function PaySection({
+  session,
+  purchase,
+  reviewer,
+  needsReview,
+  onDone,
+  onError,
+}: {
+  session: Session;
+  purchase: PurchaseView;
+  reviewer: string;
+  needsReview: boolean;
+  onDone: (p: PurchaseView) => void;
+  onError: (m: string) => void;
+}) {
+  return (
+    <section aria-labelledby="pay" className="space-y-4">
+      <h2 id="pay" className="text-2xl font-bold">
+        Pay with PayPal
+      </h2>
+      <p className="max-w-[38rem] text-ink-soft">
+        {needsReview
+          ? `PayPal will hold the money while ${reviewer} takes a look. Nothing is charged unless ${reviewer} approves. If there's no answer within 24 hours, the hold is released.`
+          : "PayPal holds the money, checks the amount, and completes the payment straight away."}
+      </p>
+      {session.paypal.clientId ? (
+        <PayPalButton
+          clientId={session.paypal.clientId}
+          createOrder={async () => (await api<{ orderId: string }>(`/api/purchases/${purchase.id}/checkout`, { method: "POST" })).orderId}
+          onApprove={async (orderId) => {
+            const { purchase: p } = await api<{ purchase: PurchaseView }>(`/api/purchases/${purchase.id}/approve`, { method: "POST", json: { orderId } });
+            onDone(p);
+          }}
+          onError={onError}
+        />
+      ) : (
+        <Notice tone="stop">PayPal isn&apos;t set up on this server.</Notice>
+      )}
+    </section>
+  );
+}
+
+/** The personal shopper looks for the authorized product at or under the price. */
+function OtpaHunt({ purchase, reviewer, onDone, onError }: { purchase: PurchaseView; reviewer: string; onDone: (p: PurchaseView) => void; onError: (m: string) => void }) {
+  const [options, setOptions] = useState<OtpaOption[] | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setOptions((await api<{ options: OtpaOption[] }>(`/api/purchases/${purchase.id}/otpa`)).options);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    }
+  }, [purchase.id, onError]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load the listings once
+    void load();
+  }, [load]);
+
+  async function buy(o: OtpaOption) {
+    setBuying(o.merchant);
+    try {
+      const { purchase: p } = await api<{ purchase: PurchaseView }>(`/api/purchases/${purchase.id}/otpa`, { method: "POST", json: { sourceId: o.sourceId, merchant: o.merchant } });
+      onDone(p);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+      void load();
+    } finally {
+      setBuying(null);
+    }
+  }
+
+  return (
+    <section aria-labelledby="hunt" className="space-y-4">
+      <h2 id="hunt" className="text-2xl font-bold">
+        Where it&apos;s listed now
+      </h2>
+      <p className="max-w-[38rem] text-ink-soft">
+        Only this exact product counts, at <Money cents={purchase.otpa!.maxCents} /> or less. Anything else needs a new OK from {reviewer}.
+      </p>
+      {!options && <Spinner label="Checking stores…" />}
+      {options?.length === 0 && <p>No store lists it right now. Check again later.</p>}
+      {options && options.length > 0 && (
+        <ul className="divide-y divide-line rounded-xl border-2 border-line">
+          {options.map((o) => (
+            <li key={o.merchant} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <span>
+                <Money cents={o.priceCents} currency={o.currency} className="text-xl font-bold" /> at {o.merchant}
+                {!o.allowed && o.reason && <span className="block text-base text-ink-soft">{o.reason}</span>}
+              </span>
+              {o.allowed && (
+                <Button tone="ledger" onClick={() => buy(o)} disabled={buying !== null}>
+                  {buying === o.merchant ? "Buying…" : (
+                    <>
+                      Buy it for <Money cents={o.priceCents} />
+                    </>
+                  )}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <button type="button" onClick={() => void load()} className="font-semibold text-relay underline-offset-4 hover:underline">
+        Check prices again
+      </button>
+    </section>
+  );
+}
+
+function Status({ purchase, shopper, reviewer }: { purchase: PurchaseView; shopper: string; reviewer: string }) {
   const outcome = purchase.decision.outcome;
+  const request = purchase.flow === "request";
   switch (purchase.state) {
     case "evaluated":
     case "checkout":
       return (
         <div className="space-y-2">
-          <OutcomeLine outcome={outcome} reviewer={reviewer} className="text-xl" />
+          <OutcomeLine outcome={outcome} reviewer={reviewer} flow={purchase.flow} className="text-xl" />
           <div className="text-ink-soft">
             <Reasons purchase={purchase} />
           </div>
@@ -115,34 +234,80 @@ function Status({ purchase, reviewer }: { purchase: PurchaseView; reviewer: stri
         <Notice tone="signal" title={`Order placed. Waiting for ${reviewer} to confirm.`}>
           <p>
             PayPal is holding the money; nothing has been charged. This page updates by itself.
-            {purchase.reviewExpiresAt && (
-              <> If {reviewer} doesn&apos;t answer by {new Date(purchase.reviewExpiresAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}, the hold is released.</>
-            )}
+            {purchase.reviewExpiresAt && <> If {reviewer} doesn&apos;t answer by {when(purchase.reviewExpiresAt)}, the hold is released.</>}
           </p>
           <div className="mt-2 text-ink-soft">
             <Reasons purchase={purchase} />
           </div>
         </Notice>
       );
-    case "completed":
+    case "requested":
       return (
-        <Notice tone="ledger" title="Paid. Your PayPal payment is complete.">
-          {outcome === "auto" ? "This was within your own rules, so no one else needed to look." : `${reviewer} approved it.`} Placing the order with the store is simulated in this prototype.
+        <Notice tone="signal" title={`Sent to ${reviewer}. Waiting for an answer.`}>
+          <p>
+            Nothing is paid unless {reviewer} approves. This page updates by itself.
+            {purchase.reviewExpiresAt && <> The request closes on its own {when(purchase.reviewExpiresAt)}.</>}
+          </p>
+          {outcome === "exception" && (
+            <div className="mt-2 text-ink-soft">
+              <Reasons purchase={purchase} />
+            </div>
+          )}
+        </Notice>
+      );
+    case "hunting":
+      return (
+        <Notice tone="ledger" title={`${reviewer} said: find it for ${formatMoney(purchase.otpa!.maxCents)} or less.`}>
+          <p>
+            You can buy this exact product once, at <strong>{formatMoney(purchase.otpa!.maxCents)}</strong> or less, by {when(purchase.otpa!.expiresAt)}.
+            {purchase.otpa!.details && <> Must be: {purchase.otpa!.details}.</>}
+          </p>
+          <p className="mt-1 text-ink-soft">PayPal is holding {reviewer}&apos;s maximum. Only the actual price is charged, and the rest is released.</p>
+        </Notice>
+      );
+    case "completed":
+      if (purchase.otpa?.status === "used") {
+        return (
+          <Notice tone="ledger" title={`Bought for ${formatMoney(purchase.paypalAmountCents ?? purchase.reviewedCents)}, within ${reviewer}'s price.`}>
+            PayPal took exactly that from {reviewer}&apos;s hold and released the rest. The authorization is used up. Placing the order with the store is simulated in this prototype.
+          </Notice>
+        );
+      }
+      return (
+        <Notice tone="ledger" title={request ? `${reviewer} approved and paid.` : "Paid. Your PayPal payment is complete."}>
+          {request
+            ? `The PayPal payment is complete.`
+            : outcome === "auto"
+              ? "This was within your own rules, so no one else needed to look."
+              : `${reviewer} approved it.`}{" "}
+          Placing the order with the store is simulated in this prototype.
         </Notice>
       );
     case "declined":
-      return <Notice tone="stop" title={`${reviewer} said no this time.`}>PayPal released the hold. Nothing was charged.</Notice>;
+      return (
+        <Notice tone="stop" title={`${reviewer} said no this time.`}>
+          {request ? "Nothing was paid." : "PayPal released the hold. Nothing was charged."}
+        </Notice>
+      );
     case "expired":
-      return <Notice tone="stop" title={`${reviewer} didn't answer in time.`}>After 24 hours PayPal released the hold. Nothing was charged. You can choose it again.</Notice>;
+      return (
+        <Notice tone="stop" title={purchase.otpa ? "The authorization ran out." : `${reviewer} didn't answer in time.`}>
+          {purchase.otpa || !request ? "PayPal released the hold. " : ""}Nothing was charged.{!request && " You can choose it again."}
+        </Notice>
+      );
     case "canceled":
-      return <Notice tone="relay" title="Canceled.">Nothing was charged.</Notice>;
+      return <Notice tone="relay" title={purchase.otpa ? `${shopper === "You" ? "You" : shopper} stopped looking.` : "Canceled."}>Nothing was charged.</Notice>;
     case "blocked":
       return (
-        <Notice tone="stop" title="Your rules don't allow this purchase.">
+        <Notice tone="stop" title="The rules don't allow this purchase.">
           <Reasons purchase={purchase} />
         </Notice>
       );
     case "failed":
       return <Notice tone="stop" title="This purchase stopped.">Something didn&apos;t match or PayPal couldn&apos;t finish. Nothing was charged. The details are in “What happened”.</Notice>;
   }
+}
+
+function formatMoney(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }

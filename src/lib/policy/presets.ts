@@ -85,30 +85,28 @@ export const PARENT_CHILD_RULES: RuleSet = {
 };
 
 /**
- * Personal shopper + customer. The shopper may buy straight away within the
- * customer's delegated limits (deals don't wait); anything over a limit is
- * sent to the customer to approve. Subscriptions always need the customer.
+ * Personal shopper + customer. The shopper never buys on their own: every
+ * find goes to the customer, who declines, approves and pays, or grants a
+ * One-Time Purchase Authorization. The amounts are the customer's target
+ * budgets; a find over one is flagged as over budget. Subscriptions need the
+ * customer's explicit consent like everything else.
  */
 export const PERSONAL_SHOPPER_RULES: RuleSet = {
   categories: {
     ...upTo(
       {
-        general: 50_00,
-        clothing: 100_00,
-        shoes_handbags: 100_00,
-        gifts: 75_00,
-        home_decor: 100_00,
-        electronics: 125_00,
-        collectibles: 75_00,
+        general: 100_00,
+        clothing: 200_00,
+        shoes_handbags: 150_00,
+        gifts: 125_00,
+        home_decor: 250_00,
+        electronics: 400_00,
+        collectibles: 300_00,
       },
-      "auto",
       "review",
+      "exception",
     ),
     subscription: always("review"),
   },
-  caps: [
-    { category: null, period: "purchase", limitCents: 125_00, over: "review" },
-    { category: null, period: "week", limitCents: 250_00, over: "review" },
-    { category: null, period: "month", limitCents: 600_00, over: "review" },
-  ],
+  caps: [],
 };

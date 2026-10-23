@@ -1,5 +1,5 @@
 import type { CategoryResolution, Decision, RecurringFinding } from "../policy";
-import type { PurchaseState, PurchaseSummary } from "../purchases/lifecycle";
+import type { Flow, Otpa, PurchaseState, PurchaseSummary } from "../purchases/lifecycle";
 import type { AiTerms } from "../ai/terms";
 import { db } from "../db/client";
 
@@ -14,6 +14,8 @@ export interface PurchaseItem {
   source: string | null;
   sourceId: string | null;
   categoryPath: string[];
+  /** Kept so a one-time authorization can recognize the same model at another store. */
+  modelNumber?: string | null;
   /** Demo mode: blur the photo. */
   imageHidden?: boolean;
 }
@@ -29,6 +31,10 @@ export interface Purchase {
   recurring: RecurringFinding;
   terms: AiTerms | null;
   decision: Decision;
+  flow: Flow;
+  /** Who is asked about this purchase. */
+  reviewerName: string | null;
+  otpa: Otpa | null;
   paypalOrderId: string | null;
   paypalAuthorizationId: string | null;
   paypalCaptureId: string | null;
@@ -50,6 +56,9 @@ type Row = {
   recurring: RecurringFinding;
   terms: AiTerms | null;
   decision: Decision;
+  flow: Flow;
+  reviewer_name: string | null;
+  otpa: Otpa | null;
   paypal_order_id: string | null;
   paypal_authorization_id: string | null;
   paypal_capture_id: string | null;
@@ -73,6 +82,9 @@ const toPurchase = (r: Row): Purchase => ({
   recurring: r.recurring,
   terms: r.terms,
   decision: r.decision,
+  flow: r.flow,
+  reviewerName: r.reviewer_name,
+  otpa: r.otpa,
   paypalOrderId: r.paypal_order_id,
   paypalAuthorizationId: r.paypal_authorization_id,
   paypalCaptureId: r.paypal_capture_id,
@@ -93,12 +105,14 @@ export async function insertPurchase(p: {
   recurring: RecurringFinding;
   terms: AiTerms | null;
   decision: Decision;
+  flow: Flow;
+  reviewerName: string;
 }): Promise<Purchase> {
   const [row] = (await db()`
-    insert into purchases (household_id, status, product, reviewed_cents, currency, category, recurring, terms, decision)
+    insert into purchases (household_id, status, product, reviewed_cents, currency, category, recurring, terms, decision, flow, reviewer_name)
     values (${p.householdId}, ${p.state}, ${JSON.stringify(p.item)}::jsonb, ${p.reviewedCents}, ${p.currency},
             ${JSON.stringify(p.category)}::jsonb, ${p.recurring}, ${p.terms ? JSON.stringify(p.terms) : null}::jsonb,
-            ${JSON.stringify(p.decision)}::jsonb)
+            ${JSON.stringify(p.decision)}::jsonb, ${p.flow}, ${p.reviewerName})
     returning *`) as Row[];
   return toPurchase(row);
 }
@@ -130,7 +144,8 @@ export function summarize(p: Purchase): PurchaseSummary {
     state: p.state,
     createdAt: p.createdAt,
     categories: p.category.categories,
-    amountCents: p.paypalAmountCents ?? p.reviewedCents,
+    // An active authorization reserves the most it allows; anything else, the held or listed amount.
+    amountCents: p.state === "hunting" && p.otpa ? p.otpa.maxCents : (p.paypalAmountCents ?? p.reviewedCents),
   };
 }
 
@@ -151,6 +166,10 @@ export async function transitionPurchase(
     paypalAmountCents: number;
     reviewToken: string | null;
     reviewExpiresAt: string | null;
+    otpa: Otpa;
+    item: PurchaseItem;
+    reviewedCents: number;
+    reviewerName: string;
   }> = {},
 ): Promise<Purchase | null> {
   const rows = (await db()`
@@ -161,6 +180,10 @@ export async function transitionPurchase(
       paypal_authorization_id = coalesce(${fields.paypalAuthorizationId ?? null}, paypal_authorization_id),
       paypal_capture_id = coalesce(${fields.paypalCaptureId ?? null}, paypal_capture_id),
       paypal_amount_cents = coalesce(${fields.paypalAmountCents ?? null}, paypal_amount_cents),
+      otpa = coalesce(${fields.otpa ? JSON.stringify(fields.otpa) : null}::jsonb, otpa),
+      product = coalesce(${fields.item ? JSON.stringify(fields.item) : null}::jsonb, product),
+      reviewed_cents = coalesce(${fields.reviewedCents ?? null}, reviewed_cents),
+      reviewer_name = coalesce(${fields.reviewerName ?? null}, reviewer_name),
       review_token = case when ${"reviewToken" in fields} then ${fields.reviewToken ?? null} else review_token end,
       review_expires_at = case when ${"reviewExpiresAt" in fields} then ${fields.reviewExpiresAt ?? null}::timestamptz else review_expires_at end,
       updated_at = now()
@@ -169,14 +192,19 @@ export async function transitionPurchase(
   return rows[0] ? toPurchase(rows[0]) : null;
 }
 
-/** Set the PayPal order on a purchase that is already in checkout (a retry creates a new order). */
-export async function setPayPalOrder(id: string, orderId: string): Promise<void> {
-  await db()`update purchases set paypal_order_id = ${orderId}, updated_at = now() where id = ${id}`;
+/** Set the PayPal order on a purchase (a retry creates a new order). Draft authorization terms ride along for the request flow. */
+export async function setPayPalOrder(id: string, orderId: string, otpa?: Otpa | null): Promise<void> {
+  await db()`
+    update purchases set paypal_order_id = ${orderId}, otpa = ${otpa ? JSON.stringify(otpa) : null}::jsonb, updated_at = now()
+    where id = ${id}`;
 }
 
 /** Demo control: pretend time has passed for every waiting review in a household. */
 export async function shiftReviewDeadlines(householdId: string, hours: number): Promise<void> {
   await db()`
     update purchases set review_expires_at = review_expires_at - make_interval(hours => ${hours})
-    where household_id = ${householdId} and status = 'awaiting_review'`;
+    where household_id = ${householdId} and status in ('awaiting_review', 'requested', 'hunting') and review_expires_at is not null`;
+  await db()`
+    update purchases set otpa = jsonb_set(otpa, '{expiresAt}', to_jsonb(to_char((otpa->>'expiresAt')::timestamptz - make_interval(hours => ${hours}), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
+    where household_id = ${householdId} and status = 'hunting' and otpa is not null`;
 }

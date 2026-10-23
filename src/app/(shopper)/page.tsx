@@ -2,14 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { Button, CountedAs, ErrorNotice, Money, OutcomeLine, Spinner } from "@/components/ui";
+import { RELATIONSHIPS } from "@/config/relationships";
+import { BudgetBars, Button, CountedAs, ErrorNotice, Money, OutcomeLine, Spinner } from "@/components/ui";
 import { api, type PurchaseView, type SearchResult } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
-const SUGGESTIONS = ["Blood pressure monitor", "Winter coat", "Reading glasses", "Walking shoes"];
-const SAVED = "shopperrelay:lastSearch";
+const SAVED_PREFIX = "shopperrelay:lastSearch:v3:";
 
-type Explanation = { summary: string; notes: Array<{ id: string; note: string }> };
+type Explanation = { summary: string; points: string[]; notes: Array<{ id: string; note: string }> };
 
 export default function ShopPage() {
   const router = useRouter();
@@ -20,12 +20,21 @@ export default function ShopPage() {
   const [explanation, setExplanation] = useState<Explanation | null>(null);
   const [busy, setBusy] = useState(false);
   const [choosing, setChoosing] = useState<string | null>(null);
+
+  // Next.js keeps this page alive when you go back to it; clear any "Opening…" left over from leaving.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- runs each time the page is shown again
+    setChoosing(null);
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
-  // Coming back from a purchase shows the same results again.
+  // Coming back from a purchase shows the same results again (kept per relationship).
+  const mode = session?.household.relationship ?? null;
+  const savedKey = mode ? SAVED_PREFIX + mode : null;
   useEffect(() => {
+    if (!savedKey) return;
     try {
-      const saved = JSON.parse(sessionStorage.getItem(SAVED) ?? "null");
+      const saved = JSON.parse(sessionStorage.getItem(savedKey) ?? "null");
       if (saved?.results) {
         /* eslint-disable react-hooks/set-state-in-effect -- restoring saved results once */
         setQuery(saved.query);
@@ -37,7 +46,7 @@ export default function ShopPage() {
     } catch {
       // nothing saved, or storage unavailable
     }
-  }, []);
+  }, [savedKey]);
 
   async function search(q: string) {
     const text = q.trim();
@@ -70,7 +79,7 @@ export default function ShopPage() {
 
   function save(q: string, rs: SearchResult[], ex: Explanation | null) {
     try {
-      sessionStorage.setItem(SAVED, JSON.stringify({ query: q, results: rs, explanation: ex }));
+      if (savedKey) sessionStorage.setItem(savedKey, JSON.stringify({ query: q, results: rs, explanation: ex }));
     } catch {
       // storage full or unavailable
     }
@@ -93,13 +102,15 @@ export default function ShopPage() {
     void search(query);
   };
   const reviewer = session?.household.reviewerName ?? "your trusted contact";
+  const relationship = session ? RELATIONSHIPS[session.household.relationship] : null;
+  const flow = relationship?.flow ?? "hold";
   const notes = new Map(explanation?.notes.map((n) => [n.id, n.note]));
 
   return (
     <div className="max-w-3xl">
       <form onSubmit={onSubmit} role="search">
         <h1 className="text-[2.125rem] leading-tight font-extrabold sm:text-[2.5rem]">
-          <label htmlFor="q">What are you shopping for?</label>
+          <label htmlFor="q">{relationship?.words.shopHeading ?? "What are you shopping for?"}</label>
         </h1>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <input
@@ -107,7 +118,7 @@ export default function ShopPage() {
             name="q"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="For example, a blood pressure monitor"
+            placeholder={relationship?.words.placeholder ?? ""}
             autoComplete="off"
             className="min-h-15 flex-1 rounded-xl border-2 border-line bg-white px-5 text-xl placeholder:text-ink-soft/70 focus:border-relay focus:outline-none"
           />
@@ -121,7 +132,7 @@ export default function ShopPage() {
         <div className="mt-6">
           <p className="text-ink-soft">Or try one of these:</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {SUGGESTIONS.map((s) => (
+            {(relationship?.words.suggestions ?? []).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -135,10 +146,17 @@ export default function ShopPage() {
               </button>
             ))}
           </div>
-          {session && (
+          {session && relationship && (
             <p className="mt-10 max-w-[36rem] text-ink-soft">
-              You choose what to buy. Your own rules decide when {reviewer} takes a look first, and PayPal holds the payment until it&apos;s settled.
+              {flow === "hold"
+                ? `You choose what to buy. Your own rules decide when ${reviewer} takes a look first, and PayPal holds the payment until it's settled.`
+                : relationship.summary}
             </p>
+          )}
+          {session && session.budget.length > 0 && (
+            <div className="mt-8 max-w-md">
+              <BudgetBars lines={session.budget} title="Your budget" />
+            </div>
           )}
         </div>
       )}
@@ -158,9 +176,27 @@ export default function ShopPage() {
           </div>
 
           {results.length > 0 && (
-            <div className="mt-5 rounded-xl bg-mist px-5 py-4">
-              <p className="font-bold">In plain words</p>
-              {explanation ? <p className="mt-1">{explanation.summary}</p> : <Spinner label="Reading the results…" />}
+            <div className="mt-5 rounded-xl bg-mist px-6 py-5">
+              <h3 className="text-xl font-bold">In plain words</h3>
+              {explanation ? (
+                <>
+                  <p className="mt-2 text-[1.375rem] leading-snug font-semibold">{explanation.summary}</p>
+                  {explanation.points?.length > 0 && (
+                    <ul className="mt-3 space-y-2 text-xl">
+                      {explanation.points.map((p) => (
+                        <li key={p} className="flex gap-3">
+                          <span aria-hidden className="mt-2.5 size-2.5 shrink-0 rounded-full bg-relay" />
+                          <span>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <div className="mt-2">
+                  <Spinner label="Reading the results…" />
+                </div>
+              )}
             </div>
           )}
 
@@ -170,7 +206,9 @@ export default function ShopPage() {
                 key={r.product.sourceId}
                 result={r}
                 note={notes.get(r.product.sourceId)}
-                reviewer={reviewer}
+                reviewer={r.preview?.reviewer ?? reviewer}
+                flow={flow}
+                chooseLabel={relationship ? relationship.words.choose(r.preview?.reviewer ?? reviewer) : "Choose this"}
                 choosing={choosing}
                 onChoose={choose}
               />
@@ -186,12 +224,16 @@ function ResultRow({
   result,
   note,
   reviewer,
+  flow,
+  chooseLabel,
   choosing,
   onChoose,
 }: {
   result: SearchResult;
   note?: string;
   reviewer: string;
+  flow: "hold" | "request";
+  chooseLabel: string;
   choosing: string | null;
   onChoose: (sourceId: string, merchant?: string) => void;
 }) {
@@ -231,7 +273,7 @@ function ResultRow({
             <CountedAs category={category.primary} />
             {category.basis === "ambiguous" && <span className="text-ink-soft"> (unclear, so the stricter rule applies)</span>}
           </p>
-          {preview && <OutcomeLine outcome={preview.outcome} reviewer={reviewer} className="mt-2" />}
+          {preview && <OutcomeLine outcome={preview.outcome} reviewer={reviewer} flow={flow} className="mt-2" />}
           {note && <p className="mt-2 text-ink-soft">{note}</p>}
 
           {best && preview?.outcome !== "blocked" && (
@@ -242,7 +284,7 @@ function ResultRow({
                 onClick={() => onChoose(product.sourceId, best.merchant)}
                 className="min-h-12 rounded-xl bg-relay px-5 font-semibold text-white hover:bg-relay-deep disabled:opacity-50"
               >
-                {choosing === `${product.sourceId}:${best.merchant}` ? "Opening…" : "Choose this"}
+                {choosing === `${product.sourceId}:${best.merchant}` ? "Opening…" : chooseLabel}
               </button>
               {others.length > 0 && (
                 <button

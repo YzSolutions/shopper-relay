@@ -1,25 +1,42 @@
 // Browser-side calls to our own API. Types come from the server code, so the
 // two can't drift apart.
 
-import type { RELATIONSHIPS } from "@/config/relationships";
+import type { RelationshipId } from "@/config/relationships";
 import type { Product } from "@/lib/catalog/types";
 import type { AiTerms } from "@/lib/ai/terms";
-import type { CategoryResolution, Decision, RuleIssue, RuleSet, RulesState, RecurringFinding } from "@/lib/policy";
+import type { BudgetLine, CategoryResolution, Decision, Role, RuleIssue, RuleSet, RulesState, RecurringFinding } from "@/lib/policy";
+import type { Flow } from "@/lib/purchases/lifecycle";
+import type { OtpaOption } from "@/lib/purchases/service";
 import type { LogEvent } from "@/lib/store/events";
 import type { Household } from "@/lib/store/households";
 import type { purchaseView } from "@/lib/views";
 
 export type PurchaseView = ReturnType<typeof purchaseView>;
-export type { LogEvent, Product, Decision, CategoryResolution, RuleSet, RuleIssue, AiTerms, RecurringFinding };
+export type { LogEvent, Product, Decision, CategoryResolution, RuleSet, RuleIssue, AiTerms, RecurringFinding, BudgetLine, OtpaOption };
 
 export interface Session {
   brand: { name: string; tagline: string };
   household: Household;
-  relationship: (typeof RELATIONSHIPS)[keyof typeof RELATIONSHIPS];
+  relationship: {
+    id: RelationshipId;
+    tab: string;
+    title: string;
+    summary: string;
+    controlNote: string;
+    ruleOwner: Role;
+    payer: Role;
+    flow: Flow;
+    otpa: boolean;
+  };
+  relationships: Array<{ id: RelationshipId; tab: string; title: string }>;
+  /** Everyone who reviews something in this household. */
+  reviewers: string[];
+  owner: Role;
   rules: RuleSet;
   pending: RulesState["pending"];
   active: RuleSet;
   issues: RuleIssue[];
+  budget: BudgetLine[];
   paypal: { clientId: string | null; env: "sandbox" | "live" };
 }
 

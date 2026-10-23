@@ -190,10 +190,16 @@ export function createPayPalClient({ clientId, clientSecret, env = "sandbox" }: 
     getAuthorization: (authorizationId: string) =>
       call<Authorization>("GET", `/v2/payments/authorizations/${authorizationId}`),
 
-    /** Take the full held amount. */
-    captureAuthorization: (authorizationId: string, requestId: string) =>
+    /**
+     * Take the held money: all of it, or just `amountCents` of it. Either way
+     * this is the final capture, so PayPal releases whatever is left.
+     */
+    captureAuthorization: (authorizationId: string, requestId: string, amount?: { cents: number; currency: string }) =>
       call<Capture>("POST", `/v2/payments/authorizations/${authorizationId}/capture`, {
-        body: { final_capture: true },
+        body: {
+          final_capture: true,
+          ...(amount && { amount: { currency_code: amount.currency, value: centsToDecimal(amount.cents) } }),
+        },
         requestId,
       }),
 

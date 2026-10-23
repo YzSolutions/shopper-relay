@@ -12,7 +12,9 @@ const GUARDRAILS = `- Use only the facts provided. If something isn't in the fac
 - Say "listed" or "the seller says" for features; you haven't verified them.
 - Never say products are equivalent, or that one is more accurate, safer, healthier or medically better than another.
 - No medical, legal or financial advice.
-- Short sentences and everyday words, for someone who may be an older adult.`;
+- Write for someone who may be an older adult and isn't technical: everyday words, very short sentences.
+- No jargon or spec-speak. Never write GB, TB, RAM, SSD, CPU, GPU, "solid state", "processor", Hz, mAh or model codes. Say what it means for the person instead: "lots of room for photos and games", "fast", "battery lasts all day".
+- Round prices ("about $40").`;
 
 function factsOf(p: Product) {
   return {
@@ -26,19 +28,24 @@ function factsOf(p: Product) {
 }
 
 const ExplainSchema = z.object({
-  summary: z.string().describe("two or three sentences comparing the options, mostly on price and listed features"),
-  notes: z.array(z.object({ id: z.string(), note: z.string().describe("one short sentence about this product") })),
+  summary: z.string().describe("one short sentence, at most 15 words, that sums up the choices"),
+  points: z
+    .array(z.string().describe("one short, simple point, at most 12 words"))
+    .min(2)
+    .max(4)
+    .describe("the few things worth knowing when choosing, mostly about price and what's included"),
+  notes: z.array(z.object({ id: z.string(), note: z.string().describe("one short, simple sentence about this product, at most 15 words") })),
 });
 
 export async function explainResults(query: string, products: Product[]) {
   const { data, model } = await generateJson({
-    task: "explain-results",
+    task: "explain-results-v3",
     schema: ExplainSchema,
     system: `You help someone understand shopping results in plain language.\n${GUARDRAILS}`,
     parts: [{ text: JSON.stringify({ searchedFor: query, products: products.slice(0, 8).map(factsOf) }) }],
   });
   const known = new Set(products.map((p) => p.sourceId));
-  return { summary: data.summary, notes: data.notes.filter((n) => known.has(n.id)), model };
+  return { summary: data.summary, points: data.points, notes: data.notes.filter((n) => known.has(n.id)), model };
 }
 
 const ClassifySchema = z.object({

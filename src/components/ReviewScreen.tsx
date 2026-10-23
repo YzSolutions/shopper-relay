@@ -1,24 +1,29 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { PayPalButton } from "./PayPalButton";
 import { Facts, ItemHeader } from "./PurchaseParts";
 import { RelayTrack } from "./RelayTrack";
-import { Button, ErrorNotice, Money, Notice, Spinner } from "./ui";
-import { api, type PurchaseView } from "@/lib/client/api";
+import { BudgetBars, Button, ErrorNotice, Money, Notice, Spinner } from "./ui";
+import { api, type BudgetLine, type PurchaseView } from "@/lib/client/api";
 
 interface ReviewData {
   household: { shopperName: string; reviewerName: string };
-  relationship: string;
+  relationship: { id: string; title: string; flow: "hold" | "request"; otpa: boolean };
   purchase: PurchaseView;
+  budget: BudgetLine[];
+  paypal: { clientId: string | null };
 }
 
-export function ReviewScreen({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = use(params);
+const when = (iso: string) => new Date(iso).toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+export function ReviewScreen({ token }: { token: string }) {
   const [data, setData] = useState<ReviewData | null>(null);
   const [done, setDone] = useState<PurchaseView | null>(null);
-  const [busy, setBusy] = useState<"approve" | "decline" | null>(null);
+  const [busy, setBusy] = useState<"approve" | "decline" | "cancel" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState<string | null>(null);
+  const [mode, setMode] = useState<"choose" | "otpa">("choose");
 
   const load = useCallback(async () => {
     try {
@@ -32,7 +37,7 @@ export function ReviewScreen({ params }: { params: Promise<{ token: string }> })
     void load();
   }, [load]);
 
-  async function decide(decision: "approve" | "decline") {
+  async function decide(decision: "approve" | "decline" | "cancel") {
     setBusy(decision);
     setError(null);
     try {
@@ -45,71 +50,245 @@ export function ReviewScreen({ params }: { params: Promise<{ token: string }> })
     }
   }
 
+  const paid = async (orderId: string) => {
+    const { purchase } = await api<{ purchase: PurchaseView }>(`/api/review/${token}/paid`, { method: "POST", json: { orderId } });
+    setDone(purchase);
+    if (purchase.state === "hunting") void load();
+  };
+
   if (gone && !done) return <Notice tone="relay" title="Nothing to review here">{gone}</Notice>;
   if (!data) return <Spinner label="Loading the request…" />;
 
   const { shopperName: shopper, reviewerName: reviewer } = data.household;
   const p = done ?? data.purchase;
   const exception = p.decision.outcome === "exception";
+  const amount = p.paypalAmountCents ?? p.reviewedCents;
+  const open = p.state === "awaiting_review" || p.state === "requested";
 
   return (
     <div className="space-y-7">
-      <p className="text-lg font-semibold text-relay-deep">{p.state === "awaiting_review" ? `${shopper} would like your OK` : `${shopper}'s request`}</p>
+      <p className="text-lg font-semibold text-relay-deep">{open ? `${shopper} would like your OK` : `${shopper}'s request`}</p>
       <ItemHeader purchase={p} />
       <p className="text-[2.75rem] leading-none font-extrabold">
-        <Money cents={p.paypalAmountCents ?? p.reviewedCents} />
+        <Money cents={p.state === "hunting" && p.otpa ? p.otpa.maxCents : amount} />
+        {p.state === "hunting" && <span className="ml-2 text-xl font-semibold text-ink-soft">at most</span>}
       </p>
 
-      <RelayTrack state={p.state} reviewer={reviewer} needsReview />
+      <RelayTrack state={p.state} flow={p.flow} shopper={shopper} reviewer={reviewer} needsReview otpa={!!p.otpa} />
 
-      {p.state === "awaiting_review" && (
+      {open && (
         <>
-          <Notice tone="signal" title={exception ? `This is over ${shopper}'s limit` : `Why you're being asked`}>
+          <Notice tone="signal" title={exception ? `This is over ${shopper}'s budget` : p.flow === "request" ? `${shopper} is asking` : "Why you're being asked"}>
             <ul className="space-y-1">
               {p.decision.reasons.map((r, i) => (
                 <li key={i}>{r.message}</li>
               ))}
             </ul>
           </Notice>
+          {data.budget.length > 0 && <BudgetBars lines={data.budget} title={`${shopper}'s budget`} />}
           {p.terms?.plainSummary && <p className="text-lg">{p.terms.plainSummary}</p>}
           <Facts purchase={p} />
-          <p className="text-ink-soft">
-            PayPal is holding the money. Nothing is charged unless you approve.
-            {p.reviewExpiresAt && <> If you don&apos;t answer by {new Date(p.reviewExpiresAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}, the hold is released.</>}
-          </p>
           <ErrorNotice error={error} />
-          <div className="grid gap-3">
-            <Button tone="ledger" className="min-h-16 text-xl" disabled={busy !== null} onClick={() => decide("approve")}>
-              {busy === "approve" ? "Approving…" : (
-                <>
-                  Approve <Money cents={p.paypalAmountCents ?? p.reviewedCents} />
-                </>
+
+          {p.flow === "hold" ? (
+            <HoldActions p={p} reviewer={reviewer} busy={busy} onDecide={decide} />
+          ) : mode === "choose" ? (
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-xl font-bold">
+                  {exception ? "Approve this as an exception and pay" : "Approve and pay"} <Money cents={amount} />
+                </p>
+                {data.paypal.clientId && (
+                  <PayPalButton
+                    clientId={data.paypal.clientId}
+                    createOrder={async () => (await api<{ orderId: string }>(`/api/review/${token}/pay`, { method: "POST", json: { kind: "pay" } })).orderId}
+                    onApprove={paid}
+                    onError={setError}
+                  />
+                )}
+              </div>
+              {data.relationship.otpa && (
+                <Button tone="quiet" className="w-full" onClick={() => setMode("otpa")}>
+                  Find it for less: let {shopper} buy it once, at my price
+                </Button>
               )}
-            </Button>
-            <Button tone="stop" className="min-h-16 text-xl" disabled={busy !== null} onClick={() => decide("decline")}>
-              {busy === "decline" ? "Declining…" : "Decline"}
-            </Button>
-          </div>
+              <Button tone="stop" className="min-h-16 w-full text-xl" disabled={busy !== null} onClick={() => decide("decline")}>
+                {busy === "decline" ? "Declining…" : "Decline"}
+              </Button>
+            </div>
+          ) : (
+            <OtpaForm
+              p={p}
+              shopper={shopper}
+              clientId={data.paypal.clientId}
+              createOrder={async (terms) => (await api<{ orderId: string }>(`/api/review/${token}/pay`, { method: "POST", json: { kind: "otpa", ...terms } })).orderId}
+              onApprove={paid}
+              onError={setError}
+              onBack={() => setMode("choose")}
+            />
+          )}
+
           <p className="text-base text-ink-soft">
-            {shopper} chose these rules. You only see the purchases {shopper}&apos;s rules send to you, and you can&apos;t see or change anything else.
+            {data.relationship.id === "family_elder"
+              ? `${shopper} chose these rules. You only see the purchases ${shopper}'s rules send to you, and you can't see or change anything else.`
+              : `Nothing is charged unless you approve in PayPal.`}
           </p>
         </>
       )}
 
+      {p.state === "hunting" && p.otpa && (
+        <>
+          <Notice tone="ledger" title={`${shopper} can buy it once, for ${fmt(p.otpa.maxCents)} or less.`}>
+            <p>
+              Until {when(p.otpa.expiresAt)}.{p.otpa.details && <> Must be: {p.otpa.details}.</>} PayPal is holding {fmt(p.otpa.maxCents)}; only the actual price will be charged and the rest released.
+            </p>
+          </Notice>
+          <ErrorNotice error={error} />
+          <Button tone="stop" className="w-full" disabled={busy !== null} onClick={() => decide("cancel")}>
+            {busy === "cancel" ? "Canceling…" : "Cancel the authorization"}
+          </Button>
+        </>
+      )}
+
       {p.state === "completed" && (
-        <Notice tone="ledger" title="Approved. The PayPal payment is complete.">
-          {shopper} will see it right away.
+        <Notice tone="ledger" title={p.otpa?.status === "used" ? `${shopper} bought it for ${fmt(amount)}.` : p.flow === "request" ? "Approved and paid." : "Approved. The PayPal payment is complete."}>
+          {p.otpa?.status === "used" ? `Within your ${fmt(p.otpa.maxCents)}. PayPal released the rest of the hold.` : `${shopper} will see it right away.`}
         </Notice>
       )}
       {p.state === "declined" && (
         <Notice tone="relay" title="Declined.">
-          PayPal released the hold, so nothing was charged. {shopper} will see your answer.
+          {p.flow === "hold" ? "PayPal released the hold, so nothing was charged." : "Nothing was paid."} {shopper} will see your answer.
         </Notice>
       )}
-      {(p.state === "expired" || p.state === "canceled" || p.state === "failed") && (
+      {(p.state === "expired" || p.state === "canceled" || p.state === "failed" || p.state === "blocked") && (
         <Notice tone="relay" title="This request is closed.">
           Nothing was charged.
         </Notice>
+      )}
+    </div>
+  );
+}
+
+function fmt(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
+
+function HoldActions({ p, reviewer, busy, onDecide }: { p: PurchaseView; reviewer: string; busy: string | null; onDecide: (d: "approve" | "decline") => void }) {
+  return (
+    <>
+      <p className="text-ink-soft">
+        PayPal is holding the money. Nothing is charged unless you approve.
+        {p.reviewExpiresAt && <> If you don&apos;t answer by {when(p.reviewExpiresAt)}, the hold is released.</>}
+      </p>
+      <div className="grid gap-3">
+        <Button tone="ledger" className="min-h-16 text-xl" disabled={busy !== null} onClick={() => onDecide("approve")} aria-label={`Approve as ${reviewer}`}>
+          {busy === "approve" ? "Approving…" : (
+            <>
+              Approve <Money cents={p.paypalAmountCents ?? p.reviewedCents} />
+            </>
+          )}
+        </Button>
+        <Button tone="stop" className="min-h-16 text-xl" disabled={busy !== null} onClick={() => onDecide("decline")}>
+          {busy === "decline" ? "Declining…" : "Decline"}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** "Find these for $100 or less, size 10, by Friday": one product, one purchase. */
+function OtpaForm({
+  p,
+  shopper,
+  clientId,
+  createOrder,
+  onApprove,
+  onError,
+  onBack,
+}: {
+  p: PurchaseView;
+  shopper: string;
+  clientId: string | null;
+  createOrder: (terms: { maxDollars: number; details: string; expiresInDays: number }) => Promise<string>;
+  onApprove: (orderId: string) => Promise<void>;
+  onError: (m: string) => void;
+  onBack: () => void;
+}) {
+  const [max, setMax] = useState(String(Math.floor((p.reviewedCents * 0.75) / 100)));
+  const [details, setDetails] = useState("");
+  const [days, setDays] = useState("7");
+  const [ready, setReady] = useState<{ maxDollars: number; details: string; expiresInDays: number } | null>(null);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const maxDollars = Number(max);
+    const expiresInDays = Number(days);
+    if (!(maxDollars > 0)) return onError("Enter the most you'll pay.");
+    if (!(expiresInDays >= 1 && expiresInDays <= 29)) return onError("Pick 1 to 29 days.");
+    setReady({ maxDollars, details, expiresInDays });
+  };
+
+  return (
+    <div className="space-y-5 rounded-2xl border-2 border-line p-5">
+      <p className="text-xl font-bold">Let {shopper} buy it once, at your price</p>
+      <p className="text-ink-soft">
+        Only this exact product counts. Substitutions or a higher price need a new OK. It&apos;s good for one purchase and ends when it&apos;s used, canceled or expires.
+      </p>
+      {!ready ? (
+        <form onSubmit={submit} className="space-y-4">
+          <label className="block">
+            <span className="font-semibold">The most you&apos;ll pay, shipping and tax included</span>
+            <span className="mt-1 flex items-center gap-2">
+              <span className="text-2xl font-bold">$</span>
+              <input
+                inputMode="decimal"
+                value={max}
+                onChange={(e) => setMax(e.target.value)}
+                className="min-h-13 w-40 rounded-xl border-2 border-line px-4 text-xl focus:border-relay focus:outline-none"
+              />
+            </span>
+          </label>
+          <label className="block">
+            <span className="font-semibold">Must be (size, color…)</span>
+            <input
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Size 10, black"
+              maxLength={160}
+              className="mt-1 min-h-13 w-full rounded-xl border-2 border-line px-4 text-xl focus:border-relay focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="font-semibold">Good for</span>
+            <select
+              value={days}
+              onChange={(e) => setDays(e.target.value)}
+              className="mt-1 min-h-13 w-full rounded-xl border-2 border-line bg-white px-4 text-xl focus:border-relay focus:outline-none"
+            >
+              {[1, 3, 7, 14, 29].map((d) => (
+                <option key={d} value={d}>
+                  {d === 1 ? "1 day" : `${d} days`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit">Continue to PayPal</Button>
+            <Button type="button" tone="quiet" onClick={onBack}>
+              Back
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="space-y-3">
+          <p>
+            PayPal will hold up to <strong>{fmt(Math.round(ready.maxDollars * 100))}</strong>. When {shopper} finds it, only the actual price is charged and the rest is released.
+          </p>
+          {clientId && <PayPalButton clientId={clientId} createOrder={() => createOrder(ready)} onApprove={onApprove} onError={onError} />}
+          <Button tone="quiet" onClick={() => setReady(null)}>
+            Change the price
+          </Button>
+        </div>
       )}
     </div>
   );

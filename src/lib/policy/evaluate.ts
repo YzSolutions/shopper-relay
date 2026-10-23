@@ -2,9 +2,11 @@ import { formatCents } from "../money";
 import { GAP_OUTCOME, segmentAt, stricter } from "./bands";
 import { effectiveRule } from "./rules";
 import {
-  CATEGORY_LABELS,
+  categoryLabel,
+  isCustomCategory,
   type Cap,
   type CategoryId,
+  type CategoryKey,
   type HistoryEntry,
   type Outcome,
   type PurchaseStatus,
@@ -22,15 +24,17 @@ export interface PurchaseFacts {
   /** The full amount PayPal holds for this order (shipping and tax included), never an AI-extracted figure. */
   amountCents: number;
   /** From resolveCategory(); every one of these rules is checked. */
-  categories: CategoryId[];
+  categories: CategoryKey[];
 }
 
 export type ReasonCode = "band" | "undefined_range" | "cap";
 
 export interface Reason {
   code: ReasonCode;
-  category: CategoryId | null;
+  category: CategoryKey | null;
   outcome: Outcome;
+  /** Who reviews because of this reason (a category's own reviewer, or the main one). */
+  reviewer: string;
   message: string;
 }
 
@@ -38,6 +42,11 @@ export interface Decision {
   outcome: Outcome;
   /** The reasons behind the final outcome, in the order they were found. */
   reasons: Reason[];
+  /**
+   * Who is asked, when the outcome needs someone: the category's own
+   * reviewer if every reason agrees on one, otherwise the main reviewer.
+   */
+  reviewer: string;
 }
 
 export interface EvaluateOptions {
@@ -58,11 +67,12 @@ export function rangeText(minCents: number, maxCents: number | null): string {
     if (minCents === 0) return "of any amount";
     return over ? `over ${formatCents(minCents - 1)}` : `of ${formatCents(minCents)} and up`;
   }
+  if (maxCents - minCents === 1) return `of exactly ${formatCents(minCents)}`;
   if (minCents === 0) return upTo ? `up to ${formatCents(maxCents - 1)}` : `under ${formatCents(maxCents)}`;
   return `from ${formatCents(minCents)} to ${formatCents(maxCents - 1)}`;
 }
 
-/** How a category reads inside a sentence. */
+/** How a built-in category reads inside a sentence. */
 const PHRASES: Record<CategoryId, string> = {
   general: "everyday purchases",
   food: "food and grocery purchases",
@@ -83,9 +93,13 @@ const PHRASES: Record<CategoryId, string> = {
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+function phraseFor(category: CategoryKey): string {
+  return isCustomCategory(category) ? `purchases in ${categoryLabel(category)}` : PHRASES[category];
+}
+
 /** One plain sentence about a category rule, e.g. "Sarah takes a look at medical device purchases of $100.00 and up." */
-function bandSentence(outcome: Outcome, category: CategoryId, range: string, shopper: string, reviewer: string): string {
-  const what = PHRASES[category];
+function bandSentence(outcome: Outcome, category: CategoryKey, range: string, shopper: string, reviewer: string): string {
+  const what = phraseFor(category);
   switch (outcome) {
     case "auto":
       return `${shopper} can make ${what} ${range} without waiting for anyone.`;
@@ -133,24 +147,28 @@ export function evaluatePurchase(
   { now = new Date(), shopperName = "the shopper", reviewerName = "the reviewer" }: EvaluateOptions = {},
 ): Decision {
   const reasons: Reason[] = [];
-  const then = (outcome: Outcome) => consequence(outcome, shopperName, reviewerName);
+  const then = (outcome: Outcome, reviewer = reviewerName) => consequence(outcome, shopperName, reviewer);
 
   for (const category of facts.categories) {
-    const seg = segmentAt(effectiveRule(rules, category).bands, facts.amountCents);
+    const rule = effectiveRule(rules, category);
+    const reviewer = rule.reviewer ?? reviewerName;
+    const seg = segmentAt(rule.bands, facts.amountCents);
     const range = rangeText(seg.minCents, seg.maxCents);
     if (seg.outcome === null) {
       reasons.push({
         code: "undefined_range",
         category,
         outcome: GAP_OUTCOME,
-        message: `No rule covers ${PHRASES[category]} ${range} yet, so ${then(GAP_OUTCOME)} to be safe.`,
+        reviewer,
+        message: `No rule covers ${phraseFor(category)} ${range} yet, so ${then(GAP_OUTCOME, reviewer)} to be safe.`,
       });
     } else {
       reasons.push({
         code: "band",
         category,
         outcome: seg.outcome,
-        message: bandSentence(seg.outcome, category, range, shopperName, reviewerName),
+        reviewer,
+        message: bandSentence(seg.outcome, category, range, shopperName, reviewer),
       });
     }
   }
@@ -159,14 +177,16 @@ export function evaluatePurchase(
     if (cap.category !== null && !facts.categories.includes(cap.category)) continue;
     const total = spentWithin(history, cap, now) + facts.amountCents;
     if (total <= cap.limitCents) continue;
-    const scope = cap.category === null ? "" : `${CATEGORY_LABELS[cap.category]} `;
+    const scope = cap.category === null ? "" : `${categoryLabel(cap.category)} `;
     const message =
       cap.period === "purchase"
         ? `${formatCents(total)} is over the ${formatCents(cap.limitCents)} ${scope}per-purchase limit, so ${then(cap.over)}.`
         : `This would bring ${scope}spending in the last ${cap.period === "week" ? "7" : "30"} days to ${formatCents(total)}, over the ${formatCents(cap.limitCents)} ${scope}${PERIOD_TEXT[cap.period]} limit, so ${then(cap.over)}.`;
-    reasons.push({ code: "cap", category: cap.category, outcome: cap.over, message });
+    reasons.push({ code: "cap", category: cap.category, outcome: cap.over, reviewer: reviewerName, message });
   }
 
   const outcome = reasons.map((r) => r.outcome).reduce(stricter, "auto");
-  return { outcome, reasons: reasons.filter((r) => r.outcome === outcome) };
+  const final = reasons.filter((r) => r.outcome === outcome);
+  const named = new Set(final.map((r) => r.reviewer));
+  return { outcome, reasons: final, reviewer: named.size === 1 ? [...named][0] : reviewerName };
 }

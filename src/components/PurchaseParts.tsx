@@ -1,4 +1,4 @@
-import { CATEGORY_LABELS } from "@/lib/policy/types";
+import { categoryLabel } from "@/lib/policy/types";
 import type { LogEvent, PurchaseView } from "@/lib/client/api";
 import { Money } from "./ui";
 
@@ -47,7 +47,7 @@ export function Facts({ purchase }: { purchase: PurchaseView }) {
   rows.push([
     "Counted as",
     <span key="c">
-      <span className="font-semibold">{CATEGORY_LABELS[purchase.category.primary]}</span>
+      <span className="font-semibold">{categoryLabel(purchase.category.primary)}</span>
       <span className="block text-base text-ink-soft">{purchase.category.note}</span>
     </span>,
   ]);

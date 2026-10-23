@@ -8,7 +8,7 @@ const OUTCOME_CLASS = {
   blocked: "text-stop",
 } as const;
 
-export function RulesTable({ rules, reviewer, caption }: { rules: RuleSet; reviewer: string; caption?: string }) {
+export function RulesTable({ rules, reviewer, caption, flow = "hold" }: { rules: RuleSet; reviewer: string; caption?: string; flow?: "hold" | "request" }) {
   const rows = ruleRows(rules);
   return (
     <div>
@@ -34,10 +34,12 @@ export function RulesTable({ rules, reviewer, caption }: { rules: RuleSet; revie
                 {i === 0 && (
                   <th scope="row" rowSpan={row.bands.length} className="py-3 pr-4 align-top font-semibold">
                     {row.label}
+                    {row.matches && <span className="block text-base font-normal text-ink-soft">Counts: {row.matches.join(", ")}</span>}
+                    {row.reviewer && <span className="block text-base font-normal text-ink-soft">Reviewed by {row.reviewer}</span>}
                   </th>
                 )}
                 <td className="py-3 pr-4 align-top tabular-nums">{b.range}</td>
-                <td className={`py-3 align-top font-semibold ${OUTCOME_CLASS[b.outcome]}`}>{outcomeWords(b.outcome, reviewer)}</td>
+                <td className={`py-3 align-top font-semibold ${OUTCOME_CLASS[b.outcome]}`}>{outcomeWords(b.outcome, row.reviewer ?? reviewer, flow)}</td>
               </tr>
             )),
           )}
@@ -47,7 +49,7 @@ export function RulesTable({ rules, reviewer, caption }: { rules: RuleSet; revie
       {rules.caps.length > 0 && (
         <ul className="mt-4 space-y-1">
           {rules.caps.map((c, i) => (
-            <li key={i}>{capWords(c, reviewer)}</li>
+            <li key={i}>{capWords(c, reviewer, flow)}</li>
           ))}
         </ul>
       )}

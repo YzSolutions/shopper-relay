@@ -6,7 +6,8 @@ import { FlowError } from "@/lib/purchases/service";
 import { handle } from "@/lib/http";
 import { activeRules, evaluatePurchase, resolveCategory } from "@/lib/policy";
 import { historyFrom } from "@/lib/purchases/lifecycle";
-import { demoHousehold, getRulesState } from "@/lib/store/households";
+import { getRulesState } from "@/lib/store/households";
+import { currentHousehold } from "@/lib/store/current";
 import { listPurchases, summarize } from "@/lib/store/purchases";
 
 /**
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     if (!q) throw new FlowError("Type what you're looking for.");
     if (q.length > 200) throw new FlowError("That search is too long.");
 
-    const household = await demoHousehold();
+    const household = await currentHousehold();
     const [products, state, purchases] = await Promise.all([
       createChannel3Source().search(q, { limit: 12 }),
       getRulesState(household.id),
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
     const history = historyFrom(purchases.map(summarize));
 
     const results = products.map((product) => {
-      const category = resolveCategory({ catalogPath: product.categoryPath, recurring: "no" });
+      const category = resolveCategory({ catalogPath: product.categoryPath, title: product.title, custom: rules.custom, recurring: "no" });
       const offer = bestOffer(product);
       const preview = offer
         ? evaluatePurchase(rules, { amountCents: offer.priceCents, categories: category.categories }, history, {

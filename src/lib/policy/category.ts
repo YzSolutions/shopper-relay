@@ -1,4 +1,4 @@
-import type { CategoryId, RecurringFinding } from "./types";
+import { categoryLabel, type CategoryId, type CategoryKey, type CustomCategoryKey, type RecurringFinding, type RuleSet } from "./types";
 
 /**
  * Catalog taxonomy -> our categories. Order matters: first match wins, so the
@@ -6,7 +6,8 @@ import type { CategoryId, RecurringFinding } from "./types";
  */
 const CATALOG_PATTERNS: Array<[RegExp, CategoryId]> = [
   [/blood pressure|biometric monitor|medical (device|suppl)|glucose|pulse oximeter|thermometer|hearing aid|mobility aid|health care/i, "medical_device"],
-  [/video game|game console|gaming/i, "video_games"],
+  // Before electronics, but only for games and consoles: a "gaming PC" is a computer.
+  [/video game|game console|game controller/i, "video_games"],
   [/shoe|footwear|sneaker|boot|handbag|purse|wallet/i, "shoes_handbags"],
   [/apparel|clothing|outerwear|coat|jacket|dress|pants|shirt|sweater/i, "clothing"],
   [/toy|puzzle|board game|doll|action figure/i, "toys"],
@@ -27,15 +28,32 @@ export interface CategoryEvidence {
   /** The model's guess, used only when the catalog is silent. */
   ai?: { category: CategoryId; confidence: number } | null;
   recurring: RecurringFinding;
+  /** The product title, checked against the owner's custom categories. */
+  title?: string | null;
+  /** The owner's custom categories and the words that identify them. */
+  custom?: RuleSet["custom"];
 }
 
 export interface CategoryResolution {
   /** Every category whose rule applies; the policy engine takes the strictest. */
-  categories: CategoryId[];
+  categories: CategoryKey[];
   /** The one shown as "Counted as". */
-  primary: CategoryId;
-  basis: "catalog" | "ai" | "ambiguous";
+  primary: CategoryKey;
+  basis: "catalog" | "ai" | "ambiguous" | "custom";
   note: string;
+}
+
+function mentions(text: string, word: string): boolean {
+  const w = word.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return w.length > 1 && new RegExp(`\\b${w}(s|es)?\\b`, "i").test(text);
+}
+
+/** Custom categories whose words appear in the text. */
+export function customMatches(text: string | null | undefined, custom: RuleSet["custom"]): CustomCategoryKey[] {
+  if (!text || !custom) return [];
+  return (Object.entries(custom) as Array<[CustomCategoryKey, { match: string[] }]>)
+    .filter(([, c]) => c.match.some((w) => mentions(text, w)))
+    .map(([key]) => key);
 }
 
 export function categoryFromCatalog(path: string[] | null | undefined): CategoryId | null {
@@ -74,6 +92,26 @@ export function resolveCategory(evidence: CategoryEvidence): CategoryResolution 
       basis: "ambiguous",
       note: "The category is unclear, so the stricter rule applies.",
     };
+  }
+
+  // The owner's own categories. If the store files it there, that's what it is.
+  // If only the title mentions it ("car phone mount"), its rule is added and
+  // the stricter one wins, so a custom category can't become a loophole.
+  const inCatalog = customMatches(evidence.catalogPath?.join(" > "), evidence.custom);
+  const inTitle = customMatches(evidence.title, evidence.custom).filter((k) => !inCatalog.includes(k));
+  if (inCatalog.length) {
+    resolution = {
+      categories: [...inCatalog],
+      primary: inCatalog[0],
+      basis: "custom",
+      note: `The store files it under ${categoryLabel(inCatalog[0])}, one of your own categories.`,
+    };
+  }
+  if (inTitle.length) {
+    resolution.categories.push(...inTitle);
+    if (resolution.basis !== "custom") {
+      resolution.note += ` Its name mentions ${inTitle.map(categoryLabel).join(" and ")}, so that rule is checked too and the stricter one applies.`;
+    }
   }
 
   // Anything that is or might be recurring is also held to the subscription rule.
