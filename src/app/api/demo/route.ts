@@ -3,15 +3,16 @@ import { body, handle } from "@/lib/http";
 import { expireOverdue } from "@/lib/purchases/service";
 import { settle } from "@/lib/policy";
 import { logEvent } from "@/lib/store/events";
-import { demoHousehold, getRulesState, resetHousehold, saveRulesState } from "@/lib/store/households";
+import { demoHousehold, getRulesState, resetHousehold, saveRulesState, setHideBrands } from "@/lib/store/households";
 import { shiftReviewDeadlines } from "@/lib/store/purchases";
 
 // Demo-only controls, clearly labelled in the UI: pretend a day has passed,
-// or start the demo over.
+// start the demo over, or hide real store and brand names for the video.
 
 const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("advance"), hours: z.number().int().min(1).max(72) }),
   z.object({ action: z.literal("reset") }),
+  z.object({ action: z.literal("hide_brands"), on: z.boolean() }),
 ]);
 
 export async function POST(req: Request) {
@@ -20,6 +21,10 @@ export async function POST(req: Request) {
     if (a.action === "reset") return { household: await resetHousehold() };
 
     const household = await demoHousehold();
+    if (a.action === "hide_brands") {
+      await setHideBrands(household.id, a.on);
+      return { hideBrands: a.on };
+    }
     await shiftReviewDeadlines(household.id, a.hours);
     const state = await getRulesState(household.id);
     if (state.pending?.autoActivateAt) {

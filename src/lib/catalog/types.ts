@@ -29,6 +29,8 @@ export interface Product {
   attributes: Record<string, string[]>;
   /** Cheapest available first. */
   offers: Offer[];
+  /** Demo mode: the photo may show a real logo, so the app blurs it. */
+  imageHidden?: boolean;
 }
 
 export interface SearchOptions {

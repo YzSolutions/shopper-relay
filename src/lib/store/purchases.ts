@@ -14,6 +14,8 @@ export interface PurchaseItem {
   source: string | null;
   sourceId: string | null;
   categoryPath: string[];
+  /** Demo mode: blur the photo. */
+  imageHidden?: boolean;
 }
 
 export interface Purchase {

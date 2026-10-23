@@ -11,7 +11,7 @@ export function ItemHeader({ purchase }: { purchase: PurchaseView }) {
       <div className="size-24 shrink-0 overflow-hidden rounded-xl border border-line bg-white sm:size-32">
         {item.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- catalog images come from many retailer hosts
-          <img src={item.imageUrl} alt="" className="size-full object-contain" />
+          <img src={item.imageUrl} alt="" className={`size-full object-contain ${item.imageHidden ? "scale-110 blur-md" : ""}`} />
         ) : (
           <div className="grid size-full place-items-center bg-mist text-4xl font-black text-ink-soft/40" aria-hidden>
             ?

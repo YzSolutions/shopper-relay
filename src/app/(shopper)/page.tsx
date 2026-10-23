@@ -207,7 +207,7 @@ function ResultRow({
         <div className="size-24 shrink-0 overflow-hidden rounded-xl border border-line bg-white sm:size-28">
           {product.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- catalog images come from many retailer hosts
-            <img src={product.imageUrl} alt="" className="size-full object-contain" loading="lazy" />
+            <img src={product.imageUrl} alt="" className={`size-full object-contain ${product.imageHidden ? "scale-110 blur-md" : ""}`} loading="lazy" />
           )}
         </div>
         <div className="min-w-0 flex-1">

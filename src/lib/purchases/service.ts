@@ -6,6 +6,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { brand } from "@/config/brand";
 import { classifyProduct } from "../ai/products";
 import { recurringFinding } from "../ai/terms";
+import { anonymizeProduct } from "../catalog/anonymize";
 import { createChannel3Source } from "../catalog/channel3";
 import { bestOffer } from "../catalog/compare";
 import type { Product } from "../catalog/types";
@@ -63,9 +64,13 @@ async function categorize(categoryPath: string[], fallback: () => Promise<{ cate
 
 /** Choose an item found through in-app search. Price and stock are re-read from the catalog, never taken from the browser. */
 export async function chooseCatalogItem(household: Household, sourceId: string, merchant?: string): Promise<Purchase> {
-  const product = await createChannel3Source().get(sourceId);
-  if (!product) throw new FlowError("That product is no longer available.", 404);
-  const offer = (merchant ? product.offers.find((o) => o.merchant === merchant && o.available) : null) ?? bestOffer(product);
+  const real = await createChannel3Source().get(sourceId);
+  if (!real) throw new FlowError("That product is no longer available.", 404);
+  // In demo mode the browser only knows invented store names, so match either.
+  const product = household.hideBrands ? anonymizeProduct(real) : real;
+  const offer =
+    (merchant ? product.offers.find((o, i) => o.available && (o.merchant === merchant || real.offers[i].merchant === merchant)) : null) ??
+    bestOffer(product);
   if (!offer) throw new FlowError("That product is out of stock everywhere right now.", 409);
 
   // Catalog listings carry no purchase terms, so nothing recurring is known. Shown as "No recurring charge listed".
@@ -130,6 +135,7 @@ function itemFromProduct(p: Product, merchant: string, url: string): PurchaseIte
     source: p.source,
     sourceId: p.sourceId,
     categoryPath: p.categoryPath,
+    ...(p.imageHidden && { imageHidden: true }),
   };
 }
 

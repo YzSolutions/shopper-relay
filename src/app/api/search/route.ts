@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { anonymizeProduct } from "@/lib/catalog/anonymize";
 import { createChannel3Source } from "@/lib/catalog/channel3";
 import { bestOffer, compareFor } from "@/lib/catalog/compare";
 import { FlowError } from "@/lib/purchases/service";
@@ -39,7 +40,8 @@ export async function GET(req: NextRequest) {
         : null;
       const comparison = compareFor(product, products);
       return {
-        product,
+        // Comparisons use the real data; demo mode only changes what is shown.
+        product: household.hideBrands ? anonymizeProduct(product) : product,
         category,
         preview,
         sameProductCount: comparison.sameProduct.length,

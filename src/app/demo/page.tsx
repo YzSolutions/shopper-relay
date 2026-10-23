@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { api } from "@/lib/client/api";
+import { useSession } from "@/lib/client/useSession";
+
+function clearSavedSearch() {
+  try {
+    sessionStorage.clear();
+  } catch {
+    // storage unavailable
+  }
+}
 
 // Split screen for the video and for judges: the shopper's app on the left,
 // the reviewer's phone on the right, and demo-only controls above.
@@ -10,14 +19,17 @@ import { api } from "@/lib/client/api";
 export default function DemoPage() {
   const mom = useRef<HTMLIFrameElement>(null);
   const phone = useRef<HTMLIFrameElement>(null);
+  const { session, reload } = useSession();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const hidden = session?.household.hideBrands ?? false;
 
   async function run(label: string, json: unknown) {
     setBusy(true);
     setStatus(null);
     try {
       await api("/api/demo", { method: "POST", json });
+      await reload();
       setStatus(label);
       mom.current?.contentWindow?.location.reload();
       phone.current?.contentWindow?.location.reload();
@@ -44,17 +56,29 @@ export default function DemoPage() {
           type="button"
           disabled={busy}
           onClick={() => {
-            try {
-              sessionStorage.clear();
-            } catch {
-              // storage unavailable
-            }
+            clearSavedSearch();
             void run("Demo reset: Mom's default rules, no purchases.", { action: "reset" });
           }}
           className="rounded-lg border-2 border-line px-4 py-1.5 font-semibold hover:border-ink-soft disabled:opacity-50"
         >
           Reset demo
         </button>
+        <label className="flex items-center gap-2 font-semibold">
+          <input
+            type="checkbox"
+            className="size-5 accent-relay"
+            checked={hidden}
+            disabled={busy || !session}
+            onChange={(e) => {
+              clearSavedSearch();
+              void run(
+                e.target.checked ? "Real store and brand names are hidden. Search again to see invented names." : "Real store and brand names are shown again.",
+                { action: "hide_brands", on: e.target.checked },
+              );
+            }}
+          />
+          Hide real store and brand names
+        </label>
         {status && <p className="text-base text-ink-soft" role="status">{status}</p>}
         <Link href="/" className="ml-auto font-semibold text-relay underline-offset-4 hover:underline">
           Open the shopper app on its own

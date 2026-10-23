@@ -7,14 +7,17 @@ export interface Household {
   relationship: RelationshipId;
   shopperName: string;
   reviewerName: string;
+  /** Demo setting: show invented store names and no brand names (for the video). */
+  hideBrands: boolean;
 }
 
-type Row = { id: string; relationship: RelationshipId; shopper_name: string; reviewer_name: string };
+type Row = { id: string; relationship: RelationshipId; shopper_name: string; reviewer_name: string; hide_brands: boolean };
 const toHousehold = (r: Row): Household => ({
   id: r.id,
   relationship: r.relationship,
   shopperName: r.shopper_name,
   reviewerName: r.reviewer_name,
+  hideBrands: r.hide_brands,
 });
 
 /**
@@ -61,8 +64,19 @@ export async function saveRulesState(householdId: string, state: RulesState): Pr
     where household_id = ${householdId}`;
 }
 
+export async function setHideBrands(householdId: string, on: boolean): Promise<void> {
+  await db()`update households set hide_brands = ${on} where id = ${householdId}`;
+}
+
 /** Start the demo over: delete the household (purchases, log and checks go with it) and recreate it. */
 export async function resetHousehold(relationship: RelationshipId = DEMO_RELATIONSHIP): Promise<Household> {
+  // Keep the hide-brands setting across resets, so a reset mid-recording doesn't reveal real names.
+  const [prev] = (await db()`select hide_brands from households where relationship = ${relationship} limit 1`) as Array<{ hide_brands: boolean }>;
   await db()`delete from households where relationship = ${relationship}`;
-  return createHousehold(relationship);
+  const fresh = await createHousehold(relationship);
+  if (prev?.hide_brands) {
+    await setHideBrands(fresh.id, true);
+    return { ...fresh, hideBrands: true };
+  }
+  return fresh;
 }

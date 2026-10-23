@@ -1,152 +1,188 @@
 # ShopperRelay
 
-ShopperRelay is AI shopping help built on PayPal, made for the PayPal AI Hackathon. One
-person finds what to buy. Rules decide whether they can buy it alone or whether it goes
-to someone else for review. PayPal holds the payment until it's settled.
+**Shopping help you control.** ShopperRelay lets an older adult shop on their own, understand
+what they're really buying, and set their own rules for when someone they trust takes a second
+look. PayPal holds each payment until it's settled.
 
 **AI understands. Rules enforce. People approve. PayPal executes.**
 
-## Three applications, one rules engine
+Built for the PayPal AI Hackathon.
+
+- **Live demo:** https://shopper-relay.vercel.app/demo (shopper and reviewer side by side)
+- **Shopper app on its own:** https://shopper-relay.vercel.app
+- Everything runs on the PayPal **sandbox**. No real money moves.
+
+## Try it in two minutes
+
+1. Open **/demo**. Mom's screen is on the left, Sarah's phone on the right.
+2. In Mom's screen, search **blood pressure monitor**. Each result shows what it's *counted as*
+   (Medical Devices, from the store's own category) and whether Mom can buy it herself or Sarah
+   takes a look first.
+3. Choose one **under $100**, then pay with PayPal. It's within Mom's rules, so PayPal holds the
+   money and the payment completes straight away.
+4. Go to **Check a checkout**, choose the example **"Monitor with a membership in the small
+   print"**. The AI reads the screenshot and finds the $39/month membership hidden in the small
+   print. Choose **Buy it through ShopperRelay** and pay.
+5. Sarah's phone shows the request. Open it: she sees the same facts Mom saw, why she's being
+   asked, and the amount PayPal is holding. **Approve** captures the payment; **Decline** releases
+   the hold.
+6. Try **My rules**: write *"Under $75 I decide. Over $150 Sarah decides."* The app asks what
+   should happen between $75 and $150, and won't save until that gap is filled.
+
+**Paying in the sandbox:** log in with a PayPal sandbox personal account, or choose **Debit or
+Credit Card** and use the sandbox test card `4111 1111 1111 1111` with any future expiry and any
+CVV. **Simulate 24 hours** in the demo controls shows what happens when Sarah doesn't answer: the
+hold is released.
+
+## How it works
+
+```
+Mom searches (Channel3) ──or── uploads a checkout screenshot (Gemini reads it)
+        │
+        ▼
+Category from the catalog; AI only as a fallback, and doubt applies the stricter rule
+        │
+        ▼
+Mom's rules, checked by plain code ──► preview: "You can buy this" / "Sarah takes a look"
+        │
+        ▼
+PayPal Orders v2, intent AUTHORIZE: Mom approves in PayPal, the money is HELD
+        │
+        ▼
+Read the hold back from PayPal. Amount must match what Mom reviewed, to the cent.
+Run the rules again against PayPal's amount and up-to-date spending.
+        │
+        ├── within Mom's rules ─────────────► capture
+        ├── needs Sarah ──► Sarah's link ──► approve: capture   decline: void
+        │                                   no answer in 24h: void
+        └── blocked or amount mismatch ─────► void
+        │
+        ▼
+Why log: every step and its reason. PayPal webhooks (signature-verified) confirm.
+```
+
+### PayPal
+
+- **Orders v2 with `intent: AUTHORIZE`** and **Payments v2 capture and void**: approval only
+  places a hold, and ShopperRelay decides afterwards whether to capture or void it. This is what
+  makes "Sarah reviews it first" possible without ever charging Mom for something that's declined.
+- **PayPal's held amount is authoritative.** The app reads the authorization back from PayPal
+  and refuses to continue if it differs from what Mom reviewed by even a cent.
+- **Smart Buttons (JS SDK)** for checkout, **idempotency keys** on every money-moving call, and
+  **webhooks** verified with PayPal's signature-verification API.
+- In the prototype ShopperRelay is the sandbox merchant. Placing the order with the store is
+  simulated and labelled as such.
+
+### AI (Google Gemini, `gemini-3.8-flash` with fallback models)
+
+What the AI does:
+
+- Turns plain-English rules into structured rules.
+- Reads checkout screenshots for the real total, recurring charges, trials and cancellation
+  terms, and quotes the exact small print.
+- Explains search results in plain language.
+- Suggests a category only when the catalog has none.
+
+What the AI never does:
+
+- **Decide a payment.** The decision is made by deterministic, tested code.
+- **Override PayPal's amount.**
+- **Choose a looser category.** When the catalog and the AI disagree, or the AI isn't
+  confident, both rules apply and the stricter one wins.
+- **Find rule gaps.** The engine finds them; the questions back to the person are written by code.
+- **Give medical advice.** It never calls two products "equivalent", and it says "No recurring
+  charge listed" rather than "no subscription".
+- **Treat doubt as a no.** If it isn't sure whether a charge repeats, the purchase is treated as
+  recurring.
+
+Every AI answer is checked against a schema before use. Calls are retried, fall back to other
+models, and identical questions reuse a saved answer, so a busy model can't stall a purchase.
+
+### Channel3
+
+- In-app product search, so an older adult never has to copy links or describe a product.
+- Real prices, stores, stock and catalog categories.
+- **Same product** is claimed only when Channel3 groups listings under one product, or the brand
+  and model number match exactly. Everything else is labelled as a different product.
+- Product sources sit behind an adapter, so more sources can be added later.
+
+## Safeguards that keep Mom in charge
+
+- **Mom writes her own rules.** Sarah only sees purchases Mom's rules send to her.
+- **Tightening a rule** takes effect immediately.
+- **Loosening a safeguard** notifies Sarah. Sarah can let it start right away; otherwise it starts
+  automatically after 24 hours. Sarah can speed a change up but can never block it. This stops a
+  scammer pressuring Mom into switching protections off on the spot, without giving Sarah a veto
+  over Mom's money.
+- **Rules with gaps can't be saved.** Any amount not covered by a rule goes to review until it's
+  decided.
+- **Spending caps** (per purchase, rolling 7 and 30 days) count purchases still waiting for review,
+  so two smaller purchases can't slip past a limit together.
+
+## One engine, three relationships
+
+The same engine is designed for three relationships. Only Mom + Sarah has screens in this build.
 
 | | Mom + Sarah | Kids + parents | Personal shopper + customer |
 | --- | --- | --- | --- |
 | Finds products | Mom | Child | Trusted shopper |
-| Sets the rules | Mom | Parent | Customer |
-| Pays | Mom | Parent | Customer |
-| Can buy without a second person? | Mom, within her own rules | Never | The shopper, within delegated limits |
-| Over a limit | Sarah reviews | Parent must approve an exception | Customer approves |
-| Weekly / monthly caps | Optional | $30 / $100 | $250 / $600, plus $125 per purchase |
-| Hackathon build | **Working end to end** | Planned | Planned |
+| Sets the rules and pays | Mom | Parent | Customer |
+| Buys without a second person? | Within her own rules | Never | Within the customer's limits |
+| Over a limit | Sarah reviews | Parent approves an exception | Customer approves |
 
-Each purchase gets one outcome: **auto** (the shopper can buy now), **review**,
-**exception** (over a limit, so the reviewer must knowingly approve it) or **blocked**.
-The default limits for each preset are in [`presets.ts`](src/lib/policy/presets.ts).
+All three presets are fully implemented and tested in the rules engine
+([`presets.ts`](src/lib/policy/presets.ts)):
+- **Mom:** buys on her own under $75 for general shopping, $80 for clothing, $100 for medical
+  devices and food, and $150 for medical visits. Subscriptions are always reviewed.
+- **Kids:** small per-item budgets ($8 to $30), with $30 a week and $100 a month overall.
+  Subscriptions are blocked.
+- **Personal shopper:** may buy straight away within delegated limits ($125 per purchase, $250 a
+  week, $600 a month). Buying while the customer isn't present would need a saved,
+  customer-authorized PayPal payment method, which isn't built.
 
-| Mom + Sarah: Mom buys on her own | Under |
+## What's real and what's simulated
+
+| Real | Simulated |
 | --- | --- |
-| General Shopping | $75 |
-| Clothing | $80 |
-| Medical Devices | $100 |
-| Food & Groceries | $100 |
-| Medical Visits | $150 (kept in the rules; not part of product search) |
-| Subscriptions | Always reviewed |
+| PayPal sandbox authorize, capture, void and webhooks | Placing the order with the store |
+| Channel3 product search and prices | Sarah's text messages (her inbox at `/sarah` stands in for her phone) |
+| Gemini rule parsing, screenshot reading, explanations | Passing time (**Simulate 24 hours**) |
+| Neon Postgres storage and the why log | The store in the screenshot examples is made up |
 
-| Kids: per-item budget (parent approves everything) | Up to |
-| --- | --- |
-| Food / snacks | $8 |
-| General Shopping | $10 |
-| Toys, Books | $15 |
-| Video Games, School Supplies | $20 |
-| Clothing, Shoes | $25 |
-| Electronics | $30 |
-| Subscriptions | Blocked |
+The demo has no sign-in: one shared Mom + Sarah household, which **Reset demo** restores. For the
+video, **Hide real store and brand names** swaps real store names for invented ones and blurs
+product photos.
 
-| Personal shopper: may buy immediately | Up to |
-| --- | --- |
-| General Shopping | $50 |
-| Gifts, Collectibles | $75 |
-| Clothing, Shoes & Handbags, Home & Décor | $100 |
-| Electronics | $125 |
-| Subscriptions | Customer must approve |
+## Built with
 
-All limits apply to the full PayPal total, shipping and tax included. Weeks and months are
-rolling (the last 7 or 30 days), and pending purchases count until they finish or are
-cancelled. For the personal shopper preset, buying without the customer present will need a
-saved, customer-authorized PayPal payment method. That isn't built yet, and the PayPal
-capability still has to be confirmed.
+Next.js 16 and TypeScript on Vercel; PayPal Orders v2, Payments v2 and the JS SDK; Google Gemini;
+Channel3; Neon Postgres; Tailwind CSS; Vitest. Development was assisted by Claude Code.
 
-The roles are `shopper` and `reviewer`, and each preset says whose rules they are. That
-ownership changes how rule changes work:
-
-- **Tightening** a rule always takes effect immediately, whoever asks.
-- **Loosening, when the shopper owns the rules (Mom):** the reviewer is notified and can
-  approve it early. Otherwise it takes effect automatically after 24 hours, so the
-  reviewer can speed a change up but never block it. The reviewer can't loosen the
-  shopper's rules.
-- **Loosening, when the reviewer owns the rules (parent, customer):** it takes effect
-  immediately when the reviewer makes it. When the shopper asks for it, it waits for the
-  reviewer to approve, with no time limit.
-
-The hackathon demo tells the Mom and Sarah story. Set `NEXT_PUBLIC_DEMO_RELATIONSHIP` to
-switch to one of the other two.
-
-## How it works
-
-- **AI** turns plain-English spending rules into structured rules and points out any gaps.
-  It also explains products and reads checkout screenshots for recurring charges and fine print.
-- **Deterministic code** decides who approves each purchase. AI never makes that call.
-- **The reviewer** sees only the purchases the rules send to them.
-- **PayPal** authorizes (holds) every payment. The hold is captured when the purchase is
-  approved and voided when it's declined. PayPal's held amount is the only figure that counts.
-
-```
-Rules setup -> in-app shopping (Channel3) or screenshot check -> AI explains terms
-  -> category + spending policy (code) -> PayPal AUTHORIZE
-  -> shopper may approve alone? capture : reviewer decides -> capture | void
-  -> why log
-```
-
-In the prototype, ShopperRelay is the sandbox merchant that receives payment. **Placing
-the order with the retailer is simulated.**
-
-## Status
-
-| Piece | State |
-| --- | --- |
-| Policy engine: outcomes (auto/review/exception/blocked), per-category limits, per-purchase/weekly/monthly caps, gap detection, strictest-rule categories | Done, with tests |
-| Three presets: Mom + Sarah, kids + parents, personal shopper | Done, with tests (only Mom + Sarah gets screens in the hackathon build) |
-| Rule changes: depend on whose rules they are (24h cooling-off, or reviewer approval) | Done, with tests |
-| PayPal amount check (an exact match to the held amount is required) | Done, with tests |
-| Purchase lifecycle: PayPal hold, re-check against PayPal's amount, capture / reviewer / void, 24h expiry | Done, with tests and a sandbox end-to-end run |
-| PayPal: Orders v2 authorize, capture, void; webhook verification | Done |
-| Gemini: rule parsing, checkout-screenshot reading, result explanations, category fallback (retries, fallback models, saved answers) | Done |
-| Channel3 product search, normalized products, same product vs similar | Done |
-| Neon Postgres: households, rules, purchases, why log | Done |
-| API routes for the whole flow | Done |
-| Screens: shop, check a checkout, purchase status with PayPal buttons, my rules, history | Done |
-| Reviewer: mobile review page and inbox; split-screen demo at `/demo` | Done |
-| Hiding real store names for the video, final polish | Week 3 |
-
-## Try it
-
-- `/demo`: the shopper's app and the reviewer's phone side by side, with demo-only controls (simulate 24 hours, reset).
-- Paying in the PayPal sandbox: log in with a sandbox personal account, or choose **Debit or Credit Card** and use a
-  PayPal sandbox test card (for example `4111 1111 1111 1111`, any future expiry, any CVV). No real money moves.
-- To see a review: search for something over a limit (a blood pressure monitor over $100), or use **Check a checkout**
-  with the membership example and buy it.
-
-## Setup
+## Run it yourself
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in keys
-npm run db:migrate           # create the database tables (Neon)
-npm test                     # unit tests
-npm run paypal:check         # sandbox: authorize then capture
-npm run paypal:check -- --void
-npm run channel3:check -- "winter coat"   # product search, and how each result is categorized
-npm run gemini:check         # models your key can use, and a structured-output test
-npm run ai:check             # every AI job against real inputs
-npm run dev
-npm run e2e                  # full flow against the running app and the PayPal sandbox (sandbox only)
+cp .env.example .env.local   # PayPal sandbox app, Channel3, Gemini and Neon keys
+npm run db:migrate           # create the tables
+npm test                     # unit tests (rules engine, lifecycle, AI post-processing, catalog)
+npm run dev                  # http://localhost:3000, and /demo
+npm run e2e                  # full flow against the running app and the PayPal sandbox
 ```
+
+Service checks: `npm run paypal:check`, `npm run channel3:check`, `npm run gemini:check`,
+`npm run ai:check`.
 
 ## Code map
 
-- `src/lib/policy/`: the deterministic rules engine. It has no I/O and no AI.
-- `src/lib/policy/presets.ts`: default limits for the three applications.
-- `src/lib/purchases/`: the purchase lifecycle (pure) and the service that runs it against PayPal and the database.
-- `src/lib/paypal/client.ts`: PayPal Orders v2 / Payments v2 (authorize, capture, void), webhook verification.
-- `src/lib/catalog/`: product sources (Channel3 today) and same product vs similar comparison.
-- `src/lib/ai/`: Gemini jobs. AI explains and extracts; it never makes a payment decision.
-- `src/lib/store/`, `db/migrations/`: Neon Postgres storage.
-- `src/app/api/`: the HTTP API.
-- `src/config/brand.ts`: the product name.
-- `src/config/relationships.ts`: the three applications: roles, who pays, demo names.
-- `public/brand/`: logo (not MIT licensed). `public/demo/`: fictional checkout screenshots.
-- `scripts/`: service checks, the end-to-end run, and the demo screenshot generator.
+- `src/lib/policy/`: the rules engine, plain code with no I/O and no AI.
+- `src/lib/purchases/`: the purchase lifecycle and the service that runs it against PayPal.
+- `src/lib/paypal/client.ts`: Orders v2 / Payments v2, webhook verification.
+- `src/lib/ai/`: the Gemini jobs.
+- `src/lib/catalog/`: Channel3 adapter, comparisons, demo name hiding.
+- `src/lib/store/`, `db/migrations/`: Postgres storage.
+- `src/app/`: screens and the HTTP API (`src/app/api/`).
 
 ## License
 
-The code is MIT licensed. The ShopperRelay name and logo (`public/brand/`) are not covered by
-the MIT license and may not be used without permission.
+The code is MIT licensed. The ShopperRelay name and logo (`public/brand/`) are not covered by the
+MIT license and may not be used without permission.
