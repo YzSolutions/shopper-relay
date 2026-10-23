@@ -1,26 +1,68 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * ShopperRelay palette, sampled from the logo and adjusted for readable text.
+ * Blue = people and actions, green = money and "approved", orange = "someone
+ * takes a look". Sizes are generous on purpose: many shoppers are older adults.
+ */
+@theme {
+  --color-relay: #0151c9;
+  --color-relay-deep: #003ea3;
+  --color-relay-wash: #e8f0fc;
+  --color-ledger: #027a30;
+  --color-ledger-deep: #01632a;
+  --color-ledger-wash: #e6f4ea;
+  --color-signal: #fd7800;
+  --color-signal-text: #b54e00;
+  --color-signal-wash: #fff2e5;
+  --color-ink: #14213d;
+  --color-ink-soft: #4a5670;
+  --color-mist: #f2f6fc;
+  --color-line: #d5deec;
+  --color-stop: #b42318;
+  --color-stop-wash: #fdeceb;
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  --text-base: 1.1875rem; /* 19px */
+  --text-base--line-height: 1.55;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color: var(--color-ink);
+  background: #ffffff;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-relay);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

@@ -102,7 +102,7 @@ describe("Mom + Sarah preset", () => {
   it("sends the $149 blood pressure monitor to Sarah, and says why", () => {
     const d = judge(FAMILY_ELDER_RULES, 14900, ["medical_device"]);
     expect(d.outcome).toBe("review");
-    expect(d.reasons[0].message).toBe("Medical Devices purchases of $100.00 and up: Sarah reviews it.");
+    expect(d.reasons[0].message).toBe("Sarah takes a look at medical device purchases of $100.00 and up.");
   });
 
   it("lets Mom buy under each limit, and sends the limit itself to Sarah", () => {
@@ -154,7 +154,7 @@ describe("Kids + parents preset", () => {
   it("needs an exception over a category budget", () => {
     const d = kid(1501, ["toys"]);
     expect(d.outcome).toBe("exception");
-    expect(d.reasons[0].message).toBe("Toys purchases of $15.01 and up: Dana must approve an exception.");
+    expect(d.reasons[0].message).toBe("Toy purchases over $15.00 are over the limit, so Dana must approve an exception.");
     expect(kid(6900, ["video_games"]).outcome).toBe("exception");
   });
 
@@ -197,7 +197,7 @@ describe("Personal shopper preset", () => {
   it("lets the shopper grab an $89 flash-sale pair of shoes right away", () => {
     const d = shop(8900, ["shoes_handbags"]);
     expect(d.outcome).toBe("auto");
-    expect(d.reasons[0].message).toContain("Priya can buy without waiting for approval");
+    expect(d.reasons[0].message).toBe("Priya can make shoe and handbag purchases up to $100.00 without waiting for anyone.");
   });
 
   it("sends $179 headphones to the customer", () => {
@@ -353,7 +353,8 @@ describe("rule changes", () => {
 
   it("treats deleting a category rule by what the fallback allows", () => {
     // Dropping the $80 clothing rule makes clothing fall back to general's $75: a tightening.
-    const { clothing: _, ...rest } = FAMILY_ELDER_RULES.categories;
+    const rest = { ...FAMILY_ELDER_RULES.categories };
+    delete rest.clothing;
     expect(summarizeChange(FAMILY_ELDER_RULES, { ...FAMILY_ELDER_RULES, categories: rest }).kind).toBe("tighten");
   });
 });

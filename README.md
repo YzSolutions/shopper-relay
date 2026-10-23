@@ -97,33 +97,54 @@ the order with the retailer is simulated.**
 | Three presets: Mom + Sarah, kids + parents, personal shopper | Done, with tests (only Mom + Sarah gets screens in the hackathon build) |
 | Rule changes: depend on whose rules they are (24h cooling-off, or reviewer approval) | Done, with tests |
 | PayPal amount check (an exact match to the held amount is required) | Done, with tests |
-| PayPal authorize / capture / void client and sandbox check script | Written, not yet run against sandbox |
-| Gemini: rule parsing, screenshot reading, explanations | Not started |
-| Channel3 product search | Not started |
-| Shopper UI, reviewer's mobile page, why log | Not started |
+| Purchase lifecycle: PayPal hold, re-check against PayPal's amount, capture / reviewer / void, 24h expiry | Done, with tests and a sandbox end-to-end run |
+| PayPal: Orders v2 authorize, capture, void; webhook verification | Done |
+| Gemini: rule parsing, checkout-screenshot reading, result explanations, category fallback (retries, fallback models, saved answers) | Done |
+| Channel3 product search, normalized products, same product vs similar | Done |
+| Neon Postgres: households, rules, purchases, why log | Done |
+| API routes for the whole flow | Done |
+| Screens: shop, check a checkout, purchase status with PayPal buttons, my rules, history | Done |
+| Reviewer: mobile review page and inbox; split-screen demo at `/demo` | Done |
+| Hiding real store names for the video, final polish | Week 3 |
+
+## Try it
+
+- `/demo`: the shopper's app and the reviewer's phone side by side, with demo-only controls (simulate 24 hours, reset).
+- Paying in the PayPal sandbox: log in with a sandbox personal account, or choose **Debit or Credit Card** and use a
+  PayPal sandbox test card (for example `4111 1111 1111 1111`, any future expiry, any CVV). No real money moves.
+- To see a review: search for something over a limit (a blood pressure monitor over $100), or use **Check a checkout**
+  with the membership example and buy it.
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env.local   # fill in keys
-npm test                     # policy engine tests
+npm run db:migrate           # create the database tables (Neon)
+npm test                     # unit tests
 npm run paypal:check         # sandbox: authorize then capture
 npm run paypal:check -- --void
 npm run channel3:check -- "winter coat"   # product search, and how each result is categorized
 npm run gemini:check         # models your key can use, and a structured-output test
+npm run ai:check             # every AI job against real inputs
 npm run dev
+npm run e2e                  # full flow against the running app and the PayPal sandbox (sandbox only)
 ```
 
 ## Code map
 
 - `src/lib/policy/`: the deterministic rules engine. It has no I/O and no AI.
-- `src/lib/paypal/client.ts`: PayPal Orders v2 / Payments v2 (authorize, capture, void).
-- `src/config/brand.ts`: the product name.
 - `src/lib/policy/presets.ts`: default limits for the three applications.
+- `src/lib/purchases/`: the purchase lifecycle (pure) and the service that runs it against PayPal and the database.
+- `src/lib/paypal/client.ts`: PayPal Orders v2 / Payments v2 (authorize, capture, void), webhook verification.
+- `src/lib/catalog/`: product sources (Channel3 today) and same product vs similar comparison.
+- `src/lib/ai/`: Gemini jobs. AI explains and extracts; it never makes a payment decision.
+- `src/lib/store/`, `db/migrations/`: Neon Postgres storage.
+- `src/app/api/`: the HTTP API.
+- `src/config/brand.ts`: the product name.
 - `src/config/relationships.ts`: the three applications: roles, who pays, demo names.
-- `public/brand/`: logo (not MIT licensed).
-- `scripts/paypal-sandbox-check.ts`: the day-1 PayPal lifecycle test.
+- `public/brand/`: logo (not MIT licensed). `public/demo/`: fictional checkout screenshots.
+- `scripts/`: service checks, the end-to-end run, and the demo screenshot generator.
 
 ## License
 

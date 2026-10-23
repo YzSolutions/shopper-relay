@@ -1,0 +1,291 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { Button, CountedAs, ErrorNotice, Money, OutcomeLine, Spinner } from "@/components/ui";
+import { api, type PurchaseView, type SearchResult } from "@/lib/client/api";
+import { useSession } from "@/lib/client/useSession";
+
+const SUGGESTIONS = ["Blood pressure monitor", "Winter coat", "Reading glasses", "Walking shoes"];
+const SAVED = "shopperrelay:lastSearch";
+
+type Explanation = { summary: string; notes: Array<{ id: string; note: string }> };
+
+export default function ShopPage() {
+  const router = useRouter();
+  const { session } = useSession();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [searched, setSearched] = useState("");
+  const [explanation, setExplanation] = useState<Explanation | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [choosing, setChoosing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Coming back from a purchase shows the same results again.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(SAVED) ?? "null");
+      if (saved?.results) {
+        /* eslint-disable react-hooks/set-state-in-effect -- restoring saved results once */
+        setQuery(saved.query);
+        setSearched(saved.query);
+        setResults(saved.results);
+        setExplanation(saved.explanation ?? null);
+        /* eslint-enable react-hooks/set-state-in-effect */
+      }
+    } catch {
+      // nothing saved, or storage unavailable
+    }
+  }, []);
+
+  async function search(q: string) {
+    const text = q.trim();
+    if (!text) return;
+    setBusy(true);
+    setError(null);
+    setExplanation(null);
+    try {
+      const data = await api<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(text)}`);
+      setResults(data.results);
+      setSearched(text);
+      save(text, data.results, null);
+      if (data.results.length) explain(text, data.results);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function explain(q: string, rs: SearchResult[]) {
+    try {
+      const ex = await api<Explanation>("/api/search/explain", { method: "POST", json: { query: q, products: rs.slice(0, 8).map((r) => r.product) } });
+      setExplanation(ex);
+      save(q, rs, ex);
+    } catch {
+      // The plain-language summary is a nice-to-have; results still work without it.
+    }
+  }
+
+  function save(q: string, rs: SearchResult[], ex: Explanation | null) {
+    try {
+      sessionStorage.setItem(SAVED, JSON.stringify({ query: q, results: rs, explanation: ex }));
+    } catch {
+      // storage full or unavailable
+    }
+  }
+
+  async function choose(sourceId: string, merchant?: string) {
+    setChoosing(`${sourceId}:${merchant ?? ""}`);
+    setError(null);
+    try {
+      const { purchase } = await api<{ purchase: PurchaseView }>("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId, merchant } });
+      router.push(`/purchase/${purchase.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setChoosing(null);
+    }
+  }
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void search(query);
+  };
+  const reviewer = session?.household.reviewerName ?? "your trusted contact";
+  const notes = new Map(explanation?.notes.map((n) => [n.id, n.note]));
+
+  return (
+    <div className="max-w-3xl">
+      <form onSubmit={onSubmit} role="search">
+        <h1 className="text-[2.125rem] leading-tight font-extrabold sm:text-[2.5rem]">
+          <label htmlFor="q">What are you shopping for?</label>
+        </h1>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <input
+            id="q"
+            name="q"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="For example, a blood pressure monitor"
+            autoComplete="off"
+            className="min-h-15 flex-1 rounded-xl border-2 border-line bg-white px-5 text-xl placeholder:text-ink-soft/70 focus:border-relay focus:outline-none"
+          />
+          <Button type="submit" disabled={busy || !query.trim()} className="min-h-15 px-8 text-xl">
+            Search
+          </Button>
+        </div>
+      </form>
+
+      {!results && !busy && (
+        <div className="mt-6">
+          <p className="text-ink-soft">Or try one of these:</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => {
+                  setQuery(s);
+                  void search(s);
+                }}
+                className="rounded-full border-2 border-line px-4 py-2 font-medium hover:border-relay hover:text-relay"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          {session && (
+            <p className="mt-10 max-w-[36rem] text-ink-soft">
+              You choose what to buy. Your own rules decide when {reviewer} takes a look first, and PayPal holds the payment until it&apos;s settled.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-8 space-y-6">
+        <ErrorNotice error={error} />
+        {busy && <Spinner label="Searching stores…" />}
+      </div>
+
+      {results && !busy && (
+        <section aria-labelledby="results-heading" className="mt-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-3">
+            <h2 id="results-heading" className="text-2xl font-bold">
+              {results.length ? `${results.length} results for “${searched}”` : `Nothing found for “${searched}”`}
+            </h2>
+            {results.length > 0 && <p className="text-base text-ink-soft">Different products, not the same item</p>}
+          </div>
+
+          {results.length > 0 && (
+            <div className="mt-5 rounded-xl bg-mist px-5 py-4">
+              <p className="font-bold">In plain words</p>
+              {explanation ? <p className="mt-1">{explanation.summary}</p> : <Spinner label="Reading the results…" />}
+            </div>
+          )}
+
+          <ol className="mt-2">
+            {results.map((r) => (
+              <ResultRow
+                key={r.product.sourceId}
+                result={r}
+                note={notes.get(r.product.sourceId)}
+                reviewer={reviewer}
+                choosing={choosing}
+                onChoose={choose}
+              />
+            ))}
+          </ol>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ResultRow({
+  result,
+  note,
+  reviewer,
+  choosing,
+  onChoose,
+}: {
+  result: SearchResult;
+  note?: string;
+  reviewer: string;
+  choosing: string | null;
+  onChoose: (sourceId: string, merchant?: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { product, category, preview } = result;
+  const best = product.offers.find((o) => o.available);
+  const others = product.offers.filter((o) => o !== best);
+  const busy = choosing !== null;
+
+  return (
+    <li className="border-b border-line py-6">
+      <div className="flex gap-5">
+        <div className="size-24 shrink-0 overflow-hidden rounded-xl border border-line bg-white sm:size-28">
+          {product.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element -- catalog images come from many retailer hosts
+            <img src={product.imageUrl} alt="" className="size-full object-contain" loading="lazy" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-xl font-bold">{product.title}</h3>
+          {product.brand && <p className="text-ink-soft">{product.brand}</p>}
+          {best ? (
+            <p className="mt-2 text-lg">
+              <Money cents={best.priceCents} currency={best.currency} className="text-2xl font-extrabold" />
+              <span className="text-ink-soft"> at {best.merchant}</span>
+              {best.compareAtCents && best.compareAtCents > best.priceCents && (
+                <span className="text-ink-soft">
+                  {" "}
+                  (was <Money cents={best.compareAtCents} />)
+                </span>
+              )}
+            </p>
+          ) : (
+            <p className="mt-2 font-semibold text-ink-soft">Out of stock everywhere right now</p>
+          )}
+          <p className="mt-1">
+            <CountedAs category={category.primary} />
+            {category.basis === "ambiguous" && <span className="text-ink-soft"> (unclear, so the stricter rule applies)</span>}
+          </p>
+          {preview && <OutcomeLine outcome={preview.outcome} reviewer={reviewer} className="mt-2" />}
+          {note && <p className="mt-2 text-ink-soft">{note}</p>}
+
+          {best && preview?.outcome !== "blocked" && (
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onChoose(product.sourceId, best.merchant)}
+                className="min-h-12 rounded-xl bg-relay px-5 font-semibold text-white hover:bg-relay-deep disabled:opacity-50"
+              >
+                {choosing === `${product.sourceId}:${best.merchant}` ? "Opening…" : "Choose this"}
+              </button>
+              {others.length > 0 && (
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpen(!open)}
+                  className="min-h-12 rounded-xl border-2 border-line px-5 font-semibold hover:border-ink-soft"
+                >
+                  {open ? "Hide other stores" : `Same item at ${others.length} other ${others.length === 1 ? "store" : "stores"}`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {open && (
+            <div className="mt-4 rounded-xl border-2 border-line">
+              <p className="border-b border-line px-4 py-3 text-base text-ink-soft">
+                The same product, listed by other stores. Prices and stock can change.
+              </p>
+              <ul>
+                {others.map((o) => (
+                  <li key={o.merchant} className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0">
+                    <span>
+                      <Money cents={o.priceCents} currency={o.currency} className="font-bold" /> at {o.merchant}
+                      {!o.available && <span className="text-ink-soft"> (out of stock)</span>}
+                    </span>
+                    {o.available && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onChoose(product.sourceId, o.merchant)}
+                        className="min-h-11 rounded-lg border-2 border-relay px-4 font-semibold text-relay hover:bg-relay-wash disabled:opacity-50"
+                      >
+                        Choose this store
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}

@@ -46,18 +46,64 @@ export interface EvaluateOptions {
   reviewerName?: string;
 }
 
-function rangeText(minCents: number, maxCents: number | null): string {
-  if (maxCents === null) return minCents === 0 ? "of any amount" : `of ${formatCents(minCents)} and up`;
-  if (minCents === 0) return `under ${formatCents(maxCents)}`;
+/**
+ * A range in words. Limits written as "up to $15" are stored one cent above
+ * ($15.01 exclusive), so ranges ending or starting on an odd cent read as
+ * "up to $15.00" and "over $15.00" rather than "under $15.01".
+ */
+export function rangeText(minCents: number, maxCents: number | null): string {
+  const upTo = maxCents !== null && maxCents % 100 === 1;
+  const over = minCents % 100 === 1;
+  if (maxCents === null) {
+    if (minCents === 0) return "of any amount";
+    return over ? `over ${formatCents(minCents - 1)}` : `of ${formatCents(minCents)} and up`;
+  }
+  if (minCents === 0) return upTo ? `up to ${formatCents(maxCents - 1)}` : `under ${formatCents(maxCents)}`;
   return `from ${formatCents(minCents)} to ${formatCents(maxCents - 1)}`;
+}
+
+/** How a category reads inside a sentence. */
+const PHRASES: Record<CategoryId, string> = {
+  general: "everyday purchases",
+  food: "food and grocery purchases",
+  clothing: "clothing purchases",
+  shoes_handbags: "shoe and handbag purchases",
+  medical_device: "medical device purchases",
+  medical_visit: "medical visits",
+  toys: "toy purchases",
+  video_games: "video game purchases",
+  books: "book purchases",
+  school_supplies: "school supply purchases",
+  electronics: "electronics purchases",
+  gifts: "gifts",
+  home_decor: "home and décor purchases",
+  collectibles: "collectible purchases",
+  subscription: "subscriptions and other repeat charges",
+};
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** One plain sentence about a category rule, e.g. "Sarah takes a look at medical device purchases of $100.00 and up." */
+function bandSentence(outcome: Outcome, category: CategoryId, range: string, shopper: string, reviewer: string): string {
+  const what = PHRASES[category];
+  switch (outcome) {
+    case "auto":
+      return `${shopper} can make ${what} ${range} without waiting for anyone.`;
+    case "review":
+      return `${reviewer} takes a look at ${what} ${range}.`;
+    case "exception":
+      return `${capitalize(what)} ${range} are over the limit, so ${reviewer} must approve an exception.`;
+    case "blocked":
+      return `${capitalize(what)} aren't allowed unless ${reviewer} changes the rules.`;
+  }
 }
 
 function consequence(outcome: Outcome, shopper: string, reviewer: string): string {
   switch (outcome) {
     case "auto":
-      return `${shopper} can buy without waiting for approval`;
+      return `${shopper} can buy it without waiting`;
     case "review":
-      return `${reviewer} reviews it`;
+      return `${reviewer} takes a look`;
     case "exception":
       return `${reviewer} must approve an exception`;
     case "blocked":
@@ -90,7 +136,6 @@ export function evaluatePurchase(
   const then = (outcome: Outcome) => consequence(outcome, shopperName, reviewerName);
 
   for (const category of facts.categories) {
-    const label = CATEGORY_LABELS[category];
     const seg = segmentAt(effectiveRule(rules, category).bands, facts.amountCents);
     const range = rangeText(seg.minCents, seg.maxCents);
     if (seg.outcome === null) {
@@ -98,10 +143,15 @@ export function evaluatePurchase(
         code: "undefined_range",
         category,
         outcome: GAP_OUTCOME,
-        message: `No rule covers ${label} purchases ${range} yet, so ${then(GAP_OUTCOME)} to be safe.`,
+        message: `No rule covers ${PHRASES[category]} ${range} yet, so ${then(GAP_OUTCOME)} to be safe.`,
       });
     } else {
-      reasons.push({ code: "band", category, outcome: seg.outcome, message: `${label} purchases ${range}: ${then(seg.outcome)}.` });
+      reasons.push({
+        code: "band",
+        category,
+        outcome: seg.outcome,
+        message: bandSentence(seg.outcome, category, range, shopperName, reviewerName),
+      });
     }
   }
 
