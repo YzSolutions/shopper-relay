@@ -116,8 +116,9 @@ export function createPayPalClient({ clientId, clientSecret, env = "sandbox" }: 
       currency?: string;
       description: string;
       customId: string;
-      returnUrl: string;
-      cancelUrl: string;
+      /** Redirect checkout. Leave out when the PayPal buttons open their own popup. */
+      returnUrl?: string;
+      cancelUrl?: string;
       brandName?: string;
       requestId: string;
     }) {
@@ -132,19 +133,51 @@ export function createPayPalClient({ clientId, clientSecret, env = "sandbox" }: 
               amount: { currency_code: args.currency ?? "USD", value: centsToDecimal(args.amountCents) },
             },
           ],
-          payment_source: {
-            paypal: {
-              experience_context: {
-                brand_name: args.brandName,
-                shipping_preference: "NO_SHIPPING",
-                user_action: "CONTINUE",
-                return_url: args.returnUrl,
-                cancel_url: args.cancelUrl,
+          ...(args.returnUrl && {
+            payment_source: {
+              paypal: {
+                experience_context: {
+                  brand_name: args.brandName,
+                  shipping_preference: "NO_SHIPPING",
+                  user_action: "CONTINUE",
+                  return_url: args.returnUrl,
+                  cancel_url: args.cancelUrl,
+                },
               },
             },
-          },
+          }),
         },
       });
+    },
+
+    /**
+     * Sandbox/test only: approve an order with a test card instead of a buyer
+     * logging in, so the full flow can be exercised by a script.
+     */
+    confirmWithTestCard(orderId: string, card: { number: string; expiry: string; securityCode: string; name: string }) {
+      if (env !== "sandbox") throw new Error("Test cards only work in sandbox.");
+      return call<Order>("POST", `/v2/checkout/orders/${orderId}/confirm-payment-source`, {
+        body: { payment_source: { card: { number: card.number, expiry: card.expiry, security_code: card.securityCode, name: card.name } } },
+      });
+    },
+
+    /**
+     * Ask PayPal whether a webhook really came from PayPal. Needs the raw
+     * headers and the parsed body exactly as received.
+     */
+    async verifyWebhook(webhookId: string, headers: Headers, event: unknown): Promise<boolean> {
+      const res = await call<{ verification_status: string }>("POST", "/v1/notifications/verify-webhook-signature", {
+        body: {
+          auth_algo: headers.get("paypal-auth-algo"),
+          cert_url: headers.get("paypal-cert-url"),
+          transmission_id: headers.get("paypal-transmission-id"),
+          transmission_sig: headers.get("paypal-transmission-sig"),
+          transmission_time: headers.get("paypal-transmission-time"),
+          webhook_id: webhookId,
+          webhook_event: event,
+        },
+      });
+      return res.verification_status === "SUCCESS";
     },
 
     getOrder: (orderId: string) => call<Order>("GET", `/v2/checkout/orders/${orderId}`),

@@ -1,46 +1,37 @@
-// Check the Channel3 key and see what a product search actually returns.
+// Check the Channel3 key and see what search returns, through the same adapter the app uses.
 //
 //   npm run channel3:check
 //   npm run channel3:check -- "winter coat women"
-//   npm run channel3:check -- "blood pressure monitor" --raw   # dump the first product as JSON
 
 import { existsSync } from "node:fs";
-import { Channel3 } from "@channel3/sdk";
-import { formatCents, numberToCents } from "../src/lib/money";
-import { categoryFromCatalog } from "../src/lib/policy/category";
+import { createChannel3Source } from "../src/lib/catalog/channel3";
+import { compareFor } from "../src/lib/catalog/compare";
+import { formatCents } from "../src/lib/money";
+import { resolveCategory } from "../src/lib/policy/category";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
-const args = process.argv.slice(2);
-const raw = args.includes("--raw");
-const query = args.filter((a) => a !== "--raw").join(" ") || "blood pressure monitor";
+const query = process.argv.slice(2).join(" ") || "blood pressure monitor";
 
 async function main() {
-  const apiKey = process.env.CHANNEL3_API_KEY;
-  if (!apiKey) throw new Error("Set CHANNEL3_API_KEY in .env.local.");
-  const client = new Channel3({ apiKey });
+  const products = await createChannel3Source().search(query, { limit: 8 });
+  console.log(`"${query}": ${products.length} products\n`);
 
-  const res = (await client.products.search({ query, limit: 5 })).response;
-  console.log(`"${query}": ${res.products.length} products\n`);
-
-  if (raw && res.products[0]) {
-    console.log(JSON.stringify(res.products[0], null, 2));
-    return;
+  for (const p of products) {
+    const counted = resolveCategory({ catalogPath: p.categoryPath, recurring: "no" });
+    console.log(`- ${p.title}`);
+    console.log(`  brand: ${p.brand ?? "?"}   model: ${p.modelNumber ?? "-"}   id: ${p.sourceId}`);
+    console.log(`  category: ${p.categoryPath.join(" > ") || "?"}  ->  counted as ${counted.primary} (${counted.basis})`);
+    for (const o of p.offers) console.log(`  offer: ${o.merchant}  ${formatCents(o.priceCents, o.currency)}${o.available ? "" : "  (out of stock)"}`);
   }
 
-  for (const p of res.products) {
-    const path = (p.category?.path ?? []).map((c) => c.title);
-    console.log(`- ${p.title}`);
-    console.log(`  brand: ${p.brands?.map((b) => b.name).join(", ") || "?"}   id: ${p.id}`);
-    console.log(`  category: ${path.join(" > ") || "?"}  ->  counted as ${categoryFromCatalog(path) ?? "(no match, falls back)"}`);
-    for (const o of p.offers ?? []) {
-      const price = o.price ? formatCents(numberToCents(o.price.price), o.price.currency) : "?";
-      console.log(`  offer: ${o.domain}  ${price}  ${o.availability ?? ""}`);
-    }
+  if (products[0]) {
+    const c = compareFor(products[0], products);
+    console.log(`\nCompared with "${products[0].title}": ${c.sameProduct.length} same-product listings, ${c.similar.length} similar products.`);
   }
 }
 
 main().catch((err) => {
-  console.error(err?.message ?? err, err?.body ? JSON.stringify(err.body) : "");
+  console.error(err?.message ?? err);
   process.exit(1);
 });

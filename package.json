@@ -10,7 +10,10 @@
     "test": "vitest run",
     "paypal:check": "tsx scripts/paypal-sandbox-check.ts",
     "channel3:check": "tsx scripts/channel3-check.ts",
-    "gemini:check": "tsx scripts/gemini-check.ts"
+    "gemini:check": "tsx scripts/gemini-check.ts",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "ai:check": "tsx scripts/ai-check.ts",
+    "e2e": "tsx scripts/e2e.ts"
   },
   "dependencies": {
     "@channel3/sdk": "^4.4.1",
