@@ -5,7 +5,7 @@ import { FlowError } from "@/lib/purchases/service";
 import { activeRules, findRuleIssues, requestRuleChange, RuleSetSchema, settle } from "@/lib/policy";
 import { logEvent } from "@/lib/store/events";
 import { getRulesState, saveRulesState } from "@/lib/store/households";
-import { currentHousehold } from "@/lib/store/current";
+import { assertSameHousehold, currentHousehold } from "@/lib/store/current";
 
 export async function GET() {
   return handle(async () => {
@@ -23,8 +23,9 @@ export async function GET() {
 export async function POST(req: Request) {
   return handle(async () => {
     // No sign-in in the prototype, so the caller says which role it's acting as.
-    const { rules, by } = await body(req, z.object({ rules: RuleSetSchema, by: z.enum(["shopper", "reviewer"]) }));
+    const { rules, by, householdId } = await body(req, z.object({ rules: RuleSetSchema, by: z.enum(["shopper", "reviewer"]), householdId: z.uuid().optional() }));
     const household = await currentHousehold();
+    assertSameHousehold(household.id, householdId);
     const names = { shopper: household.shopperName, reviewer: household.reviewerName };
     const issues = findRuleIssues(rules);
     if (issues.length) {

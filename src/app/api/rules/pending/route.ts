@@ -4,13 +4,14 @@ import { FlowError } from "@/lib/purchases/service";
 import { approvePendingChange, dropPendingChange, settle } from "@/lib/policy";
 import { logEvent } from "@/lib/store/events";
 import { getRulesState, saveRulesState } from "@/lib/store/households";
-import { currentHousehold } from "@/lib/store/current";
+import { assertSameHousehold, currentHousehold } from "@/lib/store/current";
 
 /** The reviewer approves a waiting rule change, or it's withdrawn or turned down. */
 export async function POST(req: Request) {
   return handle(async () => {
-    const { action, by } = await body(req, z.object({ action: z.enum(["approve", "drop"]), by: z.enum(["shopper", "reviewer"]) }));
+    const { action, by, householdId } = await body(req, z.object({ action: z.enum(["approve", "drop"]), by: z.enum(["shopper", "reviewer"]), householdId: z.uuid().optional() }));
     const household = await currentHousehold();
+    assertSameHousehold(household.id, householdId);
     const state = settle(await getRulesState(household.id));
     if (!state.pending) throw new FlowError("There's no rule change waiting.", 409);
 

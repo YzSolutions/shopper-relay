@@ -65,7 +65,8 @@ export default function DemoPage() {
               </button>
             ))}
           </div>
-          <Link href="/" className="ml-auto font-semibold text-relay underline-offset-4 hover:underline">
+          {session && <span className="ml-auto text-sm text-ink-soft">Build {session.build}</span>}
+          <Link href="/" className="font-semibold text-relay underline-offset-4 hover:underline">
             Open {shopper}&apos;s app on its own
           </Link>
         </div>

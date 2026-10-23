@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type LogEvent, type PurchaseView } from "./api";
 
-const LIVE = new Set(["checkout", "awaiting_review"]);
+/** States where someone else may act at any moment, so the page keeps checking. */
+const LIVE = new Set(["checkout", "awaiting_review", "requested", "hunting"]);
 
 /** A purchase and its log, refreshed every few seconds while it's waiting on someone. */
 export function usePurchase(id: string) {

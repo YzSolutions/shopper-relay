@@ -69,7 +69,7 @@ export default function ShopPage() {
 
   async function explain(q: string, rs: SearchResult[]) {
     try {
-      const ex = await api<Explanation>("/api/search/explain", { method: "POST", json: { query: q, products: rs.slice(0, 8).map((r) => r.product) } });
+      const ex = await api<Explanation>("/api/search/explain", { method: "POST", json: { query: q, products: rs.slice(0, 12).map((r) => r.product) } });
       setExplanation(ex);
       save(q, rs, ex);
     } catch {
@@ -178,6 +178,7 @@ export default function ShopPage() {
           {results.length > 0 && (
             <div className="mt-5 rounded-xl bg-mist px-6 py-5">
               <h3 className="text-xl font-bold">In plain words</h3>
+              <PriceRange results={results} />
               {explanation ? (
                 <>
                   <p className="mt-2 text-[1.375rem] leading-snug font-semibold">{explanation.summary}</p>
@@ -329,5 +330,29 @@ function ResultRow({
         </div>
       </div>
     </li>
+  );
+}
+
+/** The price range across every result, worked out here rather than by the AI. */
+function PriceRange({ results }: { results: SearchResult[] }) {
+  const prices = results.flatMap((r) => {
+    const best = r.product.offers.find((o) => o.available);
+    return best ? [best.priceCents] : [];
+  });
+  if (!prices.length) return null;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return (
+    <p className="mt-2 text-[1.375rem] leading-snug font-semibold">
+      {min === max ? (
+        <>
+          All {prices.length} are <Money cents={min} />.
+        </>
+      ) : (
+        <>
+          Prices go from <Money cents={min} /> to <Money cents={max} /> across all {prices.length} results.
+        </>
+      )}
+    </p>
   );
 }

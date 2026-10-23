@@ -44,6 +44,7 @@ export function DemoSwitcher() {
       <a href="/demo" className="font-semibold text-relay underline-offset-4 hover:underline">
         Side-by-side demo
       </a>
+      <span className="ml-auto text-sm text-ink-soft">Build {session.build}</span>
     </div>
   );
 }

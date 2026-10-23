@@ -11,7 +11,7 @@ import { anonymizeProduct } from "../catalog/anonymize";
 import { createChannel3Source } from "../catalog/channel3";
 import { bestOffer } from "../catalog/compare";
 import type { Product } from "../catalog/types";
-import { formatCents, numberToCents } from "../money";
+import { formatCents, numberToCents, parseToCents } from "../money";
 import { activeRules, categoryLabel, checkPayPalAmount, evaluatePurchase, resolveCategory, type CategoryId, type RecurringFinding } from "../policy";
 import { configFromEnv, createPayPalClient, firstAuthorization, PayPalError, type PayPalClient } from "../paypal/client";
 import { getCheck } from "../store/checks";
@@ -315,7 +315,8 @@ async function capture(household: Household, p: Purchase, amountCents?: number):
       `capture-${p.id}`,
       amountCents === undefined ? undefined : { cents: amountCents, currency: p.currency },
     );
-    await transitionPurchase(p.id, "completed", "completed", { paypalCaptureId: c.id });
+    // Record what PayPal says it took; screens show this, never the hold or the listed price.
+    await transitionPurchase(p.id, "completed", "completed", { paypalCaptureId: c.id, paypalCapturedCents: parseToCents(c.amount.value) });
     await logEvent({
       householdId: household.id,
       purchaseId: p.id,

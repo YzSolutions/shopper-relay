@@ -268,8 +268,8 @@ function Status({ purchase, shopper, reviewer }: { purchase: PurchaseView; shopp
     case "completed":
       if (purchase.otpa?.status === "used") {
         return (
-          <Notice tone="ledger" title={`Bought for ${formatMoney(purchase.paypalAmountCents ?? purchase.reviewedCents)}, within ${reviewer}'s price.`}>
-            PayPal took exactly that from {reviewer}&apos;s hold and released the rest. The authorization is used up. Placing the order with the store is simulated in this prototype.
+          <Notice tone="ledger" title={`Bought for ${formatMoney(purchase.paypalCapturedCents ?? purchase.reviewedCents)}, within ${reviewer}'s ${formatMoney(purchase.otpa.maxCents)}.`}>
+            PayPal charged exactly that and released the rest of {reviewer}&apos;s hold. The authorization is used up. Placing the order with the store is simulated in this prototype.
           </Notice>
         );
       }

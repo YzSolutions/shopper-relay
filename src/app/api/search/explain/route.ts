@@ -31,7 +31,7 @@ const ProductFacts = z.object({
 /** Plain-language summary of search results. Explanations only; nothing here affects a decision. */
 export async function POST(req: Request) {
   return handle(async () => {
-    const { query, products } = await body(req, z.object({ query: z.string().min(1).max(200), products: z.array(ProductFacts).min(1).max(8) }));
+    const { query, products } = await body(req, z.object({ query: z.string().min(1).max(200), products: z.array(ProductFacts).min(1).max(12) }));
     return explainResults(query, products);
   });
 }

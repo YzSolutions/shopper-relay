@@ -38,6 +38,7 @@ export interface Session {
   issues: RuleIssue[];
   budget: BudgetLine[];
   paypal: { clientId: string | null; env: "sandbox" | "live" };
+  build: string;
 }
 
 export interface SearchResult {

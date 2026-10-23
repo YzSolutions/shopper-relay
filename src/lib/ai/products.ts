@@ -14,7 +14,8 @@ const GUARDRAILS = `- Use only the facts provided. If something isn't in the fac
 - No medical, legal or financial advice.
 - Write for someone who may be an older adult and isn't technical: everyday words, very short sentences.
 - No jargon or spec-speak. Never write GB, TB, RAM, SSD, CPU, GPU, "solid state", "processor", Hz, mAh or model codes. Say what it means for the person instead: "lots of room for photos and games", "fast", "battery lasts all day".
-- Round prices ("about $40").`;
+- Round prices ("about $40").
+- Don't state a price range or the lowest or highest price: the app works that out from every result and shows it separately.`;
 
 function factsOf(p: Product) {
   return {
@@ -39,10 +40,10 @@ const ExplainSchema = z.object({
 
 export async function explainResults(query: string, products: Product[]) {
   const { data, model } = await generateJson({
-    task: "explain-results-v3",
+    task: "explain-results-v4",
     schema: ExplainSchema,
     system: `You help someone understand shopping results in plain language.\n${GUARDRAILS}`,
-    parts: [{ text: JSON.stringify({ searchedFor: query, products: products.slice(0, 8).map(factsOf) }) }],
+    parts: [{ text: JSON.stringify({ searchedFor: query, products: products.slice(0, 12).map(factsOf) }) }],
   });
   const known = new Set(products.map((p) => p.sourceId));
   return { summary: data.summary, points: data.points, notes: data.notes.filter((n) => known.has(n.id)), model };

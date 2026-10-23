@@ -38,7 +38,10 @@ export interface Purchase {
   paypalOrderId: string | null;
   paypalAuthorizationId: string | null;
   paypalCaptureId: string | null;
+  /** What PayPal is (or was) holding. */
   paypalAmountCents: number | null;
+  /** What PayPal actually took when the purchase completed. */
+  paypalCapturedCents: number | null;
   reviewToken: string | null;
   reviewExpiresAt: string | null;
   createdAt: string;
@@ -63,6 +66,7 @@ type Row = {
   paypal_authorization_id: string | null;
   paypal_capture_id: string | null;
   paypal_amount_cents: number | null;
+  paypal_captured_cents: number | null;
   review_token: string | null;
   review_expires_at: string | null;
   created_at: string;
@@ -89,6 +93,7 @@ const toPurchase = (r: Row): Purchase => ({
   paypalAuthorizationId: r.paypal_authorization_id,
   paypalCaptureId: r.paypal_capture_id,
   paypalAmountCents: r.paypal_amount_cents,
+  paypalCapturedCents: r.paypal_captured_cents,
   reviewToken: r.review_token,
   reviewExpiresAt: iso(r.review_expires_at),
   createdAt: iso(r.created_at)!,
@@ -164,6 +169,7 @@ export async function transitionPurchase(
     paypalAuthorizationId: string;
     paypalCaptureId: string;
     paypalAmountCents: number;
+    paypalCapturedCents: number;
     reviewToken: string | null;
     reviewExpiresAt: string | null;
     otpa: Otpa;
@@ -180,6 +186,7 @@ export async function transitionPurchase(
       paypal_authorization_id = coalesce(${fields.paypalAuthorizationId ?? null}, paypal_authorization_id),
       paypal_capture_id = coalesce(${fields.paypalCaptureId ?? null}, paypal_capture_id),
       paypal_amount_cents = coalesce(${fields.paypalAmountCents ?? null}, paypal_amount_cents),
+      paypal_captured_cents = coalesce(${fields.paypalCapturedCents ?? null}, paypal_captured_cents),
       otpa = coalesce(${fields.otpa ? JSON.stringify(fields.otpa) : null}::jsonb, otpa),
       product = coalesce(${fields.item ? JSON.stringify(fields.item) : null}::jsonb, product),
       reviewed_cents = coalesce(${fields.reviewedCents ?? null}, reviewed_cents),

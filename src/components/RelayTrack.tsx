@@ -53,7 +53,9 @@ export function RelayTrack(props: Props) {
   const pct = (at / (stations.length - 1)) * 100;
 
   return (
-    <div className="relative px-3 pt-2" role="img" aria-label={`Progress: ${stations[at].label}${stopped ? ", stopped" : ""}`}>
+    // A container query: where there's room, every step has its caption; in a narrow
+    // space (the reviewer's phone) one clear line names the current step instead.
+    <div className="@container relative px-3 pt-2" role="img" aria-label={`Progress: step ${at + 1} of ${stations.length}, ${stations[at].label}${stopped ? ", stopped" : ""}`}>
       <div className="relative mx-[calc(10%-0.75rem)] h-3 rounded-full bg-line">
         <div
           className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-out ${stopped ? "bg-stop/70" : "bg-signal"}`}
@@ -69,7 +71,11 @@ export function RelayTrack(props: Props) {
           </span>
         </div>
       </div>
-      <ol className="mt-5 grid grid-cols-5 gap-1 text-center text-[0.9375rem] leading-snug">
+      <p className={`mt-5 text-center text-lg font-bold @lg:hidden ${stopped ? "text-stop" : "text-ink"}`}>
+        Step {at + 1} of {stations.length}: {stations[at].label}
+        {stopped && " (stopped)"}
+      </p>
+      <ol className="mt-5 hidden grid-cols-5 gap-1 text-center text-[0.9375rem] leading-snug @lg:grid">
         {stations.map((s, i) => (
           <li
             key={s.label}

@@ -31,6 +31,8 @@ export async function GET() {
       issues: findRuleIssues(state.rules),
       budget: await householdBudget(household),
       paypal: { clientId: process.env.PAYPAL_CLIENT_ID ?? null, env: process.env.PAYPAL_ENV === "live" ? "live" : "sandbox" },
+      // The deployed commit (Vercel sets this), so testers can say exactly which build they saw.
+      build: (process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7),
     };
   });
 }

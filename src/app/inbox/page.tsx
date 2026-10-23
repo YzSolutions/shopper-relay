@@ -41,7 +41,7 @@ export default function ReviewerInbox() {
     setBusy(true);
     setError(null);
     try {
-      await api("/api/rules/pending", { method: "POST", json: { action, by: "reviewer" } });
+      await api("/api/rules/pending", { method: "POST", json: { action, by: "reviewer", householdId: session?.household.id } });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

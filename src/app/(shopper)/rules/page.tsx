@@ -36,7 +36,7 @@ export default function RulesPage() {
     setError(null);
     setSaved(null);
     try {
-      setParsed(await api<ParsedRules>("/api/rules/parse", { method: "POST", json: { text, startFresh } }));
+      setParsed(await api<ParsedRules>("/api/rules/parse", { method: "POST", json: { text, startFresh, householdId: session?.household.id } }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -49,7 +49,7 @@ export default function RulesPage() {
     setBusy("save");
     setError(null);
     try {
-      const res = await api<{ message: string }>("/api/rules", { method: "POST", json: { rules: parsed.rules, by } });
+      const res = await api<{ message: string }>("/api/rules", { method: "POST", json: { rules: parsed.rules, by, householdId: session?.household.id } });
       setSaved(res.message);
       setParsed(null);
       setText("");
@@ -66,7 +66,7 @@ export default function RulesPage() {
     setBusy("pending");
     setError(null);
     try {
-      await api("/api/rules/pending", { method: "POST", json: { action: "drop", by: pending?.requestedBy ?? "shopper" } });
+      await api("/api/rules/pending", { method: "POST", json: { action: "drop", by: pending?.requestedBy ?? "shopper", householdId: session?.household.id } });
       setSaved("The change was withdrawn. The current rules stay as they are.");
       await reload();
     } catch (e) {

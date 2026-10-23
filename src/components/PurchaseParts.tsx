@@ -31,19 +31,11 @@ export function ItemHeader({ purchase }: { purchase: PurchaseView }) {
 /** The facts that matter for the decision, in one place. */
 export function Facts({ purchase }: { purchase: PurchaseView }) {
   const t = purchase.terms;
-  const held = purchase.paypalAmountCents;
   const rows: Array<[string, React.ReactNode]> = [
     ["Price", <Money key="p" cents={purchase.reviewedCents} currency={purchase.currency} className="text-2xl font-extrabold" />],
   ];
-  if (held !== null) {
-    rows.push([
-      "PayPal is holding",
-      <span key="h">
-        <Money cents={held} currency={purchase.currency} className="font-bold" />
-        {held === purchase.reviewedCents ? <span className="text-ink-soft"> (matches the price)</span> : <span className="font-bold text-stop"> (does not match)</span>}
-      </span>,
-    ]);
-  }
+  const payment = paymentRow(purchase);
+  if (payment) rows.push(payment);
   rows.push([
     "Counted as",
     <span key="c">
@@ -65,6 +57,52 @@ export function Facts({ purchase }: { purchase: PurchaseView }) {
       ))}
     </dl>
   );
+}
+
+/**
+ * What PayPal is doing with the money right now, in words that match the
+ * purchase's state: holding it, charged it, or released it. Never "holding"
+ * once it's paid.
+ */
+function paymentRow(p: PurchaseView): [string, React.ReactNode] | null {
+  const held = p.paypalAmountCents;
+  const money = (cents: number) => <Money cents={cents} currency={p.currency} className="font-bold" />;
+
+  if (p.state === "completed") {
+    const charged = p.paypalCapturedCents ?? (p.otpa ? p.reviewedCents : held);
+    if (charged === null) return null;
+    return [
+      "PayPal charged",
+      <span key="pay">
+        {money(charged)}
+        {p.otpa && p.otpa.maxCents > charged ? (
+          <span className="text-ink-soft">
+            {" "}
+            (the approved maximum was <Money cents={p.otpa.maxCents} />; PayPal released the rest)
+          </span>
+        ) : (
+          <span className="text-ink-soft"> (payment complete)</span>
+        )}
+      </span>,
+    ];
+  }
+  if (held === null) return null;
+  if (p.state === "hunting" && p.otpa) {
+    return ["PayPal is holding", <span key="pay">up to {money(held)} <span className="text-ink-soft">(the approved maximum; only the actual price will be charged)</span></span>];
+  }
+  if (p.state === "awaiting_review") {
+    return [
+      "PayPal is holding",
+      <span key="pay">
+        {money(held)}
+        {held === p.reviewedCents ? <span className="text-ink-soft"> (matches the price)</span> : <span className="font-bold text-stop"> (does not match the price)</span>}
+      </span>,
+    ];
+  }
+  if (["declined", "expired", "canceled", "failed", "blocked"].includes(p.state) && p.paypal.authorizationId) {
+    return ["PayPal", <span key="pay">released the hold of {money(held)}. Nothing was charged.</span>];
+  }
+  return null;
 }
 
 function RecurringText({ purchase }: { purchase: PurchaseView }) {

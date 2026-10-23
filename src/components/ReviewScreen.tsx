@@ -62,7 +62,8 @@ export function ReviewScreen({ token }: { token: string }) {
   const { shopperName: shopper, reviewerName: reviewer } = data.household;
   const p = done ?? data.purchase;
   const exception = p.decision.outcome === "exception";
-  const amount = p.paypalAmountCents ?? p.reviewedCents;
+  // Once paid, show what PayPal actually charged; before that, what it holds (or the price).
+  const amount = p.state === "completed" ? (p.paypalCapturedCents ?? p.reviewedCents) : (p.paypalAmountCents ?? p.reviewedCents);
   const open = p.state === "awaiting_review" || p.state === "requested";
 
   return (
