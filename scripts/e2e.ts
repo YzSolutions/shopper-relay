@@ -5,7 +5,7 @@
 //
 //   npm run dev                         (in another terminal)
 //   npm run e2e                         (BASE_URL defaults to http://localhost:3000)
-//   npm run e2e -- kids                 (just one: mom | kids | shopper | isolation)
+//   npm run e2e -- kids                 (just one: mom | kids | shopper | standing | bills | isolation)
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- this script reads the API's JSON loosely, like a browser would */
 import { existsSync, readFileSync } from "node:fs";
@@ -206,6 +206,105 @@ async function shopper() {
   expect(paid.state === "completed" && paid.paypal.captureId, "paid by Marcus");
 }
 
+/** Marcus saves his PayPal once; Priya then buys what his rules allow without asking. */
+async function standing() {
+  mode = "personal_shopper";
+  step("Standing permission: Marcus lets Priya buy shoes up to $80 on her own");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  const session = await api("/api/session");
+  const rules = structuredClone(session.rules);
+  rules.categories.shoes_handbags = {
+    bands: [
+      { minCents: 0, maxCents: 80_01, outcome: "auto" },
+      { minCents: 80_01, maxCents: 150_01, outcome: "review" },
+      { minCents: 150_01, maxCents: null, outcome: "exception" },
+    ],
+  };
+  await api("/api/rules", { method: "POST", json: { rules, by: "reviewer", householdId: session.household.id } });
+  const history = (await api("/api/rules/history")).history as any[];
+  expect(history[0]?.type === "rules_changed" && history[0].actor === "reviewer" && history[0].change?.after, "the change is in the rule history, with before and after");
+
+  const results = [...(await search("sneakers")), ...(await search("flip flops"))];
+  const cheap = results.find((r) => r.preview?.outcome === "auto");
+  const pricey = results.find((r) => r.preview && r.preview.outcome !== "auto" && r.category.primary === "shoes_handbags");
+  expect(cheap, `${cheap?.product.title} (${formatCents(cheap?.product.offers[0].priceCents)}) is within Marcus's rules`);
+  const p = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: cheap.product.sourceId } })).purchase;
+  expect((await raw(`/api/purchases/${p.id}/standing`, { method: "POST" })).status === 409, "without standing permission, it can't be bought yet");
+
+  step("Marcus saves a payment method with PayPal (a sandbox test card stands in for his PayPal)");
+  const setup = await paypal.createTestCardSetupToken(TEST_CARD);
+  const on = (await api("/api/standing", { method: "POST", json: { action: "confirm", setupTokenId: setup.id } })).standing;
+  expect(on && (await api("/api/session")).standing, `standing permission is on (${on.payerLabel})`);
+
+  step("Priya buys it without asking: PayPal holds Marcus's saved method, checks the amount, then captures");
+  const bought = (await api(`/api/purchases/${p.id}/standing`, { method: "POST" })).purchase;
+  expect(bought.state === "completed" && bought.standing && bought.paypal.captureId, `bought for ${formatCents(bought.paypalCapturedCents)}`);
+  expect(bought.paypalCapturedCents === p.reviewedCents, "PayPal took exactly the price Priya saw");
+  expect((await paypal.getAuthorization(bought.paypal.authorizationId)).status === "CAPTURED", "PayPal shows the hold CAPTURED");
+  const again = (await api(`/api/purchases/${p.id}/standing`, { method: "POST" })).purchase;
+  expect(again.paypal.captureId === bought.paypal.captureId, "a second click doesn't charge twice");
+
+  if (pricey) {
+    const p2 = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: pricey.product.sourceId } })).purchase;
+    const r = await raw(`/api/purchases/${p2.id}/standing`, { method: "POST" });
+    expect(r.status === 409, `${formatCents(p2.reviewedCents)} is over the limit, so it still goes to Marcus`);
+  }
+
+  step("Marcus turns it off");
+  await api("/api/standing", { method: "POST", json: { action: "revoke" } });
+  expect(!(await api("/api/session")).standing, "standing permission is off");
+  const p3 = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: cheap.product.sourceId } })).purchase;
+  expect((await raw(`/api/purchases/${p3.id}/standing`, { method: "POST" })).status === 409, "and buying without asking is refused again");
+}
+
+/** Priya bills Marcus for her time with a PayPal invoice; the items were paid separately. */
+async function bills() {
+  mode = "personal_shopper";
+  step("Bills: Priya bills Marcus for her time");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  const [pick] = await search("wireless headphones");
+  const p = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: pick.product.sourceId } })).purchase;
+  const sent = (await api(`/api/purchases/${p.id}/request`, { method: "POST" })).purchase;
+  const paid = await reviewerPays(sent.reviewPath);
+  expect(paid.state === "completed", `Marcus paid for ${paid.item.title} (${formatCents(paid.paypalCapturedCents)})`);
+
+  const { billable } = await api("/api/bills");
+  expect(billable.some((b: any) => b.id === p.id), "the finished purchase can be listed on a bill");
+  const tooBig = await raw("/api/bills", { method: "POST", json: { action: "send", amountCents: 900_00, note: "Too much", purchaseIds: [] } });
+  expect(tooBig.status === 400, "a bill over $500 is refused");
+  const notDone = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: pick.product.sourceId } })).purchase;
+  const unfinished = await raw("/api/bills", { method: "POST", json: { action: "send", amountCents: 10_00, note: "Early", purchaseIds: [notDone.id] } });
+  expect(unfinished.status === 400, "a bill can't list a purchase that isn't finished");
+
+  const bill = (await api("/api/bills", { method: "POST", json: { action: "send", amountCents: 25_00, note: "Shopping this week", purchaseIds: [p.id] } })).bill;
+  expect(bill.status === "unpaid" && bill.paypalInvoiceId && bill.payerUrl?.startsWith("https://www.sandbox.paypal.com/"), `PayPal invoice ${bill.invoiceNumber} sent, with a PayPal pay link`);
+  const invoice = await paypal.getInvoice(bill.paypalInvoiceId);
+  expect(invoice.status === "UNPAID" && invoice.amount?.value === "25.00", "PayPal shows it UNPAID for $25.00");
+  expect(bill.items.length === 1 && bill.items[0].id === p.id, "the bill lists the purchase it covers");
+
+  step("Marcus pays it (the sandbox records a payment in place of Marcus paying on PayPal's page)");
+  await paypal.recordInvoicePayment(bill.paypalInvoiceId, 25_00);
+  // The app asks PayPal about an unpaid bill at most every 10 seconds.
+  let after: any;
+  for (let i = 0; i < 15 && after?.status !== "paid"; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 2000));
+    after = (await api("/api/bills")).bills.find((b: any) => b.id === bill.id);
+  }
+  expect(after.status === "paid" && after.paidAt && !after.payerUrl, "the bill shows paid, and the pay link is gone");
+  const log = (await api("/api/log")).events as any[];
+  expect(log.filter((e) => e.type === "bill_paid").length === 1 && log.some((e) => e.type === "bill_sent"), "the history records it sent, and paid once");
+  expect((await raw("/api/bills", { method: "POST", json: { action: "cancel", id: bill.id } })).status === 409, "a paid bill can't be withdrawn");
+
+  step("Priya withdraws a second bill");
+  const second = (await api("/api/bills", { method: "POST", json: { action: "send", amountCents: 12_50, note: "Returns trip", purchaseIds: [] } })).bill;
+  const withdrawn = (await api("/api/bills", { method: "POST", json: { action: "cancel", id: second.id } })).bill;
+  expect(withdrawn.status === "canceled" && (await paypal.getInvoice(second.paypalInvoiceId)).status === "CANCELLED", "withdrawn, and PayPal shows CANCELLED");
+
+  mode = "family_elder";
+  const elsewhere = await raw("/api/bills", { method: "POST", json: { action: "send", amountCents: 10_00, note: "Nope", purchaseIds: [] } });
+  expect(elsewhere.status === 400, "Mom + Sarah has no bills");
+}
+
 /** Two visitors at once: each has their own households, and a reset touches only its own. */
 async function isolation() {
   mode = "family_elder";
@@ -239,6 +338,8 @@ async function main() {
   if (!only || only === "mom") await mom();
   if (!only || only === "kids") await kids();
   if (!only || only === "shopper") await shopper();
+  if (!only || only === "standing") await standing();
+  if (!only || only === "bills") await bills();
   console.log("\nAll end-to-end checks passed.");
 }
 

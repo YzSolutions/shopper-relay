@@ -17,6 +17,7 @@ import { configFromEnv, createPayPalClient, firstAuthorization, PayPalError, typ
 import { getCheck } from "../store/checks";
 import { logEvent } from "../store/events";
 import { getRulesState, type Household } from "../store/households";
+import { clearStanding, getStanding, saveStanding } from "../store/standing";
 import {
   getPurchase,
   insertPurchase,
@@ -581,6 +582,166 @@ export async function buyWithOtpa(household: Household, id: string, sourceId: st
     message: `${household.shopperName} found it for ${formatCents(offer.priceCents)} at ${item.merchant}, within ${reviewerOf(household, p)}'s ${formatCents(p.otpa.maxCents)}. Checked: same product, at or under the price, before the authorization expired.`,
   });
   return capture(household, moved, offer.priceCents);
+}
+
+// ---------------------------------------------------------------------------
+// Standing permission (request flow): the payer saves their PayPal once, and
+// the shopper can then buy what the payer's own rules allow without asking.
+// Every purchase still goes hold → amount check → rules again → capture.
+// ---------------------------------------------------------------------------
+
+function assertPayerPays(household: Household) {
+  if (RELATIONSHIPS[household.relationship].payer !== "reviewer") {
+    throw new FlowError(`${household.shopperName} pays with their own PayPal here, so there's nothing to set up.`, 400);
+  }
+}
+
+/** The payer starts saving their PayPal. They approve it in PayPal's own window; nothing is charged. */
+export async function startStandingSetup(household: Household, origin: string): Promise<{ setupTokenId: string }> {
+  assertPayerPays(household);
+  const token = await paypal().createPayPalSetupToken({
+    brandName: brand.name,
+    description: `Lets ${household.shopperName} buy what ${household.reviewerName}'s rules allow`,
+    returnUrl: `${origin}/inbox`,
+    cancelUrl: `${origin}/inbox`,
+    requestId: `setup-${household.id}-${randomUUID()}`,
+  });
+  return { setupTokenId: token.id };
+}
+
+/** The payer approved in PayPal: save the payment method and turn standing permission on. */
+export async function confirmStanding(household: Household, setupTokenId: string) {
+  assertPayerPays(household);
+  const token = await paypal().createPaymentToken(setupTokenId);
+  const source = token.payment_source;
+  const method = source?.card ? "card" : "paypal";
+  const payerLabel = source?.paypal?.email_address ?? (source?.card?.last_digits ? `Card ending ${source.card.last_digits}` : null);
+  const replaced = await saveStanding(household.id, { paymentTokenId: token.id, method, payerLabel });
+  if (replaced) await paypal().deletePaymentToken(replaced).catch(() => undefined);
+  const { shopperName: shopper, reviewerName: reviewer } = household;
+  await logEvent({
+    householdId: household.id,
+    type: "standing_on",
+    actor: "reviewer",
+    message: `${reviewer} turned on standing permission. ${shopper} can now buy what ${reviewer}'s rules allow, paid with ${reviewer}'s saved PayPal.`,
+  });
+  return standingView(household);
+}
+
+/** Turn standing permission off and forget the saved payment method at PayPal. */
+export async function revokeStanding(household: Household) {
+  const removed = await clearStanding(household.id);
+  if (removed) {
+    // Already gone at PayPal is fine.
+    await paypal().deletePaymentToken(removed).catch(() => undefined);
+    await logEvent({
+      householdId: household.id,
+      type: "standing_off",
+      actor: "reviewer",
+      message: `${household.reviewerName} turned off standing permission. Everything goes to ${household.reviewerName} again.`,
+    });
+  }
+  return standingView(household);
+}
+
+/** What the screens may know: whether it's on and since when. Never the token. */
+export async function standingView(household: Household): Promise<{ since: string; payerLabel: string | null } | null> {
+  const s = await getStanding(household.id);
+  return s ? { since: s.since, payerLabel: s.payerLabel } : null;
+}
+
+/** The shopper buys within the payer's rules, paid with the payer's saved PayPal. */
+export async function buyWithStanding(household: Household, id: string): Promise<Purchase> {
+  const p = await load(household, id);
+  const { shopperName: shopper, reviewerName: payer } = household;
+  if (p.flow !== "request") throw new FlowError("This purchase is paid for at checkout.", 409);
+  if (p.state !== "evaluated") {
+    if (p.standing) return p; // already bought (double click)
+    throw new FlowError(`This purchase is already ${p.state}.`, 409);
+  }
+  const standing = await getStanding(household.id);
+  if (!standing) throw new FlowError(`${payer} hasn't turned on standing permission, so send it to ${payer} instead.`, 409);
+
+  // The rules run again now, against the latest spending.
+  const decision = await evaluateFor(household, p.reviewedCents, p.category.categories, p.id);
+  if (decision.outcome !== "auto") {
+    await transitionPurchase(p.id, "evaluated", "evaluated", { decision });
+    throw new FlowError(`The rules now say ${payer} decides on this one, so send it to ${payer} instead.`, 409);
+  }
+  const moved = await transitionPurchase(p.id, "evaluated", "checkout", { decision, standing: true });
+  if (!moved) return load(household, id);
+
+  const order = await paypal().createSavedPaymentAuthorization({
+    paymentTokenId: standing.paymentTokenId,
+    method: standing.method,
+    amountCents: p.reviewedCents,
+    currency: p.currency,
+    description: describe(p),
+    customId: p.id,
+    requestId: `standing-${p.id}`, // one order per purchase, however often this is retried
+  });
+  await setPayPalOrder(p.id, order.id);
+  const auth = firstAuthorization(order);
+  if (!auth || (auth.status !== "CREATED" && auth.status !== "PENDING")) {
+    const failed = await transitionPurchase(p.id, "checkout", "failed");
+    await logEvent({
+      householdId: household.id,
+      purchaseId: p.id,
+      type: "failed",
+      actor: "paypal",
+      message: `PayPal didn't place a hold on ${payer}'s saved PayPal, so nothing was charged.`,
+      detail: { order },
+    });
+    return failed ?? load(household, id);
+  }
+  const held = await paypal().getAuthorization(auth.id);
+  await logEvent({
+    householdId: household.id,
+    purchaseId: p.id,
+    type: "held",
+    actor: "paypal",
+    message: `PayPal placed a hold of ${held.amount.value} ${held.amount.currency_code} on ${payer}'s saved PayPal. Nothing has been charged yet.`,
+    detail: { authorizationId: held.id, status: held.status, expires: held.expiration_time },
+  });
+
+  const now = new Date();
+  const outcome = decideAfterHold({
+    reviewedCents: p.reviewedCents,
+    paypalAmount: held.amount,
+    currency: p.currency,
+    rules: activeRules(await getRulesState(household.id), now),
+    categories: p.category.categories,
+    history: await historyFor(household, p.id),
+    now,
+    shopperName: shopper,
+    reviewerName: payer,
+  });
+  const paypalAmountCents = outcome.amount.paypalCents ?? undefined;
+
+  if (outcome.action !== "capture") {
+    // A mismatched amount, or rules that changed in the last second: release it and let the payer decide.
+    await paypal().voidAuthorization(held.id, `void-${p.id}`);
+    const next = outcome.action === "void" ? outcome.next : "failed";
+    const done = await transitionPurchase(p.id, "checkout", next, {
+      paypalAuthorizationId: held.id,
+      paypalAmountCents,
+      ...(outcome.decision && { decision: outcome.decision }),
+    });
+    const why = outcome.action === "void" ? outcome.message : `The rules now say ${payer} decides.`;
+    await logEvent({ householdId: household.id, purchaseId: p.id, type: "voided", actor: "system", message: `${why} The hold was released; nothing was charged.` });
+    return done ?? load(household, id);
+  }
+
+  const completed = await transitionPurchase(p.id, "checkout", "completed", { decision: outcome.decision, paypalAuthorizationId: held.id, paypalAmountCents });
+  if (!completed) return load(household, id);
+  await logEvent({
+    householdId: household.id,
+    purchaseId: p.id,
+    type: "approved",
+    actor: "system",
+    message: `${outcome.decision.reasons.map((r) => r.message).join(" ")} ${shopper} bought it with ${payer}'s standing permission; ${payer} gets a message.`,
+  });
+  return capture(household, completed);
 }
 
 // ---------------------------------------------------------------------------

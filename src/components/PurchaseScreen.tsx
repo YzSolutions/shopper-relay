@@ -17,7 +17,7 @@ export function PurchaseScreen({ id }: { id: string }) {
   const { session, reload: reloadSession } = useSession();
   const { purchase, log, error: loadError, reload, setPurchase } = usePurchase(id);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"cancel" | "send" | null>(null);
+  const [busy, setBusy] = useState<"cancel" | "send" | "standing" | null>(null);
 
   if (loadError && !purchase) return <ErrorNotice error={loadError} />;
   if (!purchase || !session) return <Spinner label="Loading…" />;
@@ -28,6 +28,10 @@ export function PurchaseScreen({ id }: { id: string }) {
   const needsReview = outcome === "review" || outcome === "exception";
   const words = RELATIONSHIPS[session.household.relationship].words;
   const isRequest = purchase.flow === "request";
+  // The payer saved their PayPal, so what their rules allow can be bought without asking.
+  const standingOn = isRequest && !!session.standing;
+  const canBuyStanding = standingOn && purchase.state === "evaluated" && outcome === "auto";
+  const viaStanding = purchase.standing || canBuyStanding;
 
   const update = (p: PurchaseView) => {
     setPurchase(p);
@@ -35,11 +39,11 @@ export function PurchaseScreen({ id }: { id: string }) {
     void reloadSession();
   };
 
-  async function act(kind: "cancel" | "send") {
+  async function act(kind: "cancel" | "send" | "standing") {
     setBusy(kind);
     setError(null);
     try {
-      const path = kind === "cancel" ? "cancel" : "request";
+      const path = { cancel: "cancel", send: "request", standing: "standing" }[kind];
       const { purchase: p } = await api<{ purchase: PurchaseView }>(`/api/purchases/${id}/${path}`, { method: "POST" });
       update(p);
     } catch (e) {
@@ -62,17 +66,35 @@ export function PurchaseScreen({ id }: { id: string }) {
     <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-8">
         <ItemHeader purchase={purchase} />
-        <RelayTrack state={purchase.state} flow={purchase.flow} shopper={shopper} reviewer={reviewer} needsReview={needsReview} otpa={!!purchase.otpa} />
+        <RelayTrack state={purchase.state} flow={purchase.flow} shopper={shopper} reviewer={reviewer} needsReview={needsReview} otpa={!!purchase.otpa} standing={viaStanding} />
         <ErrorNotice error={error} />
-        <Status purchase={purchase} shopper={shopper} reviewer={reviewer} />
+        <Status purchase={purchase} shopper={shopper} reviewer={reviewer} standingOn={standingOn} />
 
         {purchase.state === "hunting" && purchase.otpa && <OtpaHunt purchase={purchase} reviewer={reviewer} onDone={update} onError={setError} />}
 
-        {canSend && (
+        {canBuyStanding && (
+          <section className="space-y-4">
+            <p className="max-w-[38rem] text-ink-soft">
+              {reviewer}&apos;s rules let you buy this without asking. {reviewer}&apos;s saved PayPal pays, and {reviewer} gets a message. PayPal holds the
+              amount first, and it&apos;s only taken if it matches this price exactly.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button tone="ledger" onClick={() => act("standing")} disabled={busy !== null}>
+                {busy === "standing" ? "Buying…" : `Buy it now (${formatMoney(purchase.reviewedCents)})`}
+              </Button>
+              <Button tone="quiet" onClick={() => act("send")} disabled={busy !== null}>
+                {busy === "send" ? "Sending…" : `Ask ${reviewer} instead`}
+              </Button>
+            </div>
+          </section>
+        )}
+
+        {canSend && !canBuyStanding && (
           <section className="space-y-4">
             {session.budget.length > 0 && <BudgetBars lines={session.budget} title="Your budget" />}
             <p className="max-w-[38rem] text-ink-soft">
               {reviewer} gets the details and decides. Nothing is paid unless {reviewer} approves and pays with PayPal.
+              {outcome === "auto" && !standingOn && ` (${reviewer}'s rules would let you buy this, but ${reviewer} hasn't turned on standing permission yet.)`}
             </p>
             <Button onClick={() => act("send")} disabled={busy !== null}>
               {busy === "send" ? "Sending…" : words.sendRequest(reviewer)}
@@ -215,7 +237,7 @@ function OtpaHunt({ purchase, reviewer, onDone, onError }: { purchase: PurchaseV
   );
 }
 
-function Status({ purchase, shopper, reviewer }: { purchase: PurchaseView; shopper: string; reviewer: string }) {
+function Status({ purchase, shopper, reviewer, standingOn }: { purchase: PurchaseView; shopper: string; reviewer: string; standingOn: boolean }) {
   const outcome = purchase.decision.outcome;
   const request = purchase.flow === "request";
   switch (purchase.state) {
@@ -223,7 +245,7 @@ function Status({ purchase, shopper, reviewer }: { purchase: PurchaseView; shopp
     case "checkout":
       return (
         <div className="space-y-2">
-          <OutcomeLine outcome={outcome} reviewer={reviewer} flow={purchase.flow} className="text-xl" />
+          <OutcomeLine outcome={outcome} reviewer={reviewer} flow={purchase.flow} standing={standingOn} className="text-xl" />
           <div className="text-ink-soft">
             <Reasons purchase={purchase} />
           </div>
@@ -270,6 +292,14 @@ function Status({ purchase, shopper, reviewer }: { purchase: PurchaseView; shopp
         return (
           <Notice tone="ledger" title={`Bought for ${formatMoney(purchase.paypalCapturedCents ?? purchase.reviewedCents)}, within ${reviewer}'s ${formatMoney(purchase.otpa.maxCents)}.`}>
             PayPal charged exactly that and released the rest of {reviewer}&apos;s hold. The authorization is used up. Placing the order with the store is simulated in this prototype.
+          </Notice>
+        );
+      }
+      if (purchase.standing) {
+        return (
+          <Notice tone="ledger" title={`Bought for ${formatMoney(purchase.paypalCapturedCents ?? purchase.reviewedCents)} with ${reviewer}'s standing permission.`}>
+            It was within {reviewer}&apos;s rules, so no one needed to approve it. PayPal took exactly that from {reviewer}&apos;s saved PayPal, and{" "}
+            {reviewer} got a message. Placing the order with the store is simulated in this prototype.
           </Notice>
         );
       }

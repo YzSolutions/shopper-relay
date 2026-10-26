@@ -42,6 +42,8 @@ export interface Purchase {
   paypalAmountCents: number | null;
   /** What PayPal actually took when the purchase completed. */
   paypalCapturedCents: number | null;
+  /** Paid with the payer's standing permission (saved PayPal), not approved one by one. */
+  standing: boolean;
   reviewToken: string | null;
   reviewExpiresAt: string | null;
   createdAt: string;
@@ -67,6 +69,7 @@ type Row = {
   paypal_capture_id: string | null;
   paypal_amount_cents: number | null;
   paypal_captured_cents: number | null;
+  standing: boolean;
   review_token: string | null;
   review_expires_at: string | null;
   created_at: string;
@@ -94,6 +97,7 @@ const toPurchase = (r: Row): Purchase => ({
   paypalCaptureId: r.paypal_capture_id,
   paypalAmountCents: r.paypal_amount_cents,
   paypalCapturedCents: r.paypal_captured_cents,
+  standing: r.standing,
   reviewToken: r.review_token,
   reviewExpiresAt: iso(r.review_expires_at),
   createdAt: iso(r.created_at)!,
@@ -176,6 +180,7 @@ export async function transitionPurchase(
     item: PurchaseItem;
     reviewedCents: number;
     reviewerName: string;
+    standing: boolean;
   }> = {},
 ): Promise<Purchase | null> {
   const rows = (await db()`
@@ -191,6 +196,7 @@ export async function transitionPurchase(
       product = coalesce(${fields.item ? JSON.stringify(fields.item) : null}::jsonb, product),
       reviewed_cents = coalesce(${fields.reviewedCents ?? null}, reviewed_cents),
       reviewer_name = coalesce(${fields.reviewerName ?? null}, reviewer_name),
+      standing = coalesce(${fields.standing ?? null}, standing),
       review_token = case when ${"reviewToken" in fields} then ${fields.reviewToken ?? null} else review_token end,
       review_expires_at = case when ${"reviewExpiresAt" in fields} then ${fields.reviewExpiresAt ?? null}::timestamptz else review_expires_at end,
       updated_at = now()

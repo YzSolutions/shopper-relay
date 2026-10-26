@@ -2,15 +2,15 @@ import { z } from "zod";
 import { questionFor } from "@/lib/ai/rules";
 import { body, handle } from "@/lib/http";
 import { FlowError } from "@/lib/purchases/service";
-import { activeRules, findRuleIssues, requestRuleChange, RuleSetSchema, settle } from "@/lib/policy";
-import { logEvent } from "@/lib/store/events";
-import { getRulesState, saveRulesState } from "@/lib/store/households";
+import { activeRules, findRuleIssues, requestRuleChange, RuleSetSchema } from "@/lib/policy";
+import { saveRulesState } from "@/lib/store/households";
+import { currentRulesState, logRuleEvent } from "@/lib/store/ruleHistory";
 import { assertSameHousehold, currentHousehold } from "@/lib/store/current";
 
 export async function GET() {
   return handle(async () => {
     const household = await currentHousehold();
-    const state = settle(await getRulesState(household.id));
+    const state = await currentRulesState(household);
     return { owner: state.owner, rules: state.rules, pending: state.pending, active: activeRules(state), issues: findRuleIssues(state.rules) };
   });
 }
@@ -32,7 +32,8 @@ export async function POST(req: Request) {
       return Response.json({ error: "Some amounts aren't covered yet.", questions: issues.map((i) => questionFor(i, names)), issues }, { status: 422 });
     }
 
-    const result = requestRuleChange(await getRulesState(household.id), rules, by);
+    const before = await currentRulesState(household);
+    const result = requestRuleChange(before, rules, by);
     if (!result.ok) throw new FlowError(result.message, 403);
     await saveRulesState(household.id, result.state);
 
@@ -44,7 +45,14 @@ export async function POST(req: Request) {
       : result.summary.kind === "none"
         ? `${who} saved the rules; nothing changed.`
         : `${who} updated the rules. The change applies right away.`;
-    await logEvent({ householdId: household.id, type: "rules_changed", actor: by, message, detail: { summary: result.summary } });
+    if (result.summary.kind !== "none") {
+      await logRuleEvent(household.id, {
+        type: "rules_changed",
+        actor: by,
+        message,
+        change: { before: before.rules, after: rules, status: result.state.pending ? "waiting" : "applied" },
+      });
+    }
     return { state: result.state, summary: result.summary, notify: result.notify, message };
   });
 }

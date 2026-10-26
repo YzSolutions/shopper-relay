@@ -31,6 +31,8 @@ export interface Relationship {
   flow: Flow;
   /** Whether the reviewer can grant a One-Time Purchase Authorization. */
   otpa: boolean;
+  /** Whether the shopper can bill the reviewer for their time (a PayPal invoice). */
+  bills: boolean;
   defaultRules: RuleSet;
   /** Words on the shopper's screens. */
   words: {
@@ -57,6 +59,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     payer: "shopper",
     flow: "hold",
     otpa: false,
+    bills: false,
     defaultRules: FAMILY_ELDER_RULES,
     words: {
       shopHeading: "What are you shopping for?",
@@ -78,6 +81,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     payer: "reviewer",
     flow: "request",
     otpa: false,
+    bills: false,
     defaultRules: PARENT_CHILD_RULES,
     words: {
       shopHeading: "What would you like?",
@@ -99,6 +103,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     payer: "reviewer",
     flow: "request",
     otpa: true,
+    bills: true,
     defaultRules: PERSONAL_SHOPPER_RULES,
     words: {
       shopHeading: "What are you finding for Marcus?",

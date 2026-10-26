@@ -10,20 +10,24 @@ const LINKS = [
   { href: "/history", label: "History" },
 ];
 
-/** Pass current={null} to render without reading the URL (the loading fallback). */
-export function ShopperNav({ current }: { current?: null }) {
-  return current === null ? <NavLinks path={null} /> : <NavWithPath />;
+/**
+ * Pass current={null} to render without reading the URL (the loading fallback).
+ * `bills`: the shopper bills for their time here (Personal shopper).
+ */
+export function ShopperNav({ current, bills = false }: { current?: null; bills?: boolean }) {
+  const links = bills ? [...LINKS.slice(0, 3), { href: "/bills", label: "Bills" }, ...LINKS.slice(3)] : LINKS;
+  return current === null ? <NavLinks path={null} links={links} /> : <NavWithPath links={links} />;
 }
 
-function NavWithPath() {
-  return <NavLinks path={usePathname()} />;
+function NavWithPath({ links }: { links: typeof LINKS }) {
+  return <NavLinks path={usePathname()} links={links} />;
 }
 
-function NavLinks({ path }: { path: string | null }) {
+function NavLinks({ path, links }: { path: string | null; links: typeof LINKS }) {
   const isActive = (href: string) => path !== null && (href === "/" ? path === "/" || path.startsWith("/purchase") : path.startsWith(href));
   return (
     <nav aria-label="Main" className="-mx-2 flex flex-wrap gap-1">
-      {LINKS.map((l) => (
+      {links.map((l) => (
         <Link
           key={l.href}
           href={l.href}

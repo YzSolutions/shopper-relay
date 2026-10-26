@@ -1,4 +1,5 @@
-// Thin server-side wrapper over PayPal's REST APIs (Orders v2, Payments v2).
+// Thin server-side wrapper over PayPal's REST APIs (Orders v2, Payments v2,
+// Vault v3, Invoicing v2).
 // Purchases are authorized first and only captured once the owner's rules,
 // or the trusted contact, allow it. A declined review voids the hold.
 
@@ -38,6 +39,31 @@ export interface Order {
     amount?: Money;
     payments?: { authorizations?: Authorization[] };
   }>;
+}
+
+/** A saved payment method waiting for the payer's OK (PayPal Vault v3). */
+export interface SetupToken {
+  id: string;
+  status: "CREATED" | "PAYER_ACTION_REQUIRED" | "APPROVED" | "VAULTED" | "TOKENIZED";
+  links?: Link[];
+}
+
+/** A saved payment method that can be charged later without the payer present. */
+export interface PaymentToken {
+  id: string;
+  customer?: { id: string };
+  payment_source?: {
+    paypal?: { email_address?: string; name?: { given_name?: string; surname?: string } };
+    card?: { brand?: string; last_digits?: string };
+  };
+}
+
+/** A PayPal invoice (Invoicing v2). PayPal hosts the page where it's paid. */
+export interface Invoice {
+  id: string;
+  status: "DRAFT" | "SENT" | "SCHEDULED" | "PAID" | "MARKED_AS_PAID" | "CANCELLED" | "REFUNDED" | "PARTIALLY_PAID" | "PARTIALLY_REFUNDED" | "MARKED_AS_REFUNDED" | "UNPAID" | "PAYMENT_PENDING";
+  detail?: { invoice_number?: string; metadata?: { recipient_view_url?: string } };
+  amount?: Money;
 }
 
 export interface Capture {
@@ -91,7 +117,7 @@ export function createPayPalClient({ clientId, clientSecret, env = "sandbox" }: 
   }
 
   async function call<T>(
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "DELETE",
     path: string,
     { body, requestId }: { body?: unknown; requestId?: string } = {},
   ): Promise<T> {
@@ -147,6 +173,112 @@ export function createPayPalClient({ clientId, clientSecret, env = "sandbox" }: 
             },
           }),
         },
+      });
+    },
+
+    /**
+     * Start saving the payer's PayPal for later purchases. The payer approves it
+     * in PayPal's own window; nothing is charged.
+     */
+    createPayPalSetupToken: (args: { brandName: string; description: string; returnUrl: string; cancelUrl: string; requestId: string }) =>
+      call<SetupToken>("POST", "/v3/vault/setup-tokens", {
+        requestId: args.requestId,
+        body: {
+          payment_source: {
+            paypal: {
+              description: args.description.slice(0, 127),
+              usage_type: "MERCHANT",
+              customer_type: "CONSUMER",
+              permit_multiple_payment_tokens: false,
+              experience_context: {
+                brand_name: args.brandName,
+                shipping_preference: "NO_SHIPPING",
+                vault_instruction: "ON_PAYER_APPROVAL",
+                return_url: args.returnUrl,
+                cancel_url: args.cancelUrl,
+              },
+            },
+          },
+        },
+      }),
+
+    /** Sandbox/test only: save a test card instead of a payer approving in PayPal, so scripts can run the flow. */
+    createTestCardSetupToken(card: { number: string; expiry: string; securityCode: string; name: string }) {
+      if (env !== "sandbox") throw new Error("Test cards only work in sandbox.");
+      return call<SetupToken>("POST", "/v3/vault/setup-tokens", {
+        body: { payment_source: { card: { number: card.number, expiry: card.expiry, security_code: card.securityCode, name: card.name } } },
+      });
+    },
+
+    /** The payer approved: turn the setup token into a saved payment method. */
+    createPaymentToken: (setupTokenId: string) =>
+      call<PaymentToken>("POST", "/v3/vault/payment-tokens", {
+        requestId: `payment-token-${setupTokenId}`,
+        body: { payment_source: { token: { id: setupTokenId, type: "SETUP_TOKEN" } } },
+      }),
+
+    /** Forget a saved payment method at PayPal. */
+    deletePaymentToken: (paymentTokenId: string) => call<null>("DELETE", `/v3/vault/payment-tokens/${paymentTokenId}`),
+
+    /**
+     * Place a hold on a saved payment method, with no payer present. PayPal
+     * answers at once: the order comes back COMPLETED with its authorization.
+     */
+    createSavedPaymentAuthorization(args: { paymentTokenId: string; method: "paypal" | "card"; amountCents: number; currency?: string; description: string; customId: string; requestId: string }) {
+      const source =
+        args.method === "card"
+          ? { card: { vault_id: args.paymentTokenId, stored_credential: { payment_initiator: "MERCHANT", payment_type: "UNSCHEDULED", usage: "SUBSEQUENT" } } }
+          : { paypal: { vault_id: args.paymentTokenId } };
+      return call<Order>("POST", "/v2/checkout/orders", {
+        requestId: args.requestId,
+        body: {
+          intent: "AUTHORIZE",
+          purchase_units: [
+            {
+              custom_id: args.customId,
+              description: args.description.slice(0, 127),
+              amount: { currency_code: args.currency ?? "USD", value: centsToDecimal(args.amountCents) },
+            },
+          ],
+          payment_source: source,
+        },
+      });
+    },
+
+    /**
+     * A draft invoice for one fee. PayPal numbers it; the customer pays on
+     * PayPal's own invoice page.
+     */
+    createInvoice(args: { amountCents: number; currency?: string; itemName: string; note: string; invoicerName: string; requestId: string }) {
+      const currency = args.currency ?? "USD";
+      return call<Invoice>("POST", "/v2/invoicing/invoices", {
+        requestId: args.requestId,
+        body: {
+          detail: { currency_code: currency, note: args.note.slice(0, 4000), payment_term: { term_type: "DUE_ON_RECEIPT" } },
+          invoicer: { business_name: args.invoicerName.slice(0, 300) },
+          items: [{ name: args.itemName.slice(0, 200), quantity: "1", unit_amount: { currency_code: currency, value: centsToDecimal(args.amountCents) } }],
+        },
+      });
+    },
+
+    /**
+     * Send the invoice. PayPal doesn't email anyone (`send_to_recipient: false`):
+     * our app shows the customer the returned link to PayPal's payment page.
+     */
+    sendInvoice: (invoiceId: string, requestId: string) =>
+      call<Link>("POST", `/v2/invoicing/invoices/${invoiceId}/send`, { requestId, body: { send_to_recipient: false, send_to_invoicer: false } }),
+
+    getInvoice: (invoiceId: string) => call<Invoice>("GET", `/v2/invoicing/invoices/${invoiceId}`),
+
+    /** Withdraw an unpaid invoice. */
+    cancelInvoice: (invoiceId: string) =>
+      call<unknown>("POST", `/v2/invoicing/invoices/${invoiceId}/cancel`, { body: { send_to_recipient: false, send_to_invoicer: false } }),
+
+    /** Sandbox/test only: record a payment, so scripts can check a bill turns paid without a buyer logging in. */
+    recordInvoicePayment(invoiceId: string, amountCents: number, currency = "USD") {
+      if (env !== "sandbox") throw new Error("Recording test payments only works in sandbox.");
+      return call<unknown>("POST", `/v2/invoicing/invoices/${invoiceId}/payments`, {
+        body: { method: "OTHER", payment_date: new Date().toISOString().slice(0, 10), amount: { currency_code: currency, value: centsToDecimal(amountCents) } },
       });
     },
 

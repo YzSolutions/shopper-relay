@@ -258,6 +258,7 @@ export default function ShopPage() {
                 note={notes.get(r.product.sourceId)}
                 reviewer={r.preview?.reviewer ?? reviewer}
                 flow={flow}
+                standing={!!session?.standing}
                 chooseLabel={relationship ? relationship.words.choose(r.preview?.reviewer ?? reviewer) : "Choose this"}
                 choosing={choosing}
                 onChoose={choose}
@@ -275,6 +276,7 @@ function ResultRow({
   note,
   reviewer,
   flow,
+  standing,
   chooseLabel,
   choosing,
   onChoose,
@@ -283,6 +285,8 @@ function ResultRow({
   note?: string;
   reviewer: string;
   flow: "hold" | "request";
+  /** Request flow: the payer's standing permission is on. */
+  standing: boolean;
   chooseLabel: string;
   choosing: string | null;
   onChoose: (sourceId: string, merchant?: string) => void;
@@ -323,7 +327,7 @@ function ResultRow({
             <CountedAs category={category.primary} />
             {category.basis === "ambiguous" && <span className="text-ink-soft"> (unclear, so the stricter rule applies)</span>}
           </p>
-          {preview && <OutcomeLine outcome={preview.outcome} reviewer={reviewer} flow={flow} className="mt-2" />}
+          {preview && <OutcomeLine outcome={preview.outcome} reviewer={reviewer} flow={flow} standing={standing} className="mt-2" />}
           {note && <p className="mt-2 text-ink-soft">{note}</p>}
 
           {best && preview?.outcome !== "blocked" && (

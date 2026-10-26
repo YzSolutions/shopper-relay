@@ -7,12 +7,16 @@ import { api, type Session } from "./api";
 export function useSession() {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const reload = useCallback(async () => {
+  /** Refetch; resolves to the new session, or null if it couldn't load. */
+  const reload = useCallback(async (): Promise<Session | null> => {
     try {
-      setSession(await api<Session>("/api/session"));
+      const s = await api<Session>("/api/session");
+      setSession(s);
       setError(null);
+      return s;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return null;
     }
   }, []);
   useEffect(() => {

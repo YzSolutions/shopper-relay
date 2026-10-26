@@ -2,8 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { brand } from "@/config/brand";
+import { RELATIONSHIPS } from "@/config/relationships";
 import { DemoSwitcher } from "@/components/DemoSwitcher";
 import { ShopperNav } from "@/components/ShopperNav";
+import { currentMode } from "@/lib/store/current";
 import logo from "../../../public/brand/shopperrelay-logo-trimmed.png";
 
 export default function ShopperLayout({ children }: LayoutProps<"/">) {
@@ -16,7 +18,7 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
           </Link>
           {/* The nav reads the URL to highlight the current page, so it streams in. */}
           <Suspense fallback={<ShopperNav current={null} />}>
-            <ShopperNav />
+            <Nav />
           </Suspense>
         </div>
       </header>
@@ -29,4 +31,9 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
       </footer>
     </div>
   );
+}
+
+/** The links depend on the relationship this browser is showing (a cookie), so this streams in. */
+async function Nav() {
+  return <ShopperNav bills={RELATIONSHIPS[await currentMode()].bills} />;
 }

@@ -13,6 +13,7 @@ export function purchaseView(p: Purchase, { includeReviewLink = false }: { inclu
     reviewedCents: p.reviewedCents,
     paypalAmountCents: p.paypalAmountCents,
     paypalCapturedCents: p.paypalCapturedCents,
+    standing: p.standing,
     currency: p.currency,
     category: p.category,
     recurring: p.recurring,

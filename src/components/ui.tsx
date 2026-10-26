@@ -25,16 +25,22 @@ export function ButtonLink({ tone = "relay", className = "", ...props }: Compone
   return <Link className={buttonClass(tone, className)} {...props} />;
 }
 
+/** A button-styled link to another site, opened in a new tab. */
+export function ButtonAnchor({ tone = "relay", className = "", ...props }: ComponentProps<"a"> & { tone?: Tone }) {
+  return <a className={buttonClass(tone, className)} target="_blank" rel="noopener noreferrer" {...props} />;
+}
+
 export function Money({ cents, currency = "USD", className = "" }: { cents: number; currency?: string; className?: string }) {
   const text = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
   return <span className={`tabular-nums ${className}`}>{text}</span>;
 }
 
 /** What happens if the shopper goes ahead, said to the shopper. */
-export function outcomeText(outcome: Outcome, reviewer: string, flow: "hold" | "request" = "hold"): string {
+/** `standing`: request flow only, whether the payer's standing permission is on. */
+export function outcomeText(outcome: Outcome, reviewer: string, flow: "hold" | "request" = "hold", standing = false): string {
   switch (outcome) {
     case "auto":
-      return flow === "hold" ? "You can buy this yourself" : `${reviewer} decides`;
+      return flow === "hold" ? "You can buy this yourself" : standing ? `You can buy this; ${reviewer}'s saved PayPal pays` : `${reviewer} decides`;
     case "review":
       return flow === "hold" ? `${reviewer} takes a look first` : `${reviewer} decides`;
     case "exception":
@@ -56,20 +62,25 @@ export function OutcomeLine({
   reviewer,
   flow = "hold",
   text,
+  standing = false,
   className = "",
 }: {
   outcome: Outcome;
   reviewer: string;
   flow?: "hold" | "request";
   text?: string;
+  /** Request flow: the payer's standing permission is on. */
+  standing?: boolean;
   className?: string;
 }) {
-  // In the request flow everything needs the reviewer, so only "over budget" and "not allowed" stand out.
-  const s = flow === "request" && outcome !== "exception" && outcome !== "blocked" ? { dot: "bg-relay", text: "text-relay-deep" } : OUTCOME_STYLE[outcome];
+  // In the request flow the reviewer decides, so only "over budget", "not allowed" and,
+  // with standing permission, "you can buy this" stand out.
+  const plain = flow === "request" && outcome !== "exception" && outcome !== "blocked" && !(outcome === "auto" && standing);
+  const s = plain ? { dot: "bg-relay", text: "text-relay-deep" } : OUTCOME_STYLE[outcome];
   return (
     <p className={`flex items-center gap-2.5 font-semibold ${s.text} ${className}`}>
       <span aria-hidden className={`size-3 shrink-0 rounded-full ${s.dot}`} />
-      {text ?? outcomeText(outcome, reviewer, flow)}
+      {text ?? outcomeText(outcome, reviewer, flow, standing)}
     </p>
   );
 }

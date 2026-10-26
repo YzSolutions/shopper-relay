@@ -13,13 +13,15 @@ interface Props {
   needsReview?: boolean;
   /** Request flow: the reviewer chose a one-time purchase authorization. */
   otpa?: boolean;
+  /** Request flow: bought within the rules with the reviewer's standing permission. */
+  standing?: boolean;
 }
 
 type Station = { label: string; skipped?: boolean };
 
 const STOPPED: PurchaseState[] = ["declined", "expired", "canceled", "failed", "blocked"];
 
-function layout({ state, flow, shopper, reviewer, needsReview = true, otpa = false }: Props): { stations: Station[]; at: number } {
+function layout({ state, flow, shopper, reviewer, needsReview = true, otpa = false, standing = false }: Props): { stations: Station[]; at: number } {
   if (flow === "hold") {
     const stations = [
       { label: "Chosen" },
@@ -29,6 +31,11 @@ function layout({ state, flow, shopper, reviewer, needsReview = true, otpa = fal
       { label: "Paid" },
     ];
     const at = { evaluated: 1, checkout: 1, blocked: 1, canceled: 1, failed: 2, awaiting_review: 3, declined: 3, expired: 3, completed: 4, requested: 1, hunting: 1 }[state];
+    return { stations, at };
+  }
+  if (standing) {
+    const stations = [{ label: "Chosen" }, { label: "Rules checked" }, { label: `${reviewer}'s standing OK` }, { label: "PayPal holds payment" }, { label: "Paid" }];
+    const at = { evaluated: 2, checkout: 3, completed: 4, failed: 3, blocked: 1, canceled: 2, declined: 2, expired: 2, requested: 2, hunting: 2, awaiting_review: 2 }[state];
     return { stations, at };
   }
   if (otpa) {

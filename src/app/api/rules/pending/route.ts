@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { body, handle } from "@/lib/http";
 import { FlowError } from "@/lib/purchases/service";
-import { approvePendingChange, dropPendingChange, settle } from "@/lib/policy";
-import { logEvent } from "@/lib/store/events";
-import { getRulesState, saveRulesState } from "@/lib/store/households";
+import { approvePendingChange, dropPendingChange } from "@/lib/policy";
+import { saveRulesState } from "@/lib/store/households";
+import { currentRulesState, logRuleEvent } from "@/lib/store/ruleHistory";
 import { assertSameHousehold, currentHousehold } from "@/lib/store/current";
 
 /** The reviewer approves a waiting rule change, or it's withdrawn or turned down. */
@@ -12,14 +12,20 @@ export async function POST(req: Request) {
     const { action, by, householdId } = await body(req, z.object({ action: z.enum(["approve", "drop"]), by: z.enum(["shopper", "reviewer"]), householdId: z.uuid().optional() }));
     const household = await currentHousehold();
     assertSameHousehold(household.id, householdId);
-    const state = settle(await getRulesState(household.id));
+    const state = await currentRulesState(household);
     if (!state.pending) throw new FlowError("There's no rule change waiting.", 409);
+    const change = { before: state.rules, after: state.pending.proposed };
 
     if (action === "approve") {
       if (by !== "reviewer") throw new FlowError(`Only ${household.reviewerName} can approve a waiting change early.`, 403);
       const next = approvePendingChange(state);
       await saveRulesState(household.id, next);
-      await logEvent({ householdId: household.id, type: "rules_approved", actor: "reviewer", message: `${household.reviewerName} approved the rule change. It applies now.` });
+      await logRuleEvent(household.id, {
+        type: "rules_approved",
+        actor: "reviewer",
+        message: `${household.reviewerName} approved the rule change. It applies now.`,
+        change: { ...change, status: "applied" },
+      });
       return { state: next };
     }
 
@@ -30,8 +36,10 @@ export async function POST(req: Request) {
     }
     const next = dropPendingChange(state);
     await saveRulesState(household.id, next);
-    const who = by === "shopper" ? household.shopperName : household.reviewerName;
-    await logEvent({ householdId: household.id, type: "rules_change_dropped", actor: by, message: `${who} withdrew the waiting rule change.` });
+    const asker = state.pending.requestedBy === "shopper" ? household.shopperName : household.reviewerName;
+    const message =
+      by === state.pending.requestedBy ? `${asker} withdrew the waiting rule change.` : `${household.reviewerName} said no to ${asker}'s rule change.`;
+    await logRuleEvent(household.id, { type: "rules_change_dropped", actor: by, message, change: { ...change, status: "dropped" } });
     return { state: next };
   });
 }

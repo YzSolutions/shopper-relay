@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RuleHistory } from "@/components/RuleHistory";
 import { RulesTable } from "@/components/RulesTable";
 import { Button, ErrorNotice, Notice, PageTitle, Spinner } from "@/components/ui";
 import { api, ApiError, type ParsedRules } from "@/lib/client/api";
@@ -29,6 +30,9 @@ export default function RulesPage() {
   const flow = session.relationship.flow;
   // Whose rules: Mom's own, or the parent's / customer's (the shopper can only ask).
   const shopperOwns = session.owner === "shopper";
+  // Where the reviewer pays, "you buy" rows need the payer's standing permission to work.
+  const buysOwn = Object.values(session.active.categories).some((r) => r?.bands.some((b) => b.outcome === "auto"));
+  const needsStanding = session.relationship.payer === "reviewer" && buysOwn && !session.standing;
   const EXAMPLE = EXAMPLES[session.household.relationship] ?? EXAMPLES.family_elder;
 
   async function read() {
@@ -114,6 +118,19 @@ export default function RulesPage() {
           {pending ? "Rules in force right now" : shopperOwns ? "Your rules" : "The rules"}
         </h2>
         <RulesTable rules={session.active} reviewer={reviewer} flow={flow} />
+        {needsStanding && (
+          <div className="mt-4">
+            <Notice tone="signal" title={`Waiting for ${reviewer}'s standing permission`}>
+              Rows that say &ldquo;You buy, {reviewer} pays&rdquo; start working once {reviewer} saves a PayPal account for it on {reviewer}&apos;s phone. Until then,{" "}
+              {reviewer} decides.
+            </Notice>
+          </div>
+        )}
+        {session.relationship.payer === "reviewer" && session.standing && buysOwn && (
+          <p className="mt-3 text-base text-ink-soft">
+            {reviewer}&apos;s standing permission is on, so &ldquo;You buy, {reviewer} pays&rdquo; rows work now.
+          </p>
+        )}
       </section>
 
       <section aria-labelledby="change" className="space-y-4">
@@ -197,6 +214,8 @@ export default function RulesPage() {
           </div>
         )}
       </section>
+
+      <RuleHistory refresh={session} reviewer={reviewer} flow={flow} />
     </div>
   );
 }

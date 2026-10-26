@@ -4,15 +4,17 @@
 import type { RelationshipId } from "@/config/relationships";
 import type { Product } from "@/lib/catalog/types";
 import type { AiTerms } from "@/lib/ai/terms";
+import type { BillView } from "@/lib/bills/service";
 import type { BudgetLine, CategoryResolution, Decision, Role, RuleIssue, RuleSet, RulesState, RecurringFinding } from "@/lib/policy";
 import type { Flow } from "@/lib/purchases/lifecycle";
 import type { OtpaOption } from "@/lib/purchases/service";
 import type { LogEvent } from "@/lib/store/events";
 import type { Household } from "@/lib/store/households";
+import type { RuleHistoryEntry } from "@/lib/store/ruleHistory";
 import type { purchaseView } from "@/lib/views";
 
 export type PurchaseView = ReturnType<typeof purchaseView>;
-export type { LogEvent, Product, Decision, CategoryResolution, RuleSet, RuleIssue, AiTerms, RecurringFinding, BudgetLine, OtpaOption };
+export type { BillView, LogEvent, RuleHistoryEntry, Product, Decision, CategoryResolution, RuleSet, RuleIssue, AiTerms, RecurringFinding, BudgetLine, OtpaOption };
 
 export interface Session {
   brand: { name: string; tagline: string };
@@ -27,6 +29,7 @@ export interface Session {
     payer: Role;
     flow: Flow;
     otpa: boolean;
+    bills: boolean;
   };
   relationships: Array<{ id: RelationshipId; tab: string; title: string }>;
   /** Everyone who reviews something in this household. */
@@ -37,6 +40,8 @@ export interface Session {
   active: RuleSet;
   issues: RuleIssue[];
   budget: BudgetLine[];
+  /** The payer's standing permission (saved PayPal), when the reviewer pays and it's on. */
+  standing: { since: string; payerLabel: string | null } | null;
   paypal: { clientId: string | null; env: "sandbox" | "live" };
   build: string;
 }
@@ -63,6 +68,12 @@ export interface CheckResult {
   recurring: RecurringFinding;
   totalDueTodayCents: number | null;
   recurringCents: number | null;
+}
+
+/** GET /api/bills: the bills, and the completed purchases a new bill can cover. */
+export interface BillsData {
+  bills: BillView[];
+  billable: Array<{ id: string; title: string; cents: number; at: string }>;
 }
 
 export class ApiError extends Error {

@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { BillsCard } from "@/components/Bills";
 import { PhoneShell } from "@/components/PhoneShell";
-import { RulesTable } from "@/components/RulesTable";
+import { RuleChangeList, RuleUpdateLines, useRuleHistory } from "@/components/RuleHistory";
+import { StandingCard } from "@/components/StandingCard";
 import { Button, ErrorNotice, Money, Notice, Spinner } from "@/components/ui";
-import { api, type PurchaseView } from "@/lib/client/api";
+import { api, type BillsData, type BillView, type PurchaseView } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
 // The reviewers' inbox, standing in for the text messages a real app would
@@ -16,15 +18,21 @@ const OPEN = new Set(["awaiting_review", "requested", "hunting"]);
 export default function ReviewerInbox() {
   const { session, reload } = useSession();
   const [items, setItems] = useState<PurchaseView[] | null>(null);
+  const [all, setAll] = useState<PurchaseView[] | null>(null);
+  const [bills, setBills] = useState<BillView[] | null>(null);
   const [who, setWho] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Refetched with the session, which this page reloads every few seconds.
+  const history = useRuleHistory(session);
 
   const load = useCallback(async () => {
     try {
       const { purchases } = await api<{ purchases: PurchaseView[] }>("/api/purchases");
       setItems(purchases.filter((p) => OPEN.has(p.state) && p.reviewPath));
-      await reload();
+      setAll(purchases);
+      const s = await reload();
+      if (s?.relationship.bills) setBills((await api<BillsData>("/api/bills")).bills);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -57,7 +65,8 @@ export default function ReviewerInbox() {
   const mine = items?.filter((p) => (p.reviewerName ?? main) === reviewer) ?? null;
   const pending = reviewer === main ? session.pending : null;
   const shopperOwns = session.owner === "shopper";
-  const empty = mine !== null && mine.length === 0 && !pending;
+  const unpaidBills = reviewer === main && !!bills?.some((b) => b.status === "unpaid");
+  const empty = mine !== null && mine.length === 0 && !pending && !unpaidBills;
 
   return (
     <PhoneShell title={`for ${reviewer}`}>
@@ -105,7 +114,7 @@ export default function ReviewerInbox() {
                 ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}. You can let it start now. You can't block it: these are ${shopper}'s rules.`
                 : `It waits for your answer.`}
             </p>
-            <RulesTable rules={pending.proposed} reviewer={main} flow={session.relationship.flow} caption="The rules after this change" />
+            <RuleChangeList before={session.rules} after={pending.proposed} reviewer={main} flow={session.relationship.flow} shopper={shopper} />
             <div className="grid gap-3">
               <Button tone="ledger" onClick={() => answerChange("approve")} disabled={busy}>
                 {shopperOwns ? "Let it start now" : "Approve the change"}
@@ -118,6 +127,12 @@ export default function ReviewerInbox() {
             </div>
           </div>
         )}
+
+        {reviewer === main && <BillsCard bills={bills} shopper={shopper} />}
+
+        {reviewer === main && session.relationship.payer === "reviewer" && <StandingCard session={session} purchases={all} onChange={load} />}
+
+        {reviewer === main && <RuleUpdateLines history={history} shopper={shopper} reviewer={main} flow={session.relationship.flow} waiting={!!pending} />}
 
         <Notice tone="relay">In a real app these arrive as text messages. This page stands in for {reviewer}&apos;s phone in the demo.</Notice>
       </div>
