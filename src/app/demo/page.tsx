@@ -102,6 +102,7 @@ export default function DemoPage() {
             />
             Hide real store and brand names
           </label>
+          <span className="text-base text-ink-soft">This demo is your own copy. Other visitors can&apos;t see or change it.</span>
           {status && (
             <p className="text-base text-ink-soft" role="status">
               {status}

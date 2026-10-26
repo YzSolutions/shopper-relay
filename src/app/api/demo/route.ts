@@ -4,7 +4,7 @@ import { MODE_COOKIE, RELATIONSHIP_IDS } from "@/config/relationships";
 import { body, handle } from "@/lib/http";
 import { expireOverdue } from "@/lib/purchases/service";
 import { settle } from "@/lib/policy";
-import { currentHousehold, currentMode } from "@/lib/store/current";
+import { currentHousehold, currentMode, currentVisitor } from "@/lib/store/current";
 import { logEvent } from "@/lib/store/events";
 import { getRulesState, resetHousehold, saveRulesState, setHideBrands } from "@/lib/store/households";
 import { shiftReviewDeadlines } from "@/lib/store/purchases";
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       (await cookies()).set(MODE_COOKIE, a.mode, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
       return { mode: a.mode };
     }
-    if (a.action === "reset") return { household: await resetHousehold(await currentMode()) };
+    if (a.action === "reset") return { household: await resetHousehold(await currentVisitor(), await currentMode()) };
 
     const household = await currentHousehold();
     if (a.action === "hide_brands") {

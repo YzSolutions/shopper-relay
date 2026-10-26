@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { DEMO_RELATIONSHIP, isRelationshipId, MODE_COOKIE, type RelationshipId } from "@/config/relationships";
+import { isVisitorId, VISITOR_COOKIE, visitorCookie } from "@/config/visitor";
 import { FlowError } from "../purchases/service";
 import { demoHousehold, type Household } from "./households";
 
@@ -9,9 +10,22 @@ export async function currentMode(): Promise<RelationshipId> {
   return isRelationshipId(value) ? value : DEMO_RELATIONSHIP;
 }
 
-/** The demo household for the relationship this browser is looking at. */
+/**
+ * This browser's visitor id. The proxy hands one out on the first request; a
+ * direct API call that skipped it gets one here. Route handlers only.
+ */
+export async function currentVisitor(): Promise<string> {
+  const jar = await cookies();
+  const id = jar.get(VISITOR_COOKIE)?.value;
+  if (isVisitorId(id)) return id;
+  const fresh = crypto.randomUUID();
+  jar.set(VISITOR_COOKIE, fresh, visitorCookie);
+  return fresh;
+}
+
+/** This browser's own demo household for the relationship it is looking at. */
 export async function currentHousehold(): Promise<Household> {
-  return demoHousehold(await currentMode());
+  return demoHousehold(await currentVisitor(), await currentMode());
 }
 
 /**

@@ -114,7 +114,7 @@ tailwindcss, vitest
 ## Video script (target 2:45, hard limit 3:00)
 
 **Before recording:**
-- Open https://shopper-relay.vercel.app/demo and click **Reset this demo** on each of the three tabs.
+- Open https://shopperrelay.com/demo and click **Reset this demo** on each of the three tabs.
 - Tick **Hide real store and brand names**. The rules don't allow third-party trademarks in the
   video; this swaps in invented store names and blurs product photos.
 - Have a sandbox buyer login ready, or use **Debit or Credit Card** with the test card.

@@ -5,7 +5,7 @@
 //
 //   npm run dev                         (in another terminal)
 //   npm run e2e                         (BASE_URL defaults to http://localhost:3000)
-//   npm run e2e -- kids                 (just one: mom | kids | shopper)
+//   npm run e2e -- kids                 (just one: mom | kids | shopper | isolation)
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- this script reads the API's JSON loosely, like a browser would */
 import { existsSync, readFileSync } from "node:fs";
@@ -19,9 +19,11 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const paypal = createPayPalClient(configFromEnv());
 const TEST_CARD = { number: "4111111111111111", expiry: "2030-12", securityCode: "123", name: "Test Buyer" };
 let mode = "family_elder";
+// Each run is its own visitor, with its own copy of the demo households.
+let visitor: string = crypto.randomUUID();
 
 async function raw(path: string, init?: RequestInit & { json?: unknown }) {
-  const headers: Record<string, string> = { Cookie: `sr_mode=${mode}` };
+  const headers: Record<string, string> = { Cookie: `sr_mode=${mode}; sr_visitor=${visitor}` };
   if (init?.json !== undefined) headers["Content-Type"] = "application/json";
   return fetch(`${BASE}${path}`, { ...init, headers, body: init?.json !== undefined ? JSON.stringify(init.json) : init?.body });
 }
@@ -204,8 +206,36 @@ async function shopper() {
   expect(paid.state === "completed" && paid.paypal.captureId, "paid by Marcus");
 }
 
+/** Two visitors at once: each has their own households, and a reset touches only its own. */
+async function isolation() {
+  mode = "family_elder";
+  step("Two visitors at the same time");
+  const a = visitor;
+  const b = crypto.randomUUID();
+  const as = async <T>(who: string, fn: () => Promise<T>) => {
+    visitor = who;
+    try {
+      return await fn();
+    } finally {
+      visitor = a;
+    }
+  };
+  const [first] = await search("reading glasses");
+  const mine = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: first.product.sourceId } })).purchase;
+  const theirSession = await as(b, () => api("/api/session"));
+  expect(theirSession.household.id !== (await api("/api/session")).household.id, "each visitor gets their own household");
+  const theirs = await as(b, () => api("/api/purchases"));
+  expect(!theirs.purchases.some((p: any) => p.id === mine.id), "the other visitor can't see my purchase");
+  expect((await as(b, () => raw(`/api/purchases/${mine.id}`))).status === 404, "or open it by its id");
+  await as(b, () => api("/api/demo", { method: "POST", json: { action: "reset" } }));
+  expect((await api(`/api/purchases/${mine.id}`)).purchase.id === mine.id, "their reset leaves my demo alone");
+  const fresh = await fetch(`${BASE}/api/session`);
+  expect(/sr_visitor=/.test(fresh.headers.get("set-cookie") ?? ""), "a new browser is handed its own visitor id");
+}
+
 async function main() {
   const only = process.argv[2];
+  if (!only || only === "isolation") await isolation();
   if (!only || only === "mom") await mom();
   if (!only || only === "kids") await kids();
   if (!only || only === "shopper") await shopper();

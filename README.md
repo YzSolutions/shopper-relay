@@ -8,9 +8,10 @@ it's settled.
 
 Built for the PayPal AI Hackathon.
 
-- **Live demo:** https://shopper-relay.vercel.app/demo (the shopper and the reviewer side by
-  side, with tabs for all three relationships)
-- **Shopper app on its own:** https://shopper-relay.vercel.app
+- **Live demo:** https://shopperrelay.com/demo (the shopper and the reviewer side by side, with
+  tabs for all three relationships)
+- **Shopper app on its own:** https://shopperrelay.com
+- **Backup address** (same app): https://shopper-relay.vercel.app
 - Everything runs on the PayPal **sandbox**. No real money moves.
 
 ## Three relationships, one engine
@@ -154,8 +155,9 @@ questions reuse a saved answer, so a busy model can't stall a purchase.
 | Gemini rule parsing, screenshot reading, explanations | Passing time (**Simulate 24 hours**) |
 | Neon Postgres storage and the why log | The store in the screenshot examples is made up |
 
-The demo has no sign-in: one shared household per relationship, which **Reset this demo**
-restores. For the video, **Hide real store and brand names** swaps real store names for invented
+The demo has no sign-in. Each browser gets its own private copy of the three households, so
+people testing at the same time never see or reset each other's purchases. **Reset this demo**
+starts only your copy over. For the video, **Hide real store and brand names** swaps real store names for invented
 ones and blurs product photos.
 
 ## Built with
