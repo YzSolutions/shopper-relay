@@ -36,7 +36,12 @@ function factsOf(p: ProductFacts) {
 const ExplainSchema = z.object({
   summary: z.string().describe("one short sentence, at most 15 words, that sums up the choices"),
   points: z
-    .array(z.string().describe("one short, simple point, at most 12 words"))
+    .array(
+      z.object({
+        text: z.string().describe("one short, simple point, at most 12 words"),
+        ids: z.array(z.string()).describe("ids of the products whose own listed facts show this point; empty if it is about the choices as a whole"),
+      }),
+    )
     .min(2)
     .max(4)
     .describe("the few things worth knowing when choosing: features and what's included. Never prices or dollar amounts; the app shows prices itself"),
@@ -48,16 +53,31 @@ const ExplainSchema = z.object({
 const PRICE_TALK = /\$\s?\d|\b(price|prices|priced|cost|costs|dollars?)\b/i;
 export const withoutPriceTalk = (points: string[]) => points.filter((p) => !PRICE_TALK.test(p));
 
+/** A point the shopper can tap to see just the products it's about. */
+export type Point = { text: string; ids: string[] };
+
+// Keep only ids that are in the results. A point about all of them, or none, has
+// nothing to narrow down, so it stays plain text (no ids).
+export function tidyPoints(points: Point[], known: string[]): Point[] {
+  const all = new Set(known);
+  return points
+    .filter((p) => withoutPriceTalk([p.text]).length)
+    .map((p) => {
+      const ids = [...new Set(p.ids)].filter((id) => all.has(id));
+      return { text: p.text, ids: ids.length < all.size ? ids : [] };
+    });
+}
+
 export async function explainResults(query: string, products: ProductFacts[]) {
   const { data, model } = await generateJson({
-    task: "explain-results-v5",
+    task: "explain-results-v6",
     speed: "quick",
     schema: ExplainSchema,
-    system: `You help someone understand shopping results in plain language.\n${GUARDRAILS}`,
+    system: `You help someone understand shopping results in plain language. Prefer points that set some products apart from the rest, and give each point the ids of the products it fits, judged only from their listed facts. Each point is read with all the results showing, so say "Some" or "Many", not "These": "Some have a USB port for charging."\n${GUARDRAILS}`,
     parts: [{ text: JSON.stringify({ searchedFor: query, products: products.slice(0, 12).map(factsOf) }) }],
   });
-  const known = new Set(products.map((p) => p.sourceId));
-  return { summary: data.summary, points: withoutPriceTalk(data.points), notes: data.notes.filter((n) => known.has(n.id)), model };
+  const known = products.map((p) => p.sourceId);
+  return { summary: data.summary, points: tidyPoints(data.points, known), notes: data.notes.filter((n) => known.includes(n.id)), model };
 }
 
 const ClassifySchema = z.object({

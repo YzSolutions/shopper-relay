@@ -7,9 +7,10 @@ import { BudgetBars, Button, CountedAs, ErrorNotice, Money, OutcomeLine, Spinner
 import { api, type PurchaseView, type SearchResult } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
-const SAVED_PREFIX = "shopperrelay:lastSearch:v3:";
+const SAVED_PREFIX = "shopperrelay:lastSearch:v4:";
 
-type Explanation = { summary: string; points: string[]; notes: Array<{ id: string; note: string }> };
+// A point with ids can be tapped to show just those products.
+type Explanation = { summary: string; points: Array<{ text: string; ids: string[] }>; notes: Array<{ id: string; note: string }> };
 
 export default function ShopPage() {
   const router = useRouter();
@@ -20,6 +21,8 @@ export default function ShopPage() {
   const [explanation, setExplanation] = useState<Explanation | null>(null);
   // The summary is a nice-to-have: if it can't be had, stop showing "Reading the results…".
   const [explainFailed, setExplainFailed] = useState(false);
+  // Which point the results are narrowed to, if any.
+  const [picked, setPicked] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [choosing, setChoosing] = useState<string | null>(null);
 
@@ -44,6 +47,7 @@ export default function ShopPage() {
         setResults(saved.results);
         setExplanation(saved.explanation ?? null);
         setExplainFailed(!saved.explanation);
+        setPicked(null);
         /* eslint-enable react-hooks/set-state-in-effect */
       }
     } catch {
@@ -58,6 +62,7 @@ export default function ShopPage() {
     setError(null);
     setExplanation(null);
     setExplainFailed(false);
+    setPicked(null);
     try {
       const data = await api<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(text)}`);
       setResults(data.results);
@@ -110,6 +115,8 @@ export default function ShopPage() {
   const relationship = session ? RELATIONSHIPS[session.household.relationship] : null;
   const flow = relationship?.flow ?? "hold";
   const notes = new Map(explanation?.notes.map((n) => [n.id, n.note]));
+  const pickedPoint = picked === null ? undefined : explanation?.points[picked];
+  const shown = pickedPoint ? (results ?? []).filter((r) => pickedPoint.ids.includes(r.product.sourceId)) : (results ?? []);
 
   return (
     <div className="max-w-3xl">
@@ -188,15 +195,36 @@ export default function ShopPage() {
                 <>
                   <p className="mt-2 text-[1.375rem] leading-snug font-semibold">{explanation.summary}</p>
                   {explanation.points?.length > 0 && (
-                    <ul className="mt-3 space-y-2 text-xl">
-                      {explanation.points.map((p) => (
-                        <li key={p} className="flex gap-3">
-                          <span aria-hidden className="mt-2.5 size-2.5 shrink-0 rounded-full bg-relay" />
-                          <span>{p}</span>
-                        </li>
-                      ))}
+                    <ul className="-mx-3 mt-3 space-y-1 text-xl">
+                      {explanation.points.map((p, i) => {
+                        const dot = <span aria-hidden className="mt-2.5 size-2.5 shrink-0 rounded-full bg-relay" />;
+                        if (!p.ids.length) {
+                          return (
+                            <li key={p.text} className="flex gap-3 border-2 border-transparent px-3 py-2">
+                              {dot}
+                              <span>{p.text}</span>
+                            </li>
+                          );
+                        }
+                        const on = picked === i;
+                        return (
+                          <li key={p.text}>
+                            <button
+                              type="button"
+                              aria-pressed={on}
+                              onClick={() => setPicked(on ? null : i)}
+                              className={`flex w-full gap-3 rounded-lg border-2 px-3 py-2 text-left transition-colors ${on ? "border-relay bg-white" : "border-transparent hover:border-line hover:bg-white/70"}`}
+                            >
+                              {dot}
+                              <span className="flex-1">{p.text}</span>
+                              <span className="mt-0.5 shrink-0 text-lg font-semibold whitespace-nowrap text-relay">{on ? "Showing" : `See ${p.ids.length}`}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
+                  {explanation.points?.some((p) => p.ids.length) && <p className="mt-2 text-base text-ink-soft">Tap a point to see just those products.</p>}
                 </>
               ) : (
                 !explainFailed && (
@@ -208,8 +236,22 @@ export default function ShopPage() {
             </div>
           )}
 
+          {pickedPoint && (
+            <div role="status" className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-relay px-5 py-3">
+              <p className="text-lg">
+                <span className="font-semibold">
+                  Showing {shown.length} of {results.length}:
+                </span>{" "}
+                {pickedPoint.text}
+              </p>
+              <Button tone="quiet" onClick={() => setPicked(null)}>
+                Show all {results.length}
+              </Button>
+            </div>
+          )}
+
           <ol className="mt-2">
-            {results.map((r) => (
+            {shown.map((r) => (
               <ResultRow
                 key={r.product.sourceId}
                 result={r}
