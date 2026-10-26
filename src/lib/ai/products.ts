@@ -17,7 +17,12 @@ const GUARDRAILS = `- Use only the facts provided. If something isn't in the fac
 - Round prices ("about $40").
 - Don't state a price range or the lowest or highest price: the app works that out from every result and shows it separately.`;
 
-function factsOf(p: Product) {
+/** The few product facts the AI is shown. */
+export type ProductFacts = Pick<Product, "sourceId" | "title" | "brand" | "categoryPath" | "keyFeatures"> & {
+  offers: Array<Pick<Product["offers"][number], "merchant" | "priceCents" | "currency" | "available">>;
+};
+
+function factsOf(p: ProductFacts) {
   return {
     id: p.sourceId,
     title: p.title,
@@ -34,19 +39,25 @@ const ExplainSchema = z.object({
     .array(z.string().describe("one short, simple point, at most 12 words"))
     .min(2)
     .max(4)
-    .describe("the few things worth knowing when choosing, mostly about price and what's included"),
+    .describe("the few things worth knowing when choosing: features and what's included. Never prices or dollar amounts; the app shows prices itself"),
   notes: z.array(z.object({ id: z.string(), note: z.string().describe("one short, simple sentence about this product, at most 15 words") })),
 });
 
-export async function explainResults(query: string, products: Product[]) {
+// Fast models sometimes state a price range anyway, and get it wrong. The app shows the
+// real range from every result, so any point about prices is dropped.
+const PRICE_TALK = /\$\s?\d|\b(price|prices|priced|cost|costs|dollars?)\b/i;
+export const withoutPriceTalk = (points: string[]) => points.filter((p) => !PRICE_TALK.test(p));
+
+export async function explainResults(query: string, products: ProductFacts[]) {
   const { data, model } = await generateJson({
-    task: "explain-results-v4",
+    task: "explain-results-v5",
+    speed: "quick",
     schema: ExplainSchema,
     system: `You help someone understand shopping results in plain language.\n${GUARDRAILS}`,
     parts: [{ text: JSON.stringify({ searchedFor: query, products: products.slice(0, 12).map(factsOf) }) }],
   });
   const known = new Set(products.map((p) => p.sourceId));
-  return { summary: data.summary, points: data.points, notes: data.notes.filter((n) => known.has(n.id)), model };
+  return { summary: data.summary, points: withoutPriceTalk(data.points), notes: data.notes.filter((n) => known.has(n.id)), model };
 }
 
 const ClassifySchema = z.object({
@@ -59,6 +70,7 @@ export async function classifyProduct(p: Product): Promise<{ category: CategoryI
   const categories = CATEGORY_IDS.filter((c) => c !== "subscription").map((id) => `${id}: ${CATEGORY_LABELS[id]}`).join("\n");
   const { data } = await generateJson({
     task: "classify-product",
+    speed: "quick",
     schema: ClassifySchema,
     system: `Pick the spending category that best fits a product. If none fits well, use "general" with low confidence.\n${categories}`,
     parts: [{ text: JSON.stringify(factsOf(p)) }],

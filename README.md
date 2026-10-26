@@ -99,7 +99,7 @@ Why log: every step and its reason. PayPal webhooks (signature-verified) confirm
 - In the prototype ShopperRelay is the sandbox merchant. Placing the order with the store is
   simulated and labelled as such.
 
-### AI (Google Gemini, `gemini-3.8-flash` with fallback models)
+### AI (Google Gemini: `gemini-3.5-flash` for rules and checkouts, `gemini-3.5-flash-lite` for quick explanations, each with fallbacks)
 
 What the AI does:
 

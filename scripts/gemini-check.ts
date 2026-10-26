@@ -4,13 +4,14 @@
 
 import { existsSync } from "node:fs";
 import { GoogleGenAI } from "@google/genai";
+import { AI_MODELS } from "../src/lib/ai/gemini";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 async function main() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Set GEMINI_API_KEY in .env.local.");
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const model = AI_MODELS.careful[0];
   const ai = new GoogleGenAI({ apiKey });
 
   const usable: string[] = [];
@@ -18,7 +19,10 @@ async function main() {
     if (m.supportedActions?.includes("generateContent") && m.name && /gemini/.test(m.name)) usable.push(m.name.replace("models/", ""));
   }
   console.log(`Models this key can call (${usable.length}):\n  ${usable.join("\n  ")}\n`);
-  console.log(`GEMINI_MODEL = ${model} ${usable.includes(model) ? "(available)" : "(NOT in the list above)"}\n`);
+  for (const [speed, list] of Object.entries(AI_MODELS)) {
+    console.log(`${speed}: ${list.map((m) => `${m} ${usable.includes(m) ? "(available)" : "(NOT available)"}`).join(", ")}`);
+  }
+  console.log();
 
   // A tiny structured-output test shaped like the real rule parser.
   const res = await ai.models.generateContent({

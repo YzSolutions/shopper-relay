@@ -1,5 +1,5 @@
-// One way to ask Gemini for structured JSON: schema-checked, retried, with a
-// fallback model and a saved-answer cache. AI output is always validated with
+// One way to ask Gemini for structured JSON: schema-checked, retried, with
+// fallback models, a time limit per try, and a saved-answer cache. AI output is always validated with
 // zod before anything else sees it, and never decides a payment on its own.
 
 import { createHash } from "node:crypto";
@@ -7,9 +7,20 @@ import { ApiError, GoogleGenAI, type Part } from "@google/genai";
 import { z } from "zod";
 import { db } from "../db/client";
 
-const DEFAULT_MODEL = "gemini-3.8-flash";
-const FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
-const RETRYABLE = new Set([429, 500, 503, 504]);
+/**
+ * careful: reading someone's rules or a checkout, where accuracy matters most.
+ * quick: explaining results or guessing a category while someone waits.
+ * Ordered by speed and reliability measured on this key in October 2026. gemini-3.8-flash
+ * is left out: it took one to three minutes per answer.
+ */
+export type AiSpeed = "careful" | "quick";
+export const AI_MODELS: Record<AiSpeed, string[]> = {
+  careful: ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.6-flash", "gemini-3.5-flash-lite"],
+  quick: ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"],
+};
+/** How long one try may take before moving on, so a slow model never leaves someone waiting. */
+const TRY_MS: Record<AiSpeed, number> = { careful: 25_000, quick: 8_000 };
+const RETRYABLE = new Set([500, 503, 504]);
 
 let client: GoogleGenAI | null = null;
 function gemini(): GoogleGenAI {
@@ -19,12 +30,6 @@ function gemini(): GoogleGenAI {
     client = new GoogleGenAI({ apiKey, httpOptions: { timeout: 30_000 } });
   }
   return client;
-}
-
-function models(): string[] {
-  const configured = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  const fallbacks = (process.env.GEMINI_FALLBACK_MODELS?.split(",") ?? FALLBACK_MODELS).map((m) => m.trim()).filter(Boolean);
-  return [...new Set([configured, ...fallbacks])];
 }
 
 /** zod -> the JSON Schema subset Gemini accepts. */
@@ -50,6 +55,7 @@ export interface GenerateJsonArgs<S extends z.ZodType> {
   schema: S;
   system: string;
   parts: Part[];
+  speed?: AiSpeed;
   /** Skip the saved-answer cache (for example while iterating on a prompt). */
   fresh?: boolean;
 }
@@ -75,7 +81,7 @@ async function writeCache(key: string, task: string, model: string, response: un
   }
 }
 
-export async function generateJson<S extends z.ZodType>({ task, schema, system, parts, fresh }: GenerateJsonArgs<S>): Promise<AiResult<z.infer<S>>> {
+export async function generateJson<S extends z.ZodType>({ task, schema, system, parts, speed = "careful", fresh }: GenerateJsonArgs<S>): Promise<AiResult<z.infer<S>>> {
   const key = cacheKey(task, system, parts);
   if (!fresh) {
     const hit = await readCache(key);
@@ -85,13 +91,14 @@ export async function generateJson<S extends z.ZodType>({ task, schema, system, 
 
   const responseJsonSchema = toGeminiSchema(schema);
   let lastError: unknown = null;
-  for (const model of models()) {
+  for (const model of AI_MODELS[speed]) {
     for (let attempt = 0; attempt < 2; attempt++) {
+      const signal = AbortSignal.timeout(TRY_MS[speed]);
       try {
         const res = await gemini().models.generateContent({
           model,
           contents: [{ role: "user", parts }],
-          config: { systemInstruction: system, responseMimeType: "application/json", responseJsonSchema, temperature: 0 },
+          config: { systemInstruction: system, responseMimeType: "application/json", responseJsonSchema, temperature: 0, abortSignal: signal },
         });
         const parsed = schema.safeParse(JSON.parse(res.text ?? "null"));
         if (!parsed.success) {
@@ -102,6 +109,8 @@ export async function generateJson<S extends z.ZodType>({ task, schema, system, 
         return { data: parsed.data, model, cached: false };
       } catch (err) {
         lastError = err;
+        if (signal.aborted) break; // too slow right now: try the next model
+        if (err instanceof ApiError && err.status === 429) break; // over this key's quota for that model: try the next one
         if (err instanceof ApiError && RETRYABLE.has(err.status)) {
           await sleep(1200 * (attempt + 1));
           continue;

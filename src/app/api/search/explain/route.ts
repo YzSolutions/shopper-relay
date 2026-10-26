@@ -2,30 +2,24 @@ import { z } from "zod";
 import { explainResults } from "@/lib/ai/products";
 import { body, handle } from "@/lib/http";
 
+// Only what the explanation uses. Store listings vary a lot (some list dozens of
+// features), so long lists are trimmed rather than rejected.
+const trimmed = <T extends z.ZodType>(item: T, keep: number) => z.array(item).max(100).transform((a) => a.slice(0, keep));
 const ProductFacts = z.object({
-  source: z.literal("channel3"),
   sourceId: z.string().max(64),
-  title: z.string().max(300),
-  brand: z.string().max(100).nullable(),
-  modelNumber: z.string().max(64).nullable(),
-  description: z.string().max(2000).nullable(),
-  imageUrl: z.string().max(1000).nullable(),
-  categoryPath: z.array(z.string().max(100)).max(8),
-  keyFeatures: z.array(z.string().max(300)).max(10),
-  attributes: z.record(z.string(), z.array(z.string())),
-  offers: z
-    .array(
-      z.object({
-        merchant: z.string().max(100),
-        url: z.string().max(1000),
-        priceCents: z.number().int().nonnegative(),
-        compareAtCents: z.number().int().nullable(),
-        currency: z.string().max(3),
-        available: z.boolean(),
-        condition: z.string().nullable(),
-      }),
-    )
-    .max(10),
+  title: z.string().max(1000),
+  brand: z.string().max(200).nullable(),
+  categoryPath: trimmed(z.string().max(200), 8),
+  keyFeatures: trimmed(z.string().max(2000), 5),
+  offers: trimmed(
+    z.object({
+      merchant: z.string().max(200),
+      priceCents: z.number().int().nonnegative(),
+      currency: z.string().max(3),
+      available: z.boolean(),
+    }),
+    3,
+  ),
 });
 
 /** Plain-language summary of search results. Explanations only; nothing here affects a decision. */

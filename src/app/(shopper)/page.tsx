@@ -18,6 +18,8 @@ export default function ShopPage() {
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [searched, setSearched] = useState("");
   const [explanation, setExplanation] = useState<Explanation | null>(null);
+  // The summary is a nice-to-have: if it can't be had, stop showing "Reading the results…".
+  const [explainFailed, setExplainFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [choosing, setChoosing] = useState<string | null>(null);
 
@@ -41,6 +43,7 @@ export default function ShopPage() {
         setSearched(saved.query);
         setResults(saved.results);
         setExplanation(saved.explanation ?? null);
+        setExplainFailed(!saved.explanation);
         /* eslint-enable react-hooks/set-state-in-effect */
       }
     } catch {
@@ -54,6 +57,7 @@ export default function ShopPage() {
     setBusy(true);
     setError(null);
     setExplanation(null);
+    setExplainFailed(false);
     try {
       const data = await api<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(text)}`);
       setResults(data.results);
@@ -74,6 +78,7 @@ export default function ShopPage() {
       save(q, rs, ex);
     } catch {
       // The plain-language summary is a nice-to-have; results still work without it.
+      setExplainFailed(true);
     }
   }
 
@@ -194,9 +199,11 @@ export default function ShopPage() {
                   )}
                 </>
               ) : (
-                <div className="mt-2">
-                  <Spinner label="Reading the results…" />
-                </div>
+                !explainFailed && (
+                  <div className="mt-2">
+                    <Spinner label="Reading the results…" />
+                  </div>
+                )
               )}
             </div>
           )}
