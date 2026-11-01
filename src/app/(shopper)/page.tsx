@@ -7,10 +7,13 @@ import { BudgetBars, Button, CountedAs, ErrorNotice, Money, OutcomeLine, Spinner
 import { api, type PurchaseView, type SearchResult } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
-const SAVED_PREFIX = "shopperrelay:lastSearch:v4:";
+const SAVED_PREFIX = "shopperrelay:lastSearch:v5:";
 
 // A point with ids can be tapped to show just those products.
 type Explanation = { summary: string; points: Array<{ text: string; ids: string[] }>; notes: Array<{ id: string; note: string }> };
+/** What a long search was boiled down to, and any price limit read from it. */
+type Looked = { lookedFor: string | null; maxPriceCents: number | null };
+type SearchData = Looked & { results: SearchResult[] };
 
 export default function ShopPage() {
   const router = useRouter();
@@ -18,6 +21,7 @@ export default function ShopPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [searched, setSearched] = useState("");
+  const [looked, setLooked] = useState<Looked>({ lookedFor: null, maxPriceCents: null });
   const [explanation, setExplanation] = useState<Explanation | null>(null);
   // The summary is a nice-to-have: if it can't be had, stop showing "Reading the results…".
   const [explainFailed, setExplainFailed] = useState(false);
@@ -33,26 +37,39 @@ export default function ShopPage() {
   }, []);
   const [error, setError] = useState<string | null>(null);
 
-  // Coming back from a purchase shows the same results again (kept per relationship).
+  // Coming back from a purchase or the rules shows the same results again (kept per
+  // relationship), checked again under the rules as they are now. The search box
+  // starts empty, so a new search never runs into the old one.
   const mode = session?.household.relationship ?? null;
   const savedKey = mode ? SAVED_PREFIX + mode : null;
   useEffect(() => {
     if (!savedKey) return;
+    let saved: { query: string; results: SearchResult[]; explanation: Explanation | null; looked?: Looked } | null = null;
     try {
-      const saved = JSON.parse(sessionStorage.getItem(savedKey) ?? "null");
-      if (saved?.results) {
-        /* eslint-disable react-hooks/set-state-in-effect -- restoring saved results once */
-        setQuery(saved.query);
-        setSearched(saved.query);
-        setResults(saved.results);
-        setExplanation(saved.explanation ?? null);
-        setExplainFailed(!saved.explanation);
-        setPicked(null);
-        /* eslint-enable react-hooks/set-state-in-effect */
-      }
+      saved = JSON.parse(sessionStorage.getItem(savedKey) ?? "null");
     } catch {
       // nothing saved, or storage unavailable
     }
+    if (!saved?.results) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- restoring saved results once */
+    setSearched(saved.query);
+    setResults(saved.results);
+    setLooked(saved.looked ?? { lookedFor: null, maxPriceCents: null });
+    setExplanation(saved.explanation ?? null);
+    setExplainFailed(!saved.explanation);
+    setPicked(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    const { query: q, explanation: ex, looked: lk } = saved;
+    api<{ results: SearchResult[] }>("/api/search", { method: "POST", json: { products: saved.results.map((r) => r.product) } })
+      .then(({ results: fresh }) => {
+        setResults(fresh);
+        try {
+          sessionStorage.setItem(savedKey, JSON.stringify({ query: q, results: fresh, explanation: ex, looked: lk }));
+        } catch {
+          // storage full or unavailable
+        }
+      })
+      .catch(() => setResults(null)); // can't check them again: better no results than out-of-date ones
   }, [savedKey]);
 
   async function search(q: string) {
@@ -64,11 +81,13 @@ export default function ShopPage() {
     setExplainFailed(false);
     setPicked(null);
     try {
-      const data = await api<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(text)}`);
+      const data = await api<SearchData>(`/api/search?q=${encodeURIComponent(text)}`);
+      const lk = { lookedFor: data.lookedFor, maxPriceCents: data.maxPriceCents };
       setResults(data.results);
       setSearched(text);
-      save(text, data.results, null);
-      if (data.results.length) explain(text, data.results);
+      setLooked(lk);
+      save(text, data.results, null, lk);
+      if (data.results.length) explain(data.lookedFor ?? text, data.results, text, lk);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -76,20 +95,20 @@ export default function ShopPage() {
     }
   }
 
-  async function explain(q: string, rs: SearchResult[]) {
+  async function explain(q: string, rs: SearchResult[], typed: string, lk: Looked) {
     try {
       const ex = await api<Explanation>("/api/search/explain", { method: "POST", json: { query: q, products: rs.slice(0, 12).map((r) => r.product) } });
       setExplanation(ex);
-      save(q, rs, ex);
+      save(typed, rs, ex, lk);
     } catch {
       // The plain-language summary is a nice-to-have; results still work without it.
       setExplainFailed(true);
     }
   }
 
-  function save(q: string, rs: SearchResult[], ex: Explanation | null) {
+  function save(q: string, rs: SearchResult[], ex: Explanation | null, lk: Looked) {
     try {
-      if (savedKey) sessionStorage.setItem(savedKey, JSON.stringify({ query: q, results: rs, explanation: ex }));
+      if (savedKey) sessionStorage.setItem(savedKey, JSON.stringify({ query: q, results: rs, explanation: ex, looked: lk }));
     } catch {
       // storage full or unavailable
     }
@@ -125,15 +144,30 @@ export default function ShopPage() {
           <label htmlFor="q">{relationship?.words.shopHeading ?? "What are you shopping for?"}</label>
         </h1>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <input
-            id="q"
-            name="q"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={relationship?.words.placeholder ?? ""}
-            autoComplete="off"
-            className="min-h-15 flex-1 rounded-xl border-2 border-line bg-white px-5 text-xl placeholder:text-ink-soft/70 focus:border-relay focus:outline-none"
-          />
+          <div className="relative flex-1">
+            <input
+              id="q"
+              name="q"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={relationship?.words.placeholder ?? ""}
+              autoComplete="off"
+              className="min-h-15 w-full rounded-xl border-2 border-line bg-white py-0 pr-14 pl-5 text-xl placeholder:text-ink-soft/70 focus:border-relay focus:outline-none"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  document.getElementById("q")?.focus();
+                }}
+                aria-label="Clear the search box"
+                className="absolute top-1/2 right-2 flex size-11 -translate-y-1/2 items-center justify-center rounded-lg text-2xl text-ink-soft hover:bg-mist hover:text-ink"
+              >
+                <span aria-hidden>×</span>
+              </button>
+            )}
+          </div>
           <Button type="submit" disabled={busy || !query.trim()} className="min-h-15 px-8 text-xl">
             Search
           </Button>
@@ -167,7 +201,7 @@ export default function ShopPage() {
           )}
           {session && session.budget.length > 0 && (
             <div className="mt-8 max-w-md">
-              <BudgetBars lines={session.budget} title="Your budget" />
+              <BudgetBars lines={session.budget} title={session.household.relationship === "personal_shopper" ? `${reviewer}'s budget` : "Your budget"} />
             </div>
           )}
         </div>
@@ -186,6 +220,18 @@ export default function ShopPage() {
             </h2>
             {results.length > 0 && <p className="text-base text-ink-soft">Different products, not the same item</p>}
           </div>
+          {(looked.lookedFor || looked.maxPriceCents) && (
+            <p className="mt-3 text-lg text-ink-soft">
+              {looked.lookedFor && <>Searched stores for &ldquo;{looked.lookedFor}&rdquo;</>}
+              {looked.lookedFor && looked.maxPriceCents ? ", " : ""}
+              {looked.maxPriceCents && (
+                <>
+                  {looked.lookedFor ? "u" : "U"}p to <Money cents={looked.maxPriceCents} />
+                </>
+              )}
+              .
+            </p>
+          )}
 
           {results.length > 0 && (
             <div className="mt-5 rounded-xl bg-mist px-6 py-5">
@@ -259,7 +305,12 @@ export default function ShopPage() {
                 reviewer={r.preview?.reviewer ?? reviewer}
                 flow={flow}
                 standing={!!session?.standing}
-                chooseLabel={relationship ? relationship.words.choose(r.preview?.reviewer ?? reviewer) : "Choose this"}
+                chooseLabel={
+                  // Someone who can buy it on their own isn't asking anyone.
+                  !relationship || (r.preview?.outcome === "auto" && (flow === "hold" || session?.standing))
+                    ? "Choose this"
+                    : relationship.words.choose(r.preview?.reviewer ?? reviewer)
+                }
                 choosing={choosing}
                 onChoose={choose}
               />

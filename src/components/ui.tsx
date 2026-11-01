@@ -96,7 +96,7 @@ export function BudgetBars({ lines, title }: { lines: Array<{ label: string; per
         <div key={`${l.label}${l.period}`}>
           <p className="flex flex-wrap justify-between gap-x-4">
             <span>
-              {l.label}, {l.period === "week" ? "this week" : "this month"}
+              {l.label}, {l.period === "week" ? "last 7 days" : "last 30 days"}
             </span>
             <span className="font-semibold">
               <Money cents={l.leftCents} /> left of <Money cents={l.limitCents} />

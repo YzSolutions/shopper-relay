@@ -5,6 +5,8 @@ import { categoryLabel, type CategoryId, type CategoryKey, type CustomCategoryKe
  * more specific (and usually stricter) categories come first.
  */
 const CATALOG_PATTERNS: Array<[RegExp, CategoryId]> = [
+  // Gadgets some stores file under jewelry, health care or books.
+  [/smart ?watch|activity monitor|fitness tracker|e-?book reader|e-?reader/i, "electronics"],
   [/blood pressure|biometric monitor|medical (device|suppl)|glucose|pulse oximeter|thermometer|hearing aid|mobility aid|health care/i, "medical_device"],
   // Before electronics, but only for games and consoles: a "gaming PC" is a computer.
   [/video game|game console|game controller/i, "video_games"],

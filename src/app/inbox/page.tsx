@@ -9,6 +9,7 @@ import { StandingCard } from "@/components/StandingCard";
 import { Button, ErrorNotice, Money, Notice, Spinner } from "@/components/ui";
 import { api, type BillsData, type BillView, type PurchaseView } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
+import { changeWords, summarizeChange } from "@/lib/policy/changes";
 
 // The reviewers' inbox, standing in for the text messages a real app would
 // send. Demo only: it isn't signed in, so it wouldn't exist in production.
@@ -108,7 +109,11 @@ export default function ReviewerInbox() {
 
         {pending && (
           <div className="space-y-4 rounded-2xl border-2 border-line p-5">
-            <p className="text-xl font-bold">{shopperOwns ? `${shopper} loosened a safeguard` : `${shopper} asked to change a rule`}</p>
+            <p className="text-xl font-bold">
+              {shopperOwns
+                ? `${shopper} ${changeWords(summarizeChange(session.rules, pending.proposed))}`
+                : `${shopper} asked to ${changeWords(summarizeChange(session.rules, pending.proposed), "ask")}`}
+            </p>
             <p>
               {pending.autoActivateAt
                 ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}. You can let it start now. You can't block it: these are ${shopper}'s rules.`

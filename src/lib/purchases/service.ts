@@ -4,9 +4,9 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { brand } from "@/config/brand";
-import { RELATIONSHIPS } from "@/config/relationships";
+import { reasonWords, RELATIONSHIPS } from "@/config/relationships";
 import { classifyProduct } from "../ai/products";
-import { recurringFinding } from "../ai/terms";
+import { recurringFinding, type AiTerms } from "../ai/terms";
 import { anonymizeProduct } from "../catalog/anonymize";
 import { createChannel3Source } from "../catalog/channel3";
 import { bestOffer } from "../catalog/compare";
@@ -39,6 +39,9 @@ export class FlowError extends Error {
   }
 }
 
+/** A PayPal amount the way the rest of the app writes money: "$14.99". */
+const paypalMoney = (a: { value: string; currency_code: string }) => formatCents(parseToCents(a.value), a.currency_code);
+
 let paypalClient: PayPalClient | null = null;
 const paypal = () => (paypalClient ??= createPayPalClient(configFromEnv()));
 
@@ -48,10 +51,7 @@ async function historyFor(household: Household, excludeId?: string) {
 
 async function evaluateFor(household: Household, amountCents: number, categories: Purchase["category"]["categories"], excludeId?: string) {
   const rules = activeRules(await getRulesState(household.id));
-  return evaluatePurchase(rules, { amountCents, categories }, await historyFor(household, excludeId), {
-    shopperName: household.shopperName,
-    reviewerName: household.reviewerName,
-  });
+  return evaluatePurchase(rules, { amountCents, categories }, await historyFor(household, excludeId), reasonWords(household));
 }
 
 async function categorize(
@@ -97,13 +97,9 @@ export async function chooseCatalogItem(household: Household, sourceId: string, 
   });
 }
 
-/** Choose an item the shopper checked from a screenshot ("Check Before You Buy"). */
-export async function chooseCheckedItem(household: Household, checkId: string): Promise<Purchase> {
-  const terms = await getCheck(household.id, checkId);
-  if (!terms) throw new FlowError("That check wasn't found.", 404);
-  if (!terms.readable || terms.totalDueTodayDollars === null) {
-    throw new FlowError("The total due today couldn't be read from that screenshot, so it can't be bought from here.", 422);
-  }
+/** What the rules say about a checked checkout, before anything is chosen. Null when the total couldn't be read. */
+export async function decideChecked(household: Household, terms: AiTerms) {
+  if (!terms.readable || terms.totalDueTodayDollars === null) return null;
   const recurring = recurringFinding(terms);
   const title = terms.productName ?? "Item from a screenshot";
   const pseudoProduct: Product = {
@@ -122,6 +118,16 @@ export async function chooseCheckedItem(household: Household, checkId: string): 
   const category = await categorize(household, pseudoProduct, () => classifyProduct(pseudoProduct), recurring);
   const reviewedCents = numberToCents(terms.totalDueTodayDollars);
   const decision = await evaluateFor(household, reviewedCents, category.categories);
+  return { title, recurring, category, reviewedCents, decision };
+}
+
+/** Choose an item the shopper checked from a screenshot ("Check Before You Buy"). */
+export async function chooseCheckedItem(household: Household, checkId: string): Promise<Purchase> {
+  const terms = await getCheck(household.id, checkId);
+  if (!terms) throw new FlowError("That check wasn't found.", 404);
+  const decided = await decideChecked(household, terms);
+  if (!decided) throw new FlowError("The total due today couldn't be read from that screenshot, so it can't be bought from here.", 422);
+  const { title, recurring, category, reviewedCents, decision } = decided;
   return recordChoice(household, {
     item: { kind: "checked", title, brand: null, merchant: terms.seller, url: null, imageUrl: null, source: null, sourceId: null, categoryPath: [] },
     reviewedCents,
@@ -251,7 +257,7 @@ export async function completeApproval(household: Household, id: string, orderId
     purchaseId: p.id,
     type: "held",
     actor: "paypal",
-    message: `PayPal placed a hold of ${held.amount.value} ${held.amount.currency_code}. Nothing has been charged yet.`,
+    message: `PayPal placed a hold of ${paypalMoney(held.amount)}. Nothing has been charged yet.`,
     detail: { authorizationId: held.id, status: held.status, expires: held.expiration_time },
   });
 
@@ -266,6 +272,7 @@ export async function completeApproval(household: Household, id: string, orderId
     now,
     shopperName: household.shopperName,
     reviewerName: household.reviewerName,
+    ruleOwner: RELATIONSHIPS[household.relationship].ruleOwner,
   });
   const paypalAmountCents = outcome.amount.paypalCents ?? undefined;
 
@@ -323,7 +330,7 @@ async function capture(household: Household, p: Purchase, amountCents?: number):
       purchaseId: p.id,
       type: "captured",
       actor: "paypal",
-      message: `PayPal payment completed: ${c.amount.value} ${c.amount.currency_code}. Placing the order with the store is simulated in this prototype.`,
+      message: `PayPal payment completed: ${paypalMoney(c.amount)}. Placing the order with the store is simulated in this prototype.`,
       detail: { captureId: c.id, status: c.status },
     });
   } catch (err) {
@@ -343,7 +350,7 @@ async function capture(household: Household, p: Purchase, amountCents?: number):
 }
 
 /** Finish a purchase without paying, releasing any PayPal hold. */
-async function release(household: Household, p: Purchase, to: "declined" | "expired" | "canceled", message: string, actor: "shopper" | "reviewer" | "system") {
+async function release(household: Household, p: Purchase, to: "declined" | "expired" | "canceled", message: string, actor: "shopper" | "reviewer" | "system", by?: string) {
   const moved = await transitionPurchase(p.id, p.state, to, { reviewToken: null });
   if (!moved) return (await getPurchase(p.id))!;
   if (p.paypalAuthorizationId) {
@@ -354,7 +361,7 @@ async function release(household: Household, p: Purchase, to: "declined" | "expi
       if (!(err instanceof PayPalError && err.status === 422)) throw err;
     }
   }
-  await logEvent({ householdId: household.id, purchaseId: p.id, type: to, actor, message });
+  await logEvent({ householdId: household.id, purchaseId: p.id, type: to, actor, message, by });
   return moved;
 }
 
@@ -441,6 +448,7 @@ export async function reviewerStartPayment(household: Household, p: Purchase, ki
     purchaseId: p.id,
     type: "reviewer_checkout",
     actor: "reviewer",
+    by: reviewer,
     message:
       kind === "otpa"
         ? `${reviewer} is authorizing ${household.shopperName} to buy it once for up to ${formatCents(amountCents)}.`
@@ -488,7 +496,8 @@ export async function reviewerCompletePayment(household: Household, p: Purchase,
       purchaseId: p.id,
       type: "otpa_granted",
       actor: "reviewer",
-      message: `${reviewer} authorized ${household.shopperName} to buy ${p.item.title} once, for ${formatCents(active.maxCents)} or less${active.details ? ` (${active.details})` : ""}, by ${new Date(active.expiresAt).toDateString()}. PayPal is holding ${formatCents(active.maxCents)}; only the actual price will be charged.`,
+      by: reviewer,
+      message: `${reviewer} authorized ${household.shopperName} to buy ${p.item.title} once, for ${formatCents(active.maxCents)} or less${active.details ? ` (${active.details})` : ""}, by ${new Date(active.expiresAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}. PayPal is holding ${formatCents(active.maxCents)}; only the actual price will be charged.`,
       detail: active,
     });
     return hunting;
@@ -511,7 +520,7 @@ export async function reviewerCompletePayment(household: Household, p: Purchase,
   });
   if (!moved) return (await getPurchase(p.id))!;
   const exception = decision.outcome === "exception" ? " as an exception" : "";
-  await logEvent({ householdId: household.id, purchaseId: p.id, type: "approved", actor: "reviewer", message: `${reviewer} approved${exception} and paid with PayPal.` });
+  await logEvent({ householdId: household.id, purchaseId: p.id, type: "approved", actor: "reviewer", by: reviewer, message: `${reviewer} approved${exception} and paid with PayPal.` });
   return capture(household, moved);
 }
 
@@ -700,7 +709,7 @@ export async function buyWithStanding(household: Household, id: string): Promise
     purchaseId: p.id,
     type: "held",
     actor: "paypal",
-    message: `PayPal placed a hold of ${held.amount.value} ${held.amount.currency_code} on ${payer}'s saved PayPal. Nothing has been charged yet.`,
+    message: `PayPal placed a hold of ${paypalMoney(held.amount)} on ${payer}'s saved PayPal. Nothing has been charged yet.`,
     detail: { authorizationId: held.id, status: held.status, expires: held.expiration_time },
   });
 
@@ -715,6 +724,8 @@ export async function buyWithStanding(household: Household, id: string): Promise
     now,
     shopperName: shopper,
     reviewerName: payer,
+    ruleOwner: "reviewer",
+    flow: "request",
   });
   const paypalAmountCents = outcome.amount.paypalCents ?? undefined;
 
@@ -761,13 +772,13 @@ export async function reviewerDecides(household: Household, p: Purchase, decisio
 
   if (decision === "decline") {
     const paid = p.state === "awaiting_review" ? " The PayPal hold was released; nothing was charged." : " Nothing was charged.";
-    return release(household, p, "declined", `${reviewer} declined.${paid}`, "reviewer");
+    return release(household, p, "declined", `${reviewer} declined.${paid}`, "reviewer", reviewer);
   }
   if (p.state === "requested") throw new FlowError(`${reviewer} approves this by paying with PayPal.`, 409);
   const moved = await transitionPurchase(p.id, "awaiting_review", "completed", { reviewToken: null });
   if (!moved) return (await getPurchase(p.id))!;
   const exception = p.decision.outcome === "exception" ? " as an exception" : "";
-  await logEvent({ householdId: household.id, purchaseId: p.id, type: "approved", actor: "reviewer", message: `${reviewer} approved${exception}.` });
+  await logEvent({ householdId: household.id, purchaseId: p.id, type: "approved", actor: "reviewer", by: reviewer, message: `${reviewer} approved${exception}.` });
   return capture(household, moved);
 }
 

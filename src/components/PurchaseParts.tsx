@@ -134,7 +134,12 @@ export function Reasons({ purchase }: { purchase: PurchaseView }) {
 const ACTOR: Record<LogEvent["actor"], string> = { shopper: "You", reviewer: "Reviewer", system: "Rules", paypal: "PayPal" };
 
 export function LogList({ events, names }: { events: LogEvent[]; names?: { shopper: string; reviewer: string } }) {
-  const who = (a: LogEvent["actor"]) => (names && a === "shopper" ? names.shopper : names && a === "reviewer" ? names.reviewer : ACTOR[a]);
+  // A category's own reviewer (like Dad) is named in the event; otherwise the main reviewer acted.
+  const byOf = (e: LogEvent) => (e.detail && typeof e.detail === "object" && "by" in e.detail && typeof e.detail.by === "string" ? e.detail.by : null);
+  const who = (e: LogEvent) => {
+    const a = e.actor;
+    return names && a === "shopper" ? names.shopper : a === "reviewer" ? (byOf(e) ?? names?.reviewer ?? ACTOR[a]) : ACTOR[a];
+  };
   return (
     <ol className="border-l-2 border-line">
       {events.map((e) => (
@@ -143,7 +148,7 @@ export function LogList({ events, names }: { events: LogEvent[]; names?: { shopp
           <p className="text-base text-ink-soft">
             <time dateTime={e.at}>{new Date(e.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
             {", "}
-            {who(e.actor)}
+            {who(e)}
           </p>
           <p>{e.message}</p>
         </li>

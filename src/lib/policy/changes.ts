@@ -1,6 +1,6 @@
 import { loosenedRanges, tightenedRanges, isStricter, type Range } from "./bands";
 import { allCategoryKeys, capKey, effectiveRule, strictestRuleSet } from "./rules";
-import { isCustomCategory, type Cap, type CategoryKey, type Role, type RuleSet } from "./types";
+import { categoryLabel, isCustomCategory, type Cap, type CategoryKey, type Role, type RuleSet } from "./types";
 
 /** How long a shopper's loosening waits if the reviewer doesn't approve it sooner. */
 export const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
@@ -173,4 +173,21 @@ export function settle(state: RulesState, now = new Date()): RulesState {
 export function activeRules(state: RulesState, now = new Date()): RuleSet {
   const s = settle(state, now);
   return s.pending ? strictestRuleSet(s.rules, s.pending.proposed) : s.rules;
+}
+
+/**
+ * What a change does, in a few words: "loosened the rule for Clothing and changed
+ * who reviews Video Games". `ask` words it as a request: "loosen … and change …".
+ */
+export function changeWords(summary: ChangeSummary, form: "done" | "ask" = "done"): string {
+  const list = (xs: string[]) => (xs.length <= 2 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+  const looser = summary.categories.filter((c) => c.loosened.length || c.widened).map((c) => categoryLabel(c.category));
+  const limits = summary.caps.some((c) => c.direction === "loosened");
+  const who = summary.categories.filter((c) => c.reviewer).map((c) => categoryLabel(c.category));
+  const verb = (done: string, ask: string) => (form === "done" ? done : ask);
+  const parts: string[] = [];
+  if (looser.length) parts.push(`${verb("loosened", "loosen")} the rule for ${list(looser)}`);
+  if (limits) parts.push(`${verb("raised", "raise")} a spending limit`);
+  if (who.length) parts.push(`${verb("changed", "change")} who reviews ${list(who)}`);
+  return parts.length ? parts.join(" and ") : verb("changed a rule", "change a rule");
 }

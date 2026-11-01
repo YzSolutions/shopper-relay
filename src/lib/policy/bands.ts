@@ -126,3 +126,43 @@ function diffRanges(prev: AmountBand[], next: AmountBand[], changed: (p: Outcome
     .map(([minCents, maxCents]) => ({ minCents, maxCents }));
   return mergeAdjacent(ranges, () => true);
 }
+
+/**
+ * "Under $100 … over $100" reads as covering everything, but stored literally
+ * it leaves exactly $100.00 uncovered (or, with "up to $100 … $100 and up",
+ * covered twice). A one-cent gap or overlap between neighbouring bands is
+ * closed so that amount goes to the stricter of the two.
+ */
+export function closeCentGaps(bands: AmountBand[]): AmountBand[] {
+  const out = bands.map((b) => ({ ...b })).sort((a, b) => a.minCents - b.minCents);
+  for (let i = 0; i + 1 < out.length; i++) {
+    const [lo, hi] = [out[i], out[i + 1]];
+    if (lo.maxCents === null || Math.abs(hi.minCents - lo.maxCents) !== 1) continue;
+    // The one amount in question (left out, or in both): give it to the stricter band.
+    const edge = Math.min(lo.maxCents, hi.minCents);
+    if (isStricter(lo.outcome, hi.outcome)) {
+      lo.maxCents = edge + 1;
+      hi.minCents = edge + 1;
+    } else {
+      lo.maxCents = edge;
+      hi.minCents = edge;
+    }
+  }
+  return out;
+}
+
+/** Fill the amounts `bands` leaves uncovered with what `fallback` says about them. */
+export function fillGaps(bands: AmountBand[], fallback: AmountBand[]): AmountBand[] {
+  const gaps = segment(bands).segments.filter((s) => s.outcome === null);
+  if (!gaps.length) return bands;
+  const filled = [...bands];
+  for (const gap of gaps) {
+    for (const s of segment(fallback).segments) {
+      if (s.outcome === null) continue;
+      const min = Math.max(gap.minCents, s.minCents);
+      const max = gap.maxCents === null ? s.maxCents : s.maxCents === null ? gap.maxCents : Math.min(gap.maxCents, s.maxCents);
+      if (max === null || max > min) filled.push({ minCents: min, maxCents: max, outcome: s.outcome });
+    }
+  }
+  return segment(filled).segments.flatMap((s) => (s.outcome ? [{ minCents: s.minCents, maxCents: s.maxCents, outcome: s.outcome }] : []));
+}

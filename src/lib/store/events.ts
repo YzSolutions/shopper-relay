@@ -25,11 +25,15 @@ const toEvent = (r: Row): LogEvent => ({
   detail: r.detail,
 });
 
-/** Add a line to the why log. */
-export async function logEvent(e: { householdId: string; purchaseId?: string | null; type: string; actor: Actor; message: string; detail?: unknown }) {
+/**
+ * Add a line to the why log. `by` names who acted when it isn't the household's
+ * main reviewer (a category's own reviewer, like Dad); it's kept in the detail.
+ */
+export async function logEvent(e: { householdId: string; purchaseId?: string | null; type: string; actor: Actor; message: string; detail?: unknown; by?: string }) {
+  const detail = e.by ? { ...(e.detail && typeof e.detail === "object" ? e.detail : {}), by: e.by } : e.detail;
   await db()`
     insert into events (household_id, purchase_id, type, actor, message, detail)
-    values (${e.householdId}, ${e.purchaseId ?? null}, ${e.type}, ${e.actor}, ${e.message}, ${e.detail === undefined ? null : JSON.stringify(e.detail)}::jsonb)`;
+    values (${e.householdId}, ${e.purchaseId ?? null}, ${e.type}, ${e.actor}, ${e.message}, ${detail === undefined ? null : JSON.stringify(detail)}::jsonb)`;
 }
 
 export async function householdLog(householdId: string, limit = 100): Promise<LogEvent[]> {

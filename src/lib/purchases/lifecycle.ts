@@ -162,6 +162,8 @@ export function decideAfterHold(input: {
   now: Date;
   shopperName: string;
   reviewerName: string;
+  ruleOwner?: "shopper" | "reviewer";
+  flow?: "hold" | "request";
 }): AfterHold {
   const amount = checkPayPalAmount(input.reviewedCents, input.paypalAmount, input.currency);
   if (!amount.ok) return { action: "void", next: "failed", decision: null, amount, message: amount.message };
@@ -170,7 +172,7 @@ export function decideAfterHold(input: {
     input.rules,
     { amountCents: amount.paypalCents, categories: input.categories },
     input.history,
-    { now: input.now, shopperName: input.shopperName, reviewerName: input.reviewerName },
+    { now: input.now, shopperName: input.shopperName, reviewerName: input.reviewerName, flow: input.flow ?? "hold", ruleOwner: input.ruleOwner },
   );
   switch (decision.outcome) {
     case "auto":

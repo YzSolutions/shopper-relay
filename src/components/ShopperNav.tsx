@@ -6,16 +6,18 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "Shop" },
   { href: "/check", label: "Check a checkout" },
-  { href: "/rules", label: "My rules" },
+  { href: "/rules", label: "Rules" },
   { href: "/history", label: "History" },
 ];
 
 /**
  * Pass current={null} to render without reading the URL (the loading fallback).
  * `bills`: the shopper bills for their time here (Personal shopper).
+ * `ownRules`: the rules are the shopper's own (Mom), so they're "My rules".
  */
-export function ShopperNav({ current, bills = false }: { current?: null; bills?: boolean }) {
-  const links = bills ? [...LINKS.slice(0, 3), { href: "/bills", label: "Bills" }, ...LINKS.slice(3)] : LINKS;
+export function ShopperNav({ current, bills = false, ownRules = false }: { current?: null; bills?: boolean; ownRules?: boolean }) {
+  const named = ownRules ? LINKS.map((l) => (l.href === "/rules" ? { ...l, label: "My rules" } : l)) : LINKS;
+  const links = bills ? [...named.slice(0, 3), { href: "/bills", label: "Bills" }, ...named.slice(3)] : named;
   return current === null ? <NavLinks path={null} links={links} /> : <NavWithPath links={links} />;
 }
 

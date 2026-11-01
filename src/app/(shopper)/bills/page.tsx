@@ -36,13 +36,12 @@ export default function BillsPage() {
   }, [load]);
 
   if (!session) return loadError ? <ErrorNotice error={loadError} /> : <Spinner label="Loading…" />;
-  const shopper = session.household.shopperName;
   const customer = session.household.reviewerName;
   if (!session.relationship.bills) {
     return (
       <div className="max-w-3xl">
         <PageTitle>Bills</PageTitle>
-        <p className="text-lg text-ink-soft">Bills are for the Personal shopper relationship, where {shopper} charges for their time.</p>
+        <p className="text-lg text-ink-soft">Bills are for the Personal shopper setup, where the shopper charges the customer for their time.</p>
       </div>
     );
   }

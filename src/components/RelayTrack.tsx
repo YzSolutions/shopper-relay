@@ -50,7 +50,8 @@ function layout({ state, flow, shopper, reviewer, needsReview = true, otpa = fal
     return { stations, at };
   }
   const stations = [{ label: "Chosen" }, { label: "Rules checked" }, { label: `Sent to ${reviewer}` }, { label: `${reviewer} pays with PayPal` }, { label: "Paid" }];
-  const at = { evaluated: 1, blocked: 1, canceled: 2, requested: 2, declined: 2, expired: 2, failed: 3, completed: 4, hunting: 3, checkout: 1, awaiting_review: 2 }[state];
+  // A cancel usually happens before anything is sent, so it stops at the rules.
+  const at = { evaluated: 1, blocked: 1, canceled: 1, requested: 2, declined: 2, expired: 2, failed: 3, completed: 4, hunting: 3, checkout: 1, awaiting_review: 2 }[state];
   return { stations, at };
 }
 

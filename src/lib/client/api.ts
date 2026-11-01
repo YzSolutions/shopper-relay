@@ -64,6 +64,7 @@ export interface ParsedRules {
 
 export interface CheckResult {
   checkId: string;
+  decision: Decision | null;
   terms: AiTerms;
   recurring: RecurringFinding;
   totalDueTodayCents: number | null;

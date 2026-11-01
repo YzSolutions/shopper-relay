@@ -5,6 +5,7 @@ import { RuleHistory } from "@/components/RuleHistory";
 import { RulesTable } from "@/components/RulesTable";
 import { Button, ErrorNotice, Notice, PageTitle, Spinner } from "@/components/ui";
 import { api, ApiError, type ParsedRules } from "@/lib/client/api";
+import { changeWords, summarizeChange } from "@/lib/policy/changes";
 import { useSession } from "@/lib/client/useSession";
 
 const EXAMPLES: Record<string, string> = {
@@ -88,7 +89,7 @@ export default function RulesPage() {
         lead={
           shopperOwns
             ? `You decide when ${reviewer} takes a look. A stricter rule works right away. If you loosen one, or change who reviews something, ${reviewer} is told, and it starts after 24 hours unless ${reviewer} says yes sooner.`
-            : `${reviewer} sets these rules for ${shopper}. ${reviewer}'s changes apply right away. ${shopper} can ask for a change; it waits for ${reviewer}.`
+            : `${reviewer} sets these rules for ${shopper}. ${reviewer}'s changes apply right away. ${shopper} can ask for a looser rule, which waits for ${reviewer}; a stricter one applies right away.`
         }
       >
         {shopperOwns ? "My rules" : `${reviewer}'s rules for ${shopper}`}
@@ -99,11 +100,14 @@ export default function RulesPage() {
       {pending && (
         <Notice tone="signal" title="A change is waiting">
           <p>
-            {shopperOwns ? "You loosened a safeguard." : `${shopper} asked to loosen a rule.`} {reviewer} has been told.{" "}
+            {shopperOwns
+              ? `You ${changeWords(summarizeChange(session.rules, pending.proposed))}.`
+              : `${shopper} asked to ${changeWords(summarizeChange(session.rules, pending.proposed), "ask")}.`}{" "}
+            {reviewer} has been told.{" "}
             {pending.autoActivateAt
               ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}, or sooner if ${reviewer} says yes.`
               : `It starts when ${reviewer} says yes.`}{" "}
-            Until then, the stricter of your old and new rules applies.
+            Until then, the stricter of the old and new rules applies.
           </p>
           <div className="mt-3">
             <Button tone="quiet" onClick={withdraw} disabled={busy !== null}>
@@ -200,7 +204,7 @@ export default function RulesPage() {
               ) : (
                 <>
                   <Button tone="ledger" onClick={() => save("reviewer")} disabled={busy !== null || hasQuestions}>
-                    {busy === "save" ? "Saving…" : `Save as ${reviewer}`}
+                    {busy === "save" ? "Saving…" : `Demo: save as ${reviewer}`}
                   </Button>
                   <Button onClick={() => save("shopper")} disabled={busy !== null || hasQuestions}>
                     {`Ask ${reviewer} (as ${shopper})`}
@@ -211,6 +215,11 @@ export default function RulesPage() {
                 Not right, start again
               </Button>
             </div>
+            {!shopperOwns && (
+              <p className="text-base text-ink-soft">
+                In a real setup only {reviewer} could save these. The demo lets you act as either person.
+              </p>
+            )}
           </div>
         )}
       </section>

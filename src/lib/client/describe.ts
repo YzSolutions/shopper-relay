@@ -15,11 +15,15 @@ export function rangeWords(b: Pick<AmountBand, "minCents" | "maxCents">): string
   return `${formatCents(b.minCents)} to ${formatCents(b.maxCents - 1)}`;
 }
 
-/** `shopper` words it for someone else (the reviewer's phone): "Mom buys without asking". */
-export function outcomeWords(o: Outcome, reviewer: string, flow: "hold" | "request" = "hold", shopper?: string): string {
+/**
+ * `shopper` words it for someone else (the reviewer's phone): "Mom buys without asking".
+ * `payer` is whose saved PayPal pays when the shopper buys on their own; a
+ * category's own reviewer never pays.
+ */
+export function outcomeWords(o: Outcome, reviewer: string, flow: "hold" | "request" = "hold", shopper?: string, payer = reviewer): string {
   return {
-    // Where the reviewer pays, "on your own" means with the reviewer's standing permission.
-    auto: shopper ? `${shopper} buys without asking` : flow === "request" ? `You buy, ${reviewer} pays` : "You buy on your own",
+    // Where the reviewer pays, "on your own" means with the payer's standing permission.
+    auto: shopper ? `${shopper} buys without asking` : flow === "request" ? `You buy, ${payer} pays` : "You buy on your own",
     review: flow === "hold" ? `${reviewer} takes a look` : `${reviewer} decides`,
     exception: flow === "hold" ? `${reviewer} must approve an exception` : `Over budget: ${reviewer} decides`,
     blocked: "Not allowed",
@@ -51,8 +55,8 @@ export function ruleRows(rules: RuleSet): RuleRow[] {
 export function capWords(cap: Cap, reviewer: string, flow: "hold" | "request" = "hold"): string {
   const scope = cap.category === null ? "All shopping combined" : categoryLabel(cap.category);
   const period = { purchase: "per purchase", week: "in any 7 days", month: "in any 30 days" }[cap.period];
-  const then = outcomeWords(cap.over, reviewer, flow);
-  return `${scope}: up to ${formatCents(cap.limitCents)} ${period}. Over that: ${then}.`;
+  const then = cap.over === "exception" ? `${reviewer} must approve an exception` : lowerFirst(outcomeWords(cap.over, reviewer, flow));
+  return `${scope}: up to ${formatCents(cap.limitCents)} ${period}. Over that, ${then}.`;
 }
 
 /** One line of a rule change: what a category (or the spending limits) said before and after. */
@@ -68,7 +72,7 @@ const lowerFirst = (s: string) => (/^(You|Over|Any|Not)\b/.test(s) ? s[0].toLowe
 const OWN_RULE_NONE = "No rule of its own. General Shopping applies.";
 
 function rowWords(row: RuleRow, reviewer: string, flow: "hold" | "request", shopper?: string): string {
-  const bands = row.bands.map((b) => `${b.range}: ${lowerFirst(outcomeWords(b.outcome, row.reviewer ?? reviewer, flow, shopper))}`).join(". ");
+  const bands = row.bands.map((b) => `${b.range}: ${lowerFirst(outcomeWords(b.outcome, row.reviewer ?? reviewer, flow, shopper, reviewer))}`).join(". ");
   return row.reviewer ? `${bands}. Reviewed by ${row.reviewer}.` : `${bands}.`;
 }
 

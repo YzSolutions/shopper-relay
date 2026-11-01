@@ -17,7 +17,8 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/review/[tok
       household: { shopperName: household.shopperName, reviewerName: current.reviewerName ?? household.reviewerName },
       relationship: { id: relationship.id, title: relationship.title, flow: relationship.flow, otpa: relationship.otpa },
       purchase: purchaseView(current),
-      budget: await householdBudget(household),
+      // Left out: the purchase being decided, so the bars show what's left without it.
+      budget: await householdBudget(household, current.id),
       paypal: { clientId: process.env.PAYPAL_CLIENT_ID ?? null },
     };
   });

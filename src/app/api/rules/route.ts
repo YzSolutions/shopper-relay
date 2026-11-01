@@ -2,7 +2,7 @@ import { z } from "zod";
 import { questionFor } from "@/lib/ai/rules";
 import { body, handle } from "@/lib/http";
 import { FlowError } from "@/lib/purchases/service";
-import { activeRules, findRuleIssues, requestRuleChange, RuleSetSchema } from "@/lib/policy";
+import { activeRules, changeWords, findRuleIssues, requestRuleChange, RuleSetSchema } from "@/lib/policy";
 import { saveRulesState } from "@/lib/store/households";
 import { currentRulesState, logRuleEvent } from "@/lib/store/ruleHistory";
 import { assertSameHousehold, currentHousehold } from "@/lib/store/current";
@@ -40,8 +40,8 @@ export async function POST(req: Request) {
     const who = by === "shopper" ? household.shopperName : household.reviewerName;
     const message = result.state.pending
       ? result.state.pending.autoActivateAt
-        ? `${who} loosened a safeguard. ${household.reviewerName} was notified and can approve it now; otherwise it takes effect in 24 hours. Any tightening applies right away.`
-        : `${who} asked to loosen a limit. It waits for ${household.reviewerName} to approve.`
+        ? `${who} ${changeWords(result.summary)}. ${household.reviewerName} was told and can let it start now; otherwise it starts in 24 hours. Anything made stricter applies right away.`
+        : `${who} asked to ${changeWords(result.summary, "ask")}. It waits for ${household.reviewerName} to approve.`
       : result.summary.kind === "none"
         ? `${who} saved the rules; nothing changed.`
         : `${who} updated the rules. The change applies right away.`;

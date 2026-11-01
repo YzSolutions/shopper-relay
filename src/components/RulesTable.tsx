@@ -39,7 +39,7 @@ export function RulesTable({ rules, reviewer, caption, flow = "hold" }: { rules:
                   </th>
                 )}
                 <td className="py-3 pr-4 align-top tabular-nums">{b.range}</td>
-                <td className={`py-3 align-top font-semibold ${OUTCOME_CLASS[b.outcome]}`}>{outcomeWords(b.outcome, row.reviewer ?? reviewer, flow)}</td>
+                <td className={`py-3 align-top font-semibold ${OUTCOME_CLASS[b.outcome]}`}>{outcomeWords(b.outcome, row.reviewer ?? reviewer, flow, undefined, reviewer)}</td>
               </tr>
             )),
           )}

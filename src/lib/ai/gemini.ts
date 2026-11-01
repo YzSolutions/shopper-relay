@@ -18,8 +18,14 @@ export const AI_MODELS: Record<AiSpeed, string[]> = {
   careful: ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.6-flash", "gemini-3.5-flash-lite"],
   quick: ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"],
 };
-/** How long one try may take before moving on, so a slow model never leaves someone waiting. */
-const TRY_MS: Record<AiSpeed, number> = { careful: 25_000, quick: 8_000 };
+/** How long one try may take before giving up on that model. */
+const TRY_MS: Record<AiSpeed, number> = { careful: 25_000, quick: 10_000 };
+/**
+ * How long to wait for a model before also asking the next one. Which model is
+ * quick changes from day to day, so a slow one only costs this long: the first
+ * good answer wins and the others are cancelled.
+ */
+const HEDGE_MS: Record<AiSpeed, number> = { careful: 7_000, quick: 2_500 };
 const RETRYABLE = new Set([500, 503, 504]);
 
 let client: GoogleGenAI | null = null;
@@ -90,10 +96,13 @@ export async function generateJson<S extends z.ZodType>({ task, schema, system, 
   }
 
   const responseJsonSchema = toGeminiSchema(schema);
-  let lastError: unknown = null;
-  for (const model of AI_MODELS[speed]) {
+  const everyone = new AbortController();
+
+  /** One model, with a retry when it's briefly overloaded or answers off-schema. */
+  async function ask(model: string): Promise<z.infer<S>> {
+    let lastError: unknown = null;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const signal = AbortSignal.timeout(TRY_MS[speed]);
+      const signal = AbortSignal.any([everyone.signal, AbortSignal.timeout(TRY_MS[speed])]);
       try {
         const res = await gemini().models.generateContent({
           model,
@@ -101,25 +110,57 @@ export async function generateJson<S extends z.ZodType>({ task, schema, system, 
           config: { systemInstruction: system, responseMimeType: "application/json", responseJsonSchema, temperature: 0, abortSignal: signal },
         });
         const parsed = schema.safeParse(JSON.parse(res.text ?? "null"));
-        if (!parsed.success) {
-          lastError = new AiError(`${model} returned JSON that didn't match the schema: ${parsed.error.message}`);
-          continue;
-        }
-        await writeCache(key, task, model, parsed.data);
-        return { data: parsed.data, model, cached: false };
+        if (parsed.success) return parsed.data;
+        lastError = new AiError(`${model} returned JSON that didn't match the schema: ${parsed.error.message}`);
       } catch (err) {
         lastError = err;
-        if (signal.aborted) break; // too slow right now: try the next model
-        if (err instanceof ApiError && err.status === 429) break; // over this key's quota for that model: try the next one
+        if (signal.aborted) break; // too slow right now, or another model already answered
         if (err instanceof ApiError && RETRYABLE.has(err.status)) {
-          await sleep(1200 * (attempt + 1));
+          await sleep(800);
           continue;
         }
-        if (err instanceof ApiError && err.status === 404) break; // model not available: try the next one
-        if (err instanceof SyntaxError) continue;
-        throw err;
+        if (!(err instanceof SyntaxError)) break; // quota, missing model, bad request: no point retrying
       }
     }
+    throw lastError;
   }
-  throw new AiError(`Gemini couldn't complete "${task}": ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+
+  // Start with the first model; bring in the next one if it's slow or fails.
+  const models = AI_MODELS[speed];
+  const { data, model } = await new Promise<{ data: z.infer<S>; model: string }>((resolve, reject) => {
+    let next = 0;
+    let running = 0;
+    let settled = false;
+    let lastError: unknown = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const launch = () => {
+      clearTimeout(timer);
+      if (settled || next >= models.length) return;
+      const model = models[next++];
+      running++;
+      timer = setTimeout(launch, HEDGE_MS[speed]);
+      ask(model).then(
+        (answer) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          everyone.abort();
+          resolve({ data: answer, model });
+        },
+        (err) => {
+          running--;
+          lastError = err;
+          if (settled) return;
+          if (next < models.length) launch();
+          else if (running === 0) {
+            settled = true;
+            reject(new AiError(`Gemini couldn't complete "${task}": ${err instanceof Error ? err.message : String(lastError)}`));
+          }
+        },
+      );
+    };
+    launch();
+  });
+  await writeCache(key, task, model, data);
+  return { data, model, cached: false };
 }

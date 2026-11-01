@@ -53,6 +53,24 @@ export interface EvaluateOptions {
   now?: Date;
   shopperName?: string;
   reviewerName?: string;
+  /**
+   * hold: the shopper pays and the reviewer takes a look.
+   * request: the reviewer decides and pays. Changes only the words.
+   */
+  flow?: "hold" | "request";
+  /** Who can change the rules: the shopper (their own safeguards) or the main reviewer. */
+  ruleOwner?: "shopper" | "reviewer";
+}
+
+/** The names and setup the reasons are written for. */
+interface Words {
+  shopper: string;
+  /** Whoever is asked about this purchase. */
+  reviewer: string;
+  flow: "hold" | "request";
+  /** The person who can change the rules. */
+  owner: string;
+  ownerIsShopper: boolean;
 }
 
 /**
@@ -97,31 +115,36 @@ function phraseFor(category: CategoryKey): string {
   return isCustomCategory(category) ? `purchases in ${categoryLabel(category)}` : PHRASES[category];
 }
 
+/** Who can lift a block: the shopper's own rules, or the owner changing them. */
+const notAllowed = (w: Words) => (w.ownerIsShopper ? `${w.shopper}'s own rules don't allow it` : `it can't be bought unless ${w.owner} changes the rules`);
+
 /** One plain sentence about a category rule, e.g. "Sarah takes a look at medical device purchases of $100.00 and up." */
-function bandSentence(outcome: Outcome, category: CategoryKey, range: string, shopper: string, reviewer: string): string {
+function bandSentence(outcome: Outcome, category: CategoryKey, range: string, w: Words): string {
   const what = phraseFor(category);
   switch (outcome) {
     case "auto":
-      return `${shopper} can make ${what} ${range} without waiting for anyone.`;
+      return `${w.shopper} can make ${what} ${range} without waiting for anyone.`;
     case "review":
-      return `${reviewer} takes a look at ${what} ${range}.`;
+      return w.flow === "request" ? `${w.reviewer} decides on ${what} ${range}.` : `${w.reviewer} takes a look at ${what} ${range}.`;
     case "exception":
-      return `${capitalize(what)} ${range} are over the limit, so ${reviewer} must approve an exception.`;
+      return `${capitalize(what)} ${range} are over the limit, so ${w.reviewer} must approve an exception.`;
     case "blocked":
-      return `${capitalize(what)} aren't allowed unless ${reviewer} changes the rules.`;
+      return w.ownerIsShopper
+        ? `${capitalize(what)} ${range} aren't allowed under ${w.shopper}'s own rules.`
+        : `${capitalize(what)} ${range} aren't allowed unless ${w.owner} changes the rules.`;
   }
 }
 
-function consequence(outcome: Outcome, shopper: string, reviewer: string): string {
+function consequence(outcome: Outcome, w: Words): string {
   switch (outcome) {
     case "auto":
-      return `${shopper} can buy it without waiting`;
+      return `${w.shopper} can buy it without waiting`;
     case "review":
-      return `${reviewer} takes a look`;
+      return w.flow === "request" ? `${w.reviewer} decides` : `${w.reviewer} takes a look`;
     case "exception":
-      return `${reviewer} must approve an exception`;
+      return `${w.reviewer} must approve an exception`;
     case "blocked":
-      return `it can't be bought unless ${reviewer} changes the rules`;
+      return notAllowed(w);
   }
 }
 
@@ -144,10 +167,11 @@ export function evaluatePurchase(
   rules: RuleSet,
   facts: PurchaseFacts,
   history: HistoryEntry[] = [],
-  { now = new Date(), shopperName = "the shopper", reviewerName = "the reviewer" }: EvaluateOptions = {},
+  { now = new Date(), shopperName = "the shopper", reviewerName = "the reviewer", flow = "hold", ruleOwner = "reviewer" }: EvaluateOptions = {},
 ): Decision {
-  const reasons: Reason[] = [];
-  const then = (outcome: Outcome, reviewer = reviewerName) => consequence(outcome, shopperName, reviewer);
+  // Each reason is written once the person asked is known, so every sentence names them.
+  const found: Array<Omit<Reason, "message"> & { say: (w: Words) => string }> = [];
+  const then = (outcome: Outcome, w: Words) => consequence(outcome, w);
 
   for (const category of facts.categories) {
     const rule = effectiveRule(rules, category);
@@ -155,21 +179,16 @@ export function evaluatePurchase(
     const seg = segmentAt(rule.bands, facts.amountCents);
     const range = rangeText(seg.minCents, seg.maxCents);
     if (seg.outcome === null) {
-      reasons.push({
+      found.push({
         code: "undefined_range",
         category,
         outcome: GAP_OUTCOME,
         reviewer,
-        message: `No rule covers ${phraseFor(category)} ${range} yet, so ${then(GAP_OUTCOME, reviewer)} to be safe.`,
+        say: (w) => `No rule covers ${phraseFor(category)} ${range} yet, so ${then(GAP_OUTCOME, w)} to be safe.`,
       });
     } else {
-      reasons.push({
-        code: "band",
-        category,
-        outcome: seg.outcome,
-        reviewer,
-        message: bandSentence(seg.outcome, category, range, shopperName, reviewer),
-      });
+      const outcome = seg.outcome;
+      found.push({ code: "band", category, outcome, reviewer, say: (w) => bandSentence(outcome, category, range, w) });
     }
   }
 
@@ -178,15 +197,22 @@ export function evaluatePurchase(
     const total = spentWithin(history, cap, now) + facts.amountCents;
     if (total <= cap.limitCents) continue;
     const scope = cap.category === null ? "" : `${categoryLabel(cap.category)} `;
-    const message =
+    const say = (w: Words) =>
       cap.period === "purchase"
-        ? `${formatCents(total)} is over the ${formatCents(cap.limitCents)} ${scope}per-purchase limit, so ${then(cap.over)}.`
-        : `This would bring ${scope}spending in the last ${cap.period === "week" ? "7" : "30"} days to ${formatCents(total)}, over the ${formatCents(cap.limitCents)} ${scope}${PERIOD_TEXT[cap.period]} limit, so ${then(cap.over)}.`;
-    reasons.push({ code: "cap", category: cap.category, outcome: cap.over, reviewer: reviewerName, message });
+        ? `${formatCents(total)} is over the ${formatCents(cap.limitCents)} ${scope}per-purchase limit, so ${then(cap.over, w)}.`
+        : `This would bring ${scope}spending in the last ${cap.period === "week" ? "7" : "30"} days to ${formatCents(total)}, over the ${formatCents(cap.limitCents)} ${scope}${PERIOD_TEXT[cap.period]} limit, so ${then(cap.over, w)}.`;
+    found.push({ code: "cap", category: cap.category, outcome: cap.over, reviewer: reviewerName, say });
   }
 
-  const outcome = reasons.map((r) => r.outcome).reduce(stricter, "auto");
-  const final = reasons.filter((r) => r.outcome === outcome);
+  const outcome = found.map((r) => r.outcome).reduce(stricter, "auto");
+  const final = found.filter((r) => r.outcome === outcome);
   const named = new Set(final.map((r) => r.reviewer));
-  return { outcome, reasons: final, reviewer: named.size === 1 ? [...named][0] : reviewerName };
+  const asked = named.size === 1 ? [...named][0] : reviewerName;
+  const owner = ruleOwner === "shopper" ? shopperName : reviewerName;
+  const words: Words = { shopper: shopperName, reviewer: asked, flow, owner, ownerIsShopper: ruleOwner === "shopper" };
+  return {
+    outcome,
+    reasons: final.map(({ say, ...r }) => ({ ...r, reviewer: asked, message: say(words) })),
+    reviewer: asked,
+  };
 }

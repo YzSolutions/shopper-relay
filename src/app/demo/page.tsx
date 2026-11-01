@@ -43,6 +43,9 @@ export default function DemoPage() {
   const shopper = session?.household.shopperName ?? "Shopper";
   const reviewer = session?.household.reviewerName ?? "Reviewer";
   const control = "rounded-lg border-2 border-line px-4 py-1.5 font-semibold hover:border-ink-soft disabled:opacity-50";
+  // Holds wait 24 hours for the reviewer; requests stay open 7 days.
+  const days = session?.relationship.flow === "request" ? 7 : 1;
+  const span = days === 1 ? "24 hours" : `${days} days`;
 
   return (
     <div className="flex h-dvh flex-col bg-mist">
@@ -72,8 +75,8 @@ export default function DemoPage() {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
           <p className="font-bold">Demo controls</p>
-          <button type="button" disabled={busy} onClick={() => run("Simulated 24 hours passing.", { action: "advance", hours: 24 })} className={control}>
-            Simulate 24 hours
+          <button type="button" disabled={busy} onClick={() => run(`Simulated ${span} passing.`, { action: "advance", hours: days * 24 })} className={control}>
+            Simulate {span}
           </button>
           <button
             type="button"

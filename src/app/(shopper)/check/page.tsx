@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Button, ErrorNotice, Money, Notice, PageTitle, Spinner } from "@/components/ui";
+import { Button, ErrorNotice, Money, Notice, OutcomeLine, PageTitle, Spinner } from "@/components/ui";
 import { api, type CheckResult, type PurchaseView } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
 const EXAMPLES = [
-  { src: "/demo/checkout-membership.png", label: "Monitor with a membership in the small print" },
-  { src: "/demo/checkout-one-time.png", label: "Monitor, one-time purchase" },
+  { src: "/demo/checkout-membership.png", label: "A checkout with a membership in the small print" },
+  { src: "/demo/checkout-one-time.png", label: "A plain one-time checkout" },
 ];
 
 export default function CheckPage() {
@@ -66,6 +66,10 @@ export default function CheckPage() {
   const reviewer = session?.household.reviewerName ?? "your trusted contact";
   const request = session?.relationship.flow === "request";
   const t = result?.terms;
+  const decision = result?.decision ?? null;
+  const blocked = decision?.outcome === "blocked";
+  const asked = decision?.reviewer ?? reviewer;
+  const ownRules = session?.owner === "shopper";
 
   return (
     <div className="max-w-4xl">
@@ -144,7 +148,7 @@ export default function CheckPage() {
                   </Notice>
                 ) : result.recurring === "uncertain" ? (
                   <Notice tone="signal" title="There might be a repeat charge.">
-                    The wording isn&apos;t clear, so your rules treat it as recurring.
+                    The wording isn&apos;t clear, so {ownRules ? "your rules treat" : `${reviewer}'s rules treat`} it as recurring.
                   </Notice>
                 ) : (
                   <Notice tone="ledger" title="No recurring charge is listed.">
@@ -190,16 +194,26 @@ export default function CheckPage() {
                     ))}
                 </dl>
 
-                {result.totalDueTodayCents !== null && (
+                {result.totalDueTodayCents !== null && decision && (
                   <div className="space-y-3">
-                    <p className="text-ink-soft">
-                      {request
-                        ? `You can send it to ${reviewer}. ${reviewer} sees what you saw here, then decides and pays.`
-                        : `You can buy it through ShopperRelay. Your rules decide whether ${reviewer} takes a look first, and PayPal holds the payment until it's settled.`}
-                    </p>
-                    <Button onClick={buy} disabled={buying}>
-                      {buying ? "Opening…" : request ? `Ask ${reviewer} about it` : "Buy it through ShopperRelay"}
-                    </Button>
+                    <OutcomeLine outcome={decision.outcome} reviewer={asked} flow={request ? "request" : "hold"} standing={!!session?.standing} />
+                    <ul className="space-y-1 text-ink-soft">
+                      {decision.reasons.map((r, i) => (
+                        <li key={i}>{r.message}</li>
+                      ))}
+                    </ul>
+                    {!blocked && (
+                      <>
+                        <p className="text-ink-soft">
+                          {request
+                            ? `You can send it to ${asked}. ${asked} sees what you saw here, then decides and pays.`
+                            : `You can buy it through ShopperRelay. PayPal holds the payment until it's settled.`}
+                        </p>
+                        <Button onClick={buy} disabled={buying}>
+                          {buying ? "Opening…" : request ? `Ask ${asked} about it` : "Buy it through ShopperRelay"}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </>

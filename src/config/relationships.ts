@@ -122,3 +122,9 @@ export const DEMO_RELATIONSHIP: RelationshipId = isRelationshipId(process.env.NE
 
 /** The cookie that remembers which relationship the demo is showing. */
 export const MODE_COOKIE = "sr_mode";
+
+/** The names and setup the rule engine writes its reasons for. */
+export function reasonWords(h: { relationship: RelationshipId; shopperName: string; reviewerName: string }) {
+  const r = RELATIONSHIPS[h.relationship];
+  return { shopperName: h.shopperName, reviewerName: h.reviewerName, flow: r.flow, ruleOwner: r.ruleOwner };
+}

@@ -65,6 +65,10 @@ export function ReviewScreen({ token }: { token: string }) {
   // Once paid, show what PayPal actually charged; before that, what it holds (or the price).
   const amount = p.state === "completed" ? (p.paypalCapturedCents ?? p.reviewedCents) : (p.paypalAmountCents ?? p.reviewedCents);
   const open = p.state === "awaiting_review" || p.state === "requested";
+  // Whose money the limits are about: Mom's own, Leo's allowance, or the customer's own budget.
+  const kids = data.relationship.id === "parent_child";
+  const overTitle = p.flow === "hold" ? `This goes past ${shopper}'s own limit` : kids ? `This is over ${shopper}'s budget` : "This is over your budget";
+  const budgetTitle = p.flow === "hold" ? `${shopper}'s limits, not counting this` : kids ? `${shopper}'s budget, not counting this request` : "Your budget, not counting this request";
 
   return (
     <div className="space-y-7">
@@ -79,20 +83,20 @@ export function ReviewScreen({ token }: { token: string }) {
 
       {open && (
         <>
-          <Notice tone="signal" title={exception ? `This is over ${shopper}'s budget` : p.flow === "request" ? `${shopper} is asking` : "Why you're being asked"}>
+          <Notice tone="signal" title={exception ? overTitle : p.flow === "request" ? `${shopper} is asking` : "Why you're being asked"}>
             <ul className="space-y-1">
               {p.decision.reasons.map((r, i) => (
                 <li key={i}>{r.message}</li>
               ))}
             </ul>
           </Notice>
-          {data.budget.length > 0 && <BudgetBars lines={data.budget} title={`${shopper}'s budget`} />}
+          {data.budget.length > 0 && <BudgetBars lines={data.budget} title={budgetTitle} />}
           {p.terms?.plainSummary && <p className="text-lg">{p.terms.plainSummary}</p>}
           <Facts purchase={p} />
           <ErrorNotice error={error} />
 
           {p.flow === "hold" ? (
-            <HoldActions p={p} reviewer={reviewer} busy={busy} onDecide={decide} />
+            <HoldActions p={p} shopper={shopper} reviewer={reviewer} busy={busy} onDecide={decide} />
           ) : mode === "choose" ? (
             <div className="space-y-5">
               <div className="space-y-2">
@@ -110,7 +114,7 @@ export function ReviewScreen({ token }: { token: string }) {
               </div>
               {data.relationship.otpa && (
                 <Button tone="quiet" className="w-full" onClick={() => setMode("otpa")}>
-                  Find it for less: let {shopper} buy it once, at my price
+                  Let {shopper} buy it once, up to a price I set
                 </Button>
               )}
               <Button tone="stop" className="min-h-16 w-full text-xl" disabled={busy !== null} onClick={() => decide("decline")}>
@@ -131,7 +135,7 @@ export function ReviewScreen({ token }: { token: string }) {
 
           <p className="text-base text-ink-soft">
             {data.relationship.id === "family_elder"
-              ? `${shopper} chose these rules. You only see the purchases ${shopper}'s rules send to you, and you can't see or change anything else.`
+              ? `${shopper} chose these rules. You only see the purchases ${shopper}'s rules send to you, and you're told when ${shopper} changes them.`
               : `Nothing is charged unless you approve in PayPal.`}
           </p>
         </>
@@ -174,11 +178,11 @@ function fmt(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-function HoldActions({ p, reviewer, busy, onDecide }: { p: PurchaseView; reviewer: string; busy: string | null; onDecide: (d: "approve" | "decline") => void }) {
+function HoldActions({ p, shopper, reviewer, busy, onDecide }: { p: PurchaseView; shopper: string; reviewer: string; busy: string | null; onDecide: (d: "approve" | "decline") => void }) {
   return (
     <>
       <p className="text-ink-soft">
-        PayPal is holding the money. Nothing is charged unless you approve.
+        PayPal is holding {shopper}&apos;s payment. Nothing is charged unless you approve.
         {p.reviewExpiresAt && <> If you don&apos;t answer by {when(p.reviewExpiresAt)}, the hold is released.</>}
       </p>
       <div className="grid gap-3">
@@ -215,7 +219,9 @@ function OtpaForm({
   onError: (m: string) => void;
   onBack: () => void;
 }) {
-  const [max, setMax] = useState(String(Math.floor((p.reviewedCents * 0.75) / 100)));
+  // Starts at today's price: the shopper already found the cheapest store, so a lower
+  // number only makes sense if the customer wants them to wait for a better deal.
+  const [max, setMax] = useState(String(Math.ceil(p.reviewedCents / 100)));
   const [details, setDetails] = useState("");
   const [days, setDays] = useState("7");
   const [ready, setReady] = useState<{ maxDollars: number; details: string; expiresInDays: number } | null>(null);
@@ -247,6 +253,9 @@ function OtpaForm({
                 onChange={(e) => setMax(e.target.value)}
                 className="min-h-13 w-40 rounded-xl border-2 border-line px-4 text-xl focus:border-relay focus:outline-none"
               />
+            </span>
+            <span className="mt-1 block text-base text-ink-soft">
+              It&apos;s {fmt(p.reviewedCents)} now. Set it lower only if you&apos;d like {shopper} to wait for a better price.
             </span>
           </label>
           <label className="block">

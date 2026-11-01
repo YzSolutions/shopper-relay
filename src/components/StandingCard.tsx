@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PayPalSaveButton } from "@/components/PayPalButton";
 import { Button, ErrorNotice, Money } from "@/components/ui";
 import { api, type PurchaseView, type Session } from "@/lib/client/api";
+import { ruleRows } from "@/lib/client/describe";
 
 // On the payer's phone: save PayPal once so the shopper can buy what the payer's rules
 // allow without asking, see what was bought that way, or turn it off.
@@ -15,6 +16,19 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
   const standing = session.standing;
   const clientId = session.paypal.clientId;
   const bought = (purchases ?? []).filter((p) => p.standing && p.state === "completed").slice(0, 3);
+  // What standing permission would actually let the shopper buy: the rules' "buys on their own" rows.
+  const own = ruleRows(session.active).flatMap((r) => r.bands.filter((b) => b.outcome === "auto").map((b) => `${r.label}: ${b.range.toLowerCase()}`));
+  const example = session.household.relationship === "parent_child" ? `${shopper} can buy books under $20 without asking` : `${shopper} can buy shoes under $80 without asking`;
+  const whatItCovers = own.length ? (
+    <p>
+      Your rules let {shopper} buy these without asking: {own.join("; ")}.
+    </p>
+  ) : (
+    <p className="rounded-xl bg-signal-wash px-4 py-3">
+      Right now your rules don&apos;t let {shopper} buy anything without asking, so this changes nothing yet. Add a rule on the Rules page first, for
+      example &ldquo;{example}&rdquo;.
+    </p>
+  );
 
   async function turnOff() {
     setBusy(true);
@@ -40,6 +54,7 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
             {shopper} can buy what your rules allow, paid with your saved PayPal{standing.payerLabel && <> ({standing.payerLabel})</>}. Everything else still
             comes to you. On since {new Date(standing.since).toLocaleDateString([], { month: "short", day: "numeric" })}.
           </p>
+          {whatItCovers}
           {bought.length > 0 && (
             <ul className="space-y-2">
               {bought.map((p) => (
@@ -59,6 +74,7 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
             Save your PayPal once. Then {shopper} can buy what your rules allow without asking each time, and you get a message after each purchase. Anything
             else still comes to you. You can turn it off at any time.
           </p>
+          {whatItCovers}
           {clientId ? (
             <PayPalSaveButton
               clientId={clientId}

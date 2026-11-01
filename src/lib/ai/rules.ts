@@ -11,9 +11,12 @@ import {
   OUTCOMES,
   capKey,
   categoryLabel,
+  closeCentGaps,
   customCategoryKey,
   effectiveRule,
+  fillGaps,
   findRuleIssues,
+  segment,
   isCustomCategory,
   rangeText,
   type Cap,
@@ -56,7 +59,7 @@ const AiRulesSchema = z.object({
   reviewers: z
     .array(z.object({ category: CategoryName, reviewer: z.string().describe("first name only, e.g. \"Tom\"") }))
     .describe("only when the person says someone other than the usual reviewer should review a category"),
-  unclear: z.array(z.string()).describe("anything the person said that could not be turned into a rule, quoted"),
+  unclear: z.array(z.string()).describe("only the parts the person said that you could NOT turn into a rule, quoted; leave empty when everything became a rule"),
   summary: z
     .string()
     .describe('the rules restated in short, plain sentences, speaking to the shopper as "you" and naming the reviewer, e.g. "You buy on your own under $75. Sarah takes a look at anything over $150."'),
@@ -95,6 +98,7 @@ Rules:
 - Only write down what the person actually said. Never invent a range, limit or category they did not mention, and never fill a gap with a guess.
 - "Subscriptions", "memberships" and "recurring charges" all mean the subscription category.
 - Weekly or monthly totals ("no more than $30 a week") are caps, not bands. "Per purchase" limits across everything are caps with period "purchase".
+- If they don't say what happens when a cap or a top limit is passed, use "exception": someone must knowingly approve going over. Use "blocked" only when they say it's not allowed, never, or no.
 - If they say a different person should review a category ("video games go to Dad, Tom"), add it to reviewers with that person's first name. Typos in names are likely: "sarag" means ${reviewer}.
 - If something is unclear, quote only that part in "unclear" instead of guessing.`;
 }
@@ -109,7 +113,14 @@ function toKey(name: string): CategoryKey {
   return customCategoryKey(n);
 }
 
-function toUpdate(ai: AiRules, current: RuleSet): RuleSet {
+/**
+ * The AI's reading as rules. Two things people mean but don't say are filled in
+ * by code: "under $100 … over $100" covers exactly $100 too (the stricter side
+ * gets it), and amounts a sentence doesn't mention keep the rule they had, so
+ * "Tom approves electronics over $200" leaves electronics under $200 as they were.
+ * Returns the categories whose unmentioned amounts were kept.
+ */
+function toUpdate(ai: AiRules, current: RuleSet): { update: RuleSet; kept: CategoryKey[] } {
   const categories: RuleSet["categories"] = {};
   for (const b of ai.bands) {
     (categories[toKey(b.category)] ??= { bands: [] }).bands.push({
@@ -117,6 +128,14 @@ function toUpdate(ai: AiRules, current: RuleSet): RuleSet {
       maxCents: b.maxDollars === null ? null : numberToCents(b.maxDollars),
       outcome: b.outcome,
     });
+  }
+  const kept: CategoryKey[] = [];
+  for (const [key, rule] of Object.entries(categories) as Array<[CategoryKey, CategoryRule]>) {
+    const closed = closeCentGaps(rule.bands);
+    const hasGap = segment(closed).segments.some((s) => s.outcome === null);
+    const fallback = effectiveRule(current, key).bands;
+    if (hasGap && fallback.length) kept.push(key);
+    rule.bands = hasGap ? fillGaps(closed, fallback) : closed;
   }
   // A new reviewer for a category keeps that category's limits as they are.
   for (const r of ai.reviewers) {
@@ -141,8 +160,10 @@ function toUpdate(ai: AiRules, current: RuleSet): RuleSet {
   for (const key of Object.keys(categories) as CategoryKey[]) {
     if (isCustomCategory(key) && !custom[key] && !current.custom?.[key]) custom[key] = { match: [categoryLabel(key).toLowerCase()] };
   }
-  return { categories, caps, ...(Object.keys(custom).length && { custom }) };
+  return { update: { categories, caps, ...(Object.keys(custom).length && { custom }) }, kept };
 }
+
+const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9$]+/g, " ").trim();
 
 /** New rules replace the categories and caps they mention; everything else stays as it was. */
 export function mergeRules(current: RuleSet, update: RuleSet): RuleSet {
@@ -188,21 +209,27 @@ export interface ParsedRules {
 
 export async function parseRules(text: string, names: RuleNames, current: RuleSet = { categories: {}, caps: [] }): Promise<ParsedRules> {
   const { data, model } = await generateJson({
-    task: "parse-rules-v2",
+    task: "parse-rules-v3",
     schema: AiRulesSchema,
     system: systemPrompt(names),
     parts: [{ text }],
   });
-  const update = toUpdate(data, current);
+  const { update, kept } = toUpdate(data, current);
   const rules = mergeRules(current, update);
   const issues = findRuleIssues(rules);
+  const understood = data.bands.length + data.caps.length + data.reviewers.length > 0;
+  // A model sometimes quotes the whole message as unclear even after reading it fine.
+  const unclear = data.unclear.filter((u) => !(understood && words(u) === words(text)));
+  const keptNote = kept.length
+    ? ` Amounts you didn't mention for ${kept.map(categoryLabel).join(" and ")} keep the rule they had.`
+    : "";
   return {
     rules,
     update,
     issues,
     questions: issues.map((i) => questionFor(i, names)),
-    unclear: data.unclear,
-    summary: data.summary,
+    unclear,
+    summary: data.summary + keptNote,
     model,
   };
 }
