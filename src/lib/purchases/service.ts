@@ -188,6 +188,11 @@ async function load(household: Household, id: string): Promise<Purchase> {
   return p;
 }
 
+/** This household's purchase, with an overdue hold or authorization already ended. */
+export async function loadCurrent(household: Household, id: string): Promise<Purchase> {
+  return expireIfOverdue(household, await load(household, id));
+}
+
 const reviewerOf = (household: Household, p: Purchase) => p.reviewerName ?? household.reviewerName;
 const describe = (p: Purchase) => `${p.item.title}${p.item.merchant ? ` (${p.item.merchant})` : ""}`;
 const newToken = () => randomBytes(24).toString("base64url");
@@ -558,11 +563,11 @@ export async function otpaOptions(household: Household, id: string): Promise<Otp
 }
 
 /**
- * The shopper found it. ShopperRelay checks it is the authorized product at or
- * under the price, then takes exactly that amount from the hold. PayPal
- * releases the rest and refuses any second capture: one purchase, once.
+ * The shopper (or the AI shopper, `by: "agent"`) found it. ShopperRelay checks it
+ * is the authorized product at or under the price, then takes exactly that amount
+ * from the hold. PayPal releases the rest and refuses any second capture: one purchase, once.
  */
-export async function buyWithOtpa(household: Household, id: string, sourceId: string, merchant: string): Promise<Purchase> {
+export async function buyWithOtpa(household: Household, id: string, sourceId: string, merchant: string, by: "shopper" | "agent" = "shopper"): Promise<Purchase> {
   const p = await expireIfOverdue(household, await load(household, id));
   if (p.state !== "hunting" || !p.otpa) throw new FlowError(`This authorization is ${p.state === "hunting" ? "not ready" : p.state}.`, 409);
   const real = await createChannel3Source().get(sourceId);
@@ -587,8 +592,8 @@ export async function buyWithOtpa(household: Household, id: string, sourceId: st
     householdId: household.id,
     purchaseId: p.id,
     type: "otpa_used",
-    actor: "shopper",
-    message: `${household.shopperName} found it for ${formatCents(offer.priceCents)} at ${item.merchant}, within ${reviewerOf(household, p)}'s ${formatCents(p.otpa.maxCents)}. Checked: same product, at or under the price, before the authorization expired.`,
+    actor: by,
+    message: `${by === "agent" ? "The AI shopper" : household.shopperName} found it for ${formatCents(offer.priceCents)} at ${item.merchant}, within ${reviewerOf(household, p)}'s ${formatCents(p.otpa.maxCents)}. Checked: same product, at or under the price, before the authorization expired.`,
   });
   return capture(household, moved, offer.priceCents);
 }

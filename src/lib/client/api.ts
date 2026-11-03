@@ -7,6 +7,7 @@ import type { AiTerms } from "@/lib/ai/terms";
 import type { BillView } from "@/lib/bills/service";
 import type { BudgetLine, CategoryResolution, Decision, Role, RuleIssue, RuleSet, RulesState, RecurringFinding } from "@/lib/policy";
 import type { Flow } from "@/lib/purchases/lifecycle";
+import type { AgentStep } from "@/lib/purchases/agent";
 import type { OtpaOption } from "@/lib/purchases/service";
 import type { LogEvent } from "@/lib/store/events";
 import type { Household } from "@/lib/store/households";
@@ -14,7 +15,7 @@ import type { RuleHistoryEntry } from "@/lib/store/ruleHistory";
 import type { purchaseView } from "@/lib/views";
 
 export type PurchaseView = ReturnType<typeof purchaseView>;
-export type { BillView, LogEvent, RuleHistoryEntry, Product, Decision, CategoryResolution, RuleSet, RuleIssue, AiTerms, RecurringFinding, BudgetLine, OtpaOption };
+export type { BillView, LogEvent, RuleHistoryEntry, Product, Decision, CategoryResolution, RuleSet, RuleIssue, AiTerms, RecurringFinding, BudgetLine, OtpaOption, AgentStep };
 
 export interface Session {
   brand: { name: string; tagline: string };

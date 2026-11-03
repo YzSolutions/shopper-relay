@@ -131,7 +131,7 @@ export function Reasons({ purchase }: { purchase: PurchaseView }) {
   );
 }
 
-const ACTOR: Record<LogEvent["actor"], string> = { shopper: "You", reviewer: "Reviewer", system: "Rules", paypal: "PayPal" };
+const ACTOR: Record<LogEvent["actor"], string> = { shopper: "You", reviewer: "Reviewer", system: "Rules", paypal: "PayPal", agent: "AI shopper" };
 
 export function LogList({ events, names }: { events: LogEvent[]; names?: { shopper: string; reviewer: string } }) {
   // A category's own reviewer (like Dad) is named in the event; otherwise the main reviewer acted.

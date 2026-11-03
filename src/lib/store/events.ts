@@ -1,6 +1,7 @@
 import { db } from "../db/client";
 
-export type Actor = "shopper" | "reviewer" | "system" | "paypal";
+/** `agent`: the AI shopper, buying under a one-time authorization. */
+export type Actor = "shopper" | "reviewer" | "system" | "paypal" | "agent";
 
 export interface LogEvent {
   id: number;

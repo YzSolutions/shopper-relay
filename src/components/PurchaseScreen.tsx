@@ -7,7 +7,7 @@ import { PayPalButton } from "@/components/PayPalButton";
 import { Facts, ItemHeader, LogList, Reasons } from "@/components/PurchaseParts";
 import { RelayTrack } from "@/components/RelayTrack";
 import { BudgetBars, Button, ErrorNotice, Money, Notice, OutcomeLine, Spinner } from "@/components/ui";
-import { api, type OtpaOption, type PurchaseView, type Session } from "@/lib/client/api";
+import { api, type AgentStep, type OtpaOption, type PurchaseView, type Session } from "@/lib/client/api";
 import { usePurchase } from "@/lib/client/usePurchase";
 import { useSession } from "@/lib/client/useSession";
 
@@ -61,6 +61,7 @@ export function PurchaseScreen({ id }: { id: string }) {
     hunting: "Stop looking and release the hold",
   }[purchase.state as string] ?? "Cancel";
   const canCancel = canPay || canSend || ["awaiting_review", "requested", "hunting"].includes(purchase.state);
+  const agentSteps = log.filter((e) => e.actor === "agent");
 
   return (
     <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -71,6 +72,19 @@ export function PurchaseScreen({ id }: { id: string }) {
         <Status purchase={purchase} shopper={shopper} reviewer={reviewer} standingOn={standingOn} />
 
         {purchase.state === "hunting" && purchase.otpa && <OtpaHunt purchase={purchase} reviewer={reviewer} onDone={update} onError={setError} />}
+
+        {agentSteps.length > 0 && purchase.state !== "hunting" && (
+          <section aria-labelledby="agent-did" className="space-y-3 rounded-2xl bg-relay-wash/60 p-5">
+            <h2 id="agent-did" className="text-xl font-bold">
+              What the AI shopper did
+            </h2>
+            <ol className="list-decimal space-y-2 pl-6">
+              {agentSteps.map((e) => (
+                <li key={e.id}>{e.message}</li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         {canBuyStanding && (
           <section className="space-y-4">
@@ -200,39 +214,115 @@ function OtpaHunt({ purchase, reviewer, onDone, onError }: { purchase: PurchaseV
   }
 
   return (
-    <section aria-labelledby="hunt" className="space-y-4">
-      <h2 id="hunt" className="text-2xl font-bold">
-        Where it&apos;s listed now
+    <>
+      <AgentHunt purchase={purchase} reviewer={reviewer} onDone={onDone} onStopped={() => void load()} onError={onError} />
+      <section aria-labelledby="hunt" className="space-y-4">
+        <h2 id="hunt" className="text-2xl font-bold">
+          Or buy it yourself: where it&apos;s listed now
+        </h2>
+        <p className="max-w-[38rem] text-ink-soft">
+          Only this exact product counts, at <Money cents={purchase.otpa!.maxCents} /> or less. Anything else needs a new OK from {reviewer}.
+        </p>
+        {!options && <Spinner label="Checking stores…" />}
+        {options?.length === 0 && <p>No store lists it right now. Check again later.</p>}
+        {options && options.length > 0 && (
+          <ul className="divide-y divide-line rounded-xl border-2 border-line">
+            {options.map((o) => (
+              <li key={o.merchant} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span>
+                  <Money cents={o.priceCents} currency={o.currency} className="text-xl font-bold" /> at {o.merchant}
+                  {!o.allowed && o.reason && <span className="block text-base text-ink-soft">{o.reason}</span>}
+                </span>
+                {o.allowed && (
+                  <Button tone="ledger" onClick={() => buy(o)} disabled={buying !== null}>
+                    {buying === o.merchant ? "Buying…" : (
+                      <>
+                        Buy it for <Money cents={o.priceCents} />
+                      </>
+                    )}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" onClick={() => void load()} className="font-semibold text-relay underline-offset-4 hover:underline">
+          Check prices again
+        </button>
+      </section>
+    </>
+  );
+}
+
+const STEP_DOT: Record<AgentStep["kind"], string> = {
+  checked: "bg-relay",
+  searched: "bg-relay",
+  chose: "bg-relay-deep",
+  refused: "bg-stop",
+  bought: "bg-ledger",
+  stopped: "bg-signal",
+};
+
+/**
+ * Hand the hunt to the AI shopper. It can only buy what the authorization
+ * allows: the server checks every listing, and PayPal can't take more than it holds.
+ */
+function AgentHunt({
+  purchase,
+  reviewer,
+  onDone,
+  onStopped,
+  onError,
+}: {
+  purchase: PurchaseView;
+  reviewer: string;
+  onDone: (p: PurchaseView) => void;
+  onStopped: () => void;
+  onError: (m: string) => void;
+}) {
+  const [running, setRunning] = useState(false);
+  const [steps, setSteps] = useState<AgentStep[] | null>(null);
+
+  async function run() {
+    setRunning(true);
+    setSteps(null);
+    try {
+      const res = await api<{ steps: AgentStep[]; purchase: PurchaseView }>(`/api/purchases/${purchase.id}/agent`, { method: "POST" });
+      // Bought: the purchase screen takes over and lists the steps from the log.
+      if (res.purchase.state === "completed") return onDone(res.purchase);
+      setSteps(res.steps);
+      onStopped();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="agent" className="space-y-4 rounded-2xl border-2 border-relay/30 bg-relay-wash/60 p-5">
+      <h2 id="agent" className="text-2xl font-bold">
+        Let the AI shopper find it
       </h2>
-      <p className="max-w-[38rem] text-ink-soft">
-        Only this exact product counts, at <Money cents={purchase.otpa!.maxCents} /> or less. Anything else needs a new OK from {reviewer}.
+      <p className="max-w-[38rem]">
+        It searches stores for this exact product and buys the best listing it&apos;s allowed to. ShopperRelay checks every listing against {reviewer}&apos;s
+        authorization, and PayPal can&apos;t take more than the <Money cents={purchase.otpa!.maxCents} /> it&apos;s holding.
       </p>
-      {!options && <Spinner label="Checking stores…" />}
-      {options?.length === 0 && <p>No store lists it right now. Check again later.</p>}
-      {options && options.length > 0 && (
-        <ul className="divide-y divide-line rounded-xl border-2 border-line">
-          {options.map((o) => (
-            <li key={o.merchant} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <span>
-                <Money cents={o.priceCents} currency={o.currency} className="text-xl font-bold" /> at {o.merchant}
-                {!o.allowed && o.reason && <span className="block text-base text-ink-soft">{o.reason}</span>}
-              </span>
-              {o.allowed && (
-                <Button tone="ledger" onClick={() => buy(o)} disabled={buying !== null}>
-                  {buying === o.merchant ? "Buying…" : (
-                    <>
-                      Buy it for <Money cents={o.priceCents} />
-                    </>
-                  )}
-                </Button>
-              )}
+      {steps && (
+        <ol className="space-y-3 border-l-2 border-line" aria-live="polite">
+          {steps.map((s, i) => (
+            <li key={i} className="relative pl-6">
+              <span aria-hidden className={`absolute top-2.5 -left-[7px] size-3 rounded-full border-2 border-white ${STEP_DOT[s.kind]}`} />
+              {s.text}
             </li>
           ))}
-        </ul>
+        </ol>
       )}
-      <button type="button" onClick={() => void load()} className="font-semibold text-relay underline-offset-4 hover:underline">
-        Check prices again
-      </button>
+      {running ? (
+        <Spinner label="The AI shopper is looking. This takes up to half a minute…" />
+      ) : (
+        <Button onClick={() => void run()}>{steps ? "Send the AI shopper again" : "Send the AI shopper"}</Button>
+      )}
     </section>
   );
 }

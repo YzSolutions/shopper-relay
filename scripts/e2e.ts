@@ -207,6 +207,29 @@ async function shopper() {
 }
 
 /** Marcus saves his PayPal once; Priya then buys what his rules allow without asking. */
+async function agent() {
+  mode = "personal_shopper";
+  step("The AI shopper: Marcus authorizes one product, the AI shopper finds and buys it");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  const results = await search("blood pressure monitor");
+  const pick = results.find((r) => r.product.offers.some((o: any) => o.available)) ?? results[0];
+  const offers = pick.product.offers.filter((o: any) => o.available);
+  const p = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: pick.product.sourceId, merchant: offers[offers.length - 1].merchant } })).purchase;
+  const sent = (await api(`/api/purchases/${p.id}/request`, { method: "POST" })).purchase;
+  const hunting = await reviewerPays(sent.reviewPath, { kind: "otpa", maxDollars: offers[0].priceCents / 100, details: "", expiresInDays: 7 });
+  expect(hunting.state === "hunting", `PayPal is holding ${formatCents(hunting.otpa.maxCents)} for ${pick.product.title}`);
+  const run = await api(`/api/purchases/${p.id}/agent`, { method: "POST" });
+  for (const s of run.steps) console.log(`    · [${s.kind}] ${s.text}`);
+  expect(run.purchase.state === "completed" && run.purchase.otpa.status === "used", `the AI shopper bought it for ${formatCents(run.purchase.reviewedCents)}`);
+  expect(run.purchase.reviewedCents <= hunting.otpa.maxCents, "at or under Marcus's maximum");
+  const auth = await paypal.getAuthorization(run.purchase.paypal.authorizationId);
+  expect(auth.status === "CAPTURED", "PayPal captured it from the hold");
+  const log = (await api(`/api/purchases/${p.id}`)).log as any[];
+  expect(log.some((e) => e.actor === "agent" && e.type === "otpa_used"), "the why log shows the AI shopper bought it");
+  const again = await raw(`/api/purchases/${p.id}/agent`, { method: "POST" });
+  expect(again.status === 409, "sending it again is refused: one product, once");
+}
+
 async function standing() {
   mode = "personal_shopper";
   step("Standing permission: Marcus lets Priya buy shoes up to $80 on her own");
@@ -338,6 +361,7 @@ async function main() {
   if (!only || only === "mom") await mom();
   if (!only || only === "kids") await kids();
   if (!only || only === "shopper") await shopper();
+  if (!only || only === "agent") await agent();
   if (!only || only === "standing") await standing();
   if (!only || only === "bills") await bills();
   console.log("\nAll end-to-end checks passed.");

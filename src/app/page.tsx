@@ -50,8 +50,15 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
     shops: "Priya",
     rules: "Marcus's",
     pays: "Marcus",
-    how: "Priya finds, Marcus decides: approve and pay, let Priya buy one exact item once at a price Marcus sets, or save PayPal once so Priya can buy what Marcus's rules allow. Priya bills for her time with a PayPal invoice.",
+    how: "Priya finds, Marcus decides: approve and pay, let Priya or the AI shopper buy one exact item once at a price Marcus sets, or save PayPal once so Priya can buy what Marcus's rules allow. Priya bills for her time with a PayPal invoice.",
   },
+];
+
+const AGENT: Array<{ title: string; text: string }> = [
+  { title: "Gemini plans the hunt", text: "What to search for, which listing to pick and why, in words Marcus can read." },
+  { title: "Code checks every listing", text: "Same product, at or under the price, in stock, not expired. A listing code hasn't allowed can't be bought." },
+  { title: "PayPal sets the ceiling", text: "It holds Marcus's maximum, can't capture more than that, and refuses a second capture." },
+  { title: "Every step is on the record", text: "The purchase log shows what it searched, what it picked and what it paid." },
 ];
 
 const PAYPAL: Array<{ name: string; what: string }> = [
@@ -71,11 +78,12 @@ const AI_DOES = [
   "Reads a checkout screenshot for the real total, repeat charges and free trials, and quotes the small print.",
   "Boils a long, chatty search down to what to look for, and sums up the results in plain words.",
   "Suggests a category, but only when the store's catalog doesn't have one.",
+  "Runs the AI shopper: searches stores for the product Marcus authorized and picks a listing to buy.",
 ];
 
 const AI_NEVER = [
   "Decide whether a payment goes through. Tested code does that.",
-  "Change the amount PayPal is holding.",
+  "Change the amount PayPal is holding, or buy a listing code hasn't allowed.",
   "Pick the looser of two categories. When it's unsure, the stricter rule applies.",
   "Decide what the rules leave out. Code finds every gap and asks about it before the rules can be saved.",
 ];
@@ -115,6 +123,9 @@ export default function FrontPage() {
           {/* On a phone the page is one scroll; only the demo link stays. */}
           <a href="#setups" className="hidden text-ink-soft hover:text-ink md:inline">
             Who it&apos;s for
+          </a>
+          <a href="#agent" className="hidden text-ink-soft hover:text-ink md:inline">
+            AI shopper
           </a>
           <a href="#paypal" className="hidden text-ink-soft hover:text-ink md:inline">
             PayPal
@@ -205,6 +216,27 @@ export default function FrontPage() {
               </article>
             ))}
           </div>
+        </Section>
+
+        <Section
+          id="agent"
+          title="The same permission works for an AI shopper"
+          lead="AI agents can already shop. The hard part is trusting one with your money. Here, Marcus authorizes one exact product at a set price, and PayPal holds that amount. The AI shopper can search and choose, but it can only buy inside that permission."
+        >
+          <ul className="grid gap-x-10 gap-y-7 md:grid-cols-2">
+            {AGENT.map((a) => (
+              <li key={a.title} className="border-l-4 border-relay pl-4">
+                <p className="font-bold">{a.title}</p>
+                <p className="mt-1 text-ink-soft">{a.text}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-8 max-w-2xl">
+            To try it, open Priya + Marcus, send Marcus a find, and on Marcus&apos;s phone choose to let Priya buy it once. Then tap Send the AI shopper.
+          </p>
+          <TryDemoButton mode="personal_shopper" className="mt-5">
+            Try the AI shopper
+          </TryDemoButton>
         </Section>
 
         <Section
