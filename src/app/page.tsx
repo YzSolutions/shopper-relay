@@ -50,7 +50,7 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
     shops: "Priya",
     rules: "Marcus's",
     pays: "Marcus",
-    how: "Priya finds, Marcus decides: approve and pay, let Priya or the AI shopper buy one exact item once at a price Marcus sets, or save PayPal once so Priya can buy what Marcus's rules allow. Priya bills for her time with a PayPal invoice.",
+    how: "Priya finds, Marcus decides: approve and pay, let Priya or the AI shopper buy one exact item once at a price Marcus sets, or save PayPal once so Priya can buy what Marcus's rules allow. Priya bills for the time spent with a PayPal invoice.",
   },
 ];
 
@@ -66,7 +66,7 @@ const PAYPAL: Array<{ name: string; what: string }> = [
   { name: "Payments v2 capture and void", what: "Approving captures the hold. Declining, or 24 hours with no answer, voids it. Nothing is charged for a purchase that doesn't happen." },
   { name: "Partial final capture", what: "A one-time purchase authorization holds $100 for one exact product, then captures the $89 it really cost. PayPal releases the rest and refuses a second capture." },
   { name: "Vault setup and payment tokens", what: "Standing permission: Marcus saves PayPal once, and Priya can buy what Marcus's rules allow without asking each time. It can be turned off at any moment." },
-  { name: "Invoicing v2", what: "Priya bills Marcus for her time, and Marcus pays on PayPal's own invoice page." },
+  { name: "Invoicing v2", what: "Priya bills Marcus for the time spent, and Marcus pays on PayPal's own invoice page." },
   { name: "JavaScript SDK buttons", what: "The PayPal buttons and popups people approve with, including saving PayPal for later." },
   { name: "Authorization read-back", what: "Before capturing, the held amount is read back from PayPal and the rules run again on it. If it's off by even a cent, nothing is captured." },
   { name: "Verified webhooks", what: "PayPal's events confirm each step, and each one is checked with PayPal's signature verification." },

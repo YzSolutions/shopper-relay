@@ -95,7 +95,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     id: "personal_shopper",
     tab: "Personal shopper",
     title: "Personal shopper + customer",
-    summary: "Priya finds things Marcus will like. Marcus approves and pays, or lets her buy one exact item once, at his price.",
+    summary: "Priya finds things Marcus will like. Marcus approves and pays, or lets Priya buy one exact item once, at a price Marcus sets.",
     controlNote: "The customer makes every buying decision. A one-time authorization is for one product, once.",
     shopper: { role: "Personal shopper", demoName: "Priya" },
     reviewer: { role: "Customer", demoName: "Marcus" },
