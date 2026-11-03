@@ -9,7 +9,7 @@ export default function NotFound() {
       <h1 className="text-[2.125rem] font-extrabold">There&apos;s nothing at this address</h1>
       <p className="text-xl text-ink-soft">The link may be old or mistyped.</p>
       <div>
-        <ButtonLink href="/">Go to shopping</ButtonLink>
+        <ButtonLink href="/shop">Go to shopping</ButtonLink>
       </div>
     </main>
   );

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "Shop" },
+  { href: "/shop", label: "Shop" },
   { href: "/check", label: "Check a checkout" },
   { href: "/rules", label: "Rules" },
   { href: "/history", label: "History" },
@@ -26,7 +26,7 @@ function NavWithPath({ links }: { links: typeof LINKS }) {
 }
 
 function NavLinks({ path, links }: { path: string | null; links: typeof LINKS }) {
-  const isActive = (href: string) => path !== null && (href === "/" ? path === "/" || path.startsWith("/purchase") : path.startsWith(href));
+  const isActive = (href: string) => path !== null && (href === "/shop" ? path === "/shop" || path.startsWith("/purchase") : path.startsWith(href));
   return (
     <nav aria-label="Main" className="-mx-2 flex flex-wrap gap-1">
       {links.map((l) => (

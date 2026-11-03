@@ -66,3 +66,22 @@ p {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Front page: the relay's four dots light up one after another, once. The text
+   never waits on the animation, so a paused tab or a screenshot still shows it. */
+@keyframes relay-dot {
+  from {
+    transform: scale(0.35);
+    background-color: var(--color-line);
+  }
+}
+
+.relay-dot {
+  animation: relay-dot 400ms ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .relay-dot {
+    animation: none;
+  }
+}

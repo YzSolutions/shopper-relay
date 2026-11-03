@@ -31,7 +31,7 @@ export default function DemoPage() {
       await api("/api/demo", { method: "POST", json });
       await reload();
       setStatus(label);
-      left.current?.contentWindow?.location.replace("/");
+      left.current?.contentWindow?.location.replace("/shop");
       phone.current?.contentWindow?.location.replace("/inbox");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e));
@@ -69,7 +69,7 @@ export default function DemoPage() {
             ))}
           </div>
           {session && <span className="ml-auto text-sm text-ink-soft">Build {session.build}</span>}
-          <Link href="/" className="font-semibold text-relay underline-offset-4 hover:underline">
+          <Link href="/shop" className="font-semibold text-relay underline-offset-4 hover:underline">
             Open {shopper}&apos;s app on its own
           </Link>
         </div>
@@ -119,7 +119,7 @@ export default function DemoPage() {
           <p className="border-b border-line px-4 py-2 text-base font-semibold text-ink-soft">
             {shopper}&apos;s screen{session && `: ${session.relationship.title}`}
           </p>
-          <iframe ref={left} src="/" title={`${shopper}'s screen`} className="min-h-0 w-full flex-1" />
+          <iframe ref={left} src="/shop" title={`${shopper}'s screen`} className="min-h-0 w-full flex-1" />
         </section>
         <section aria-label={`${reviewer}'s phone`} className="flex flex-col items-center">
           <p className="mb-2 text-base font-semibold text-ink-soft">{reviewer}&apos;s phone</p>

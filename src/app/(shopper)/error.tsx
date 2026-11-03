@@ -13,7 +13,7 @@ export default function ShopperError({ error, retry }: { error: unknown; retry: 
       <p className="text-xl text-ink-soft">Nothing was charged. Try again, or go back to shopping.</p>
       <div className="flex flex-wrap gap-3">
         <Button onClick={retry}>Try again</Button>
-        <ButtonLink href="/" tone="quiet">
+        <ButtonLink href="/shop" tone="quiet">
           Back to shopping
         </ButtonLink>
       </div>

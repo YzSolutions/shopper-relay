@@ -112,7 +112,7 @@ export function PurchaseScreen({ id }: { id: string }) {
               {busy === "cancel" ? "Canceling…" : cancelLabel}
             </Button>
           )}
-          <Link href="/" className="inline-flex min-h-13 items-center px-2 text-lg font-semibold text-relay underline-offset-4 hover:underline">
+          <Link href="/shop" className="inline-flex min-h-13 items-center px-2 text-lg font-semibold text-relay underline-offset-4 hover:underline">
             Back to shopping
           </Link>
         </div>

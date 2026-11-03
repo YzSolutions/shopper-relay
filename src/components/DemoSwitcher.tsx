@@ -16,7 +16,7 @@ export function DemoSwitcher() {
       await api("/api/demo", { method: "POST", json: { action: "mode", mode } });
       // A full reload on purpose: every screen kept alive by Next.js holds the old relationship's data.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.assign("/");
+      window.location.assign("/shop");
     } finally {
       setBusy(false);
     }
