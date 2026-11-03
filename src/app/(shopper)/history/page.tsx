@@ -25,7 +25,7 @@ export default function HistoryPage() {
       <ErrorNotice error={error} />
       {!events && !error && <Spinner label="Loading…" />}
       {events?.length === 0 && <p className="text-lg text-ink-soft">Nothing yet. What you buy and every rule change will show up here.</p>}
-      {events && events.length > 0 && <LogList events={events} names={names} />}
+      {events && events.length > 0 && <LogList events={events} names={names} linked />}
     </div>
   );
 }

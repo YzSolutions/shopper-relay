@@ -1,13 +1,14 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { MODE_COOKIE, RELATIONSHIP_IDS } from "@/config/relationships";
+import { tourFacts } from "@/config/tour";
 import { body, handle } from "@/lib/http";
 import { expireOverdue } from "@/lib/purchases/service";
 import { currentHousehold, currentMode, currentVisitor } from "@/lib/store/current";
-import { logEvent } from "@/lib/store/events";
+import { householdLog, logEvent } from "@/lib/store/events";
 import { getRulesState, resetHousehold, saveRulesState, setHideBrands } from "@/lib/store/households";
 import { currentRulesState } from "@/lib/store/ruleHistory";
-import { shiftReviewDeadlines } from "@/lib/store/purchases";
+import { listPurchases, shiftReviewDeadlines } from "@/lib/store/purchases";
 
 // Demo-only controls, clearly labelled in the UI: switch relationship,
 // pretend time has passed, start over, or hide real store and brand names.
@@ -18,6 +19,15 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reset") }),
   z.object({ action: z.literal("hide_brands"), on: z.boolean() }),
 ]);
+
+/** How far this visitor's demo has come, for the guided tour. */
+export async function GET() {
+  return handle(async () => {
+    const household = await currentHousehold();
+    const [purchases, log] = await Promise.all([listPurchases(household.id, 200), householdLog(household.id, 500)]);
+    return { facts: tourFacts(purchases, log.map((e) => e.type)), huntingId: purchases.find((p) => p.state === "hunting")?.id ?? null };
+  });
+}
 
 export async function POST(req: Request) {
   return handle(async () => {

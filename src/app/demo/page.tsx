@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { DemoTour } from "@/components/DemoTour";
 import { api } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
@@ -114,16 +115,18 @@ export default function DemoPage() {
         </div>
       </div>
 
+      {session && <DemoTour key={session.relationship.id} session={session} onGo={(path) => left.current?.contentWindow?.location.replace(path)} />}
+
       <div className="grid min-h-0 flex-1 gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <section aria-label={`${shopper}'s screen`} className="flex min-h-[70dvh] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+        <section aria-label={`${shopper}'s screen`} className="flex min-h-[28rem] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
           <p className="border-b border-line px-4 py-2 text-base font-semibold text-ink-soft">
             {shopper}&apos;s screen{session && `: ${session.relationship.title}`}
           </p>
           <iframe ref={left} src="/shop" title={`${shopper}'s screen`} className="min-h-0 w-full flex-1" />
         </section>
-        <section aria-label={`${reviewer}'s phone`} className="flex flex-col items-center">
+        <section aria-label={`${reviewer}'s phone`} className="flex min-h-0 flex-col items-center">
           <p className="mb-2 text-base font-semibold text-ink-soft">{reviewer}&apos;s phone</p>
-          <div className="h-[780px] max-h-[calc(100dvh-11rem)] w-[380px] overflow-hidden rounded-[2.5rem] border-[10px] border-ink bg-white shadow-xl">
+          <div className="min-h-[28rem] w-[380px] max-w-full flex-1 overflow-hidden rounded-[2.5rem] border-[10px] border-ink bg-white shadow-xl lg:max-h-[780px]">
             <iframe ref={phone} src="/inbox" title={`${reviewer}'s phone`} className="size-full" />
           </div>
         </section>

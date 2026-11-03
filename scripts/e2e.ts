@@ -124,6 +124,7 @@ async function mom() {
   } else {
     console.log("  (no video game over $75 in today's catalog; skipped the purchase check)");
   }
+  await tourDone("boughtAlone", "checkedChosen", "heldDecided", "rulesChanged");
 }
 
 async function kids() {
@@ -159,6 +160,7 @@ async function kids() {
   const check = await checkoutScreenshot();
   const sub = (await api("/api/purchases", { method: "POST", json: { kind: "checked", checkId: check.checkId } })).purchase;
   expect(sub.state === "blocked", "blocked: subscriptions need a parent to turn them on");
+  await tourDone("requested", "requestDecided");
 }
 
 async function shopper() {
@@ -207,10 +209,17 @@ async function shopper() {
 }
 
 /** Marcus saves his PayPal once; Priya then buys what his rules allow without asking. */
+/** The guided tour's ticks come from what really happened in this visitor's demo. */
+async function tourDone(...steps: string[]) {
+  const { facts } = await api("/api/demo");
+  for (const s of steps) expect(facts[s], `the guided tour ticks off ${s}`);
+}
+
 async function agent() {
   mode = "personal_shopper";
   step("The AI shopper: Marcus authorizes one product, the AI shopper finds and buys it");
   await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  expect(Object.values((await api("/api/demo")).facts).every((done) => !done), "after a reset, the guided tour starts from nothing");
   const results = await search("blood pressure monitor");
   const pick = results.find((r) => r.product.offers.some((o: any) => o.available)) ?? results[0];
   const offers = pick.product.offers.filter((o: any) => o.available);
@@ -228,6 +237,7 @@ async function agent() {
   expect(log.some((e) => e.actor === "agent" && e.type === "otpa_used"), "the why log shows the AI shopper bought it");
   const again = await raw(`/api/purchases/${p.id}/agent`, { method: "POST" });
   expect(again.status === 409, "sending it again is refused: one product, once");
+  await tourDone("requested", "otpaGranted", "otpaUsed");
 }
 
 async function standing() {
@@ -323,6 +333,7 @@ async function bills() {
   const withdrawn = (await api("/api/bills", { method: "POST", json: { action: "cancel", id: second.id } })).bill;
   expect(withdrawn.status === "canceled" && (await paypal.getInvoice(second.paypalInvoiceId)).status === "CANCELLED", "withdrawn, and PayPal shows CANCELLED");
 
+  await tourDone("billSent");
   mode = "family_elder";
   const elsewhere = await raw("/api/bills", { method: "POST", json: { action: "send", amountCents: 10_00, note: "Nope", purchaseIds: [] } });
   expect(elsewhere.status === 400, "Mom + Sarah has no bills");

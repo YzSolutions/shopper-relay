@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { categoryLabel } from "@/lib/policy/types";
 import type { LogEvent, PurchaseView } from "@/lib/client/api";
 import { Money } from "./ui";
@@ -133,7 +134,8 @@ export function Reasons({ purchase }: { purchase: PurchaseView }) {
 
 const ACTOR: Record<LogEvent["actor"], string> = { shopper: "You", reviewer: "Reviewer", system: "Rules", paypal: "PayPal", agent: "AI shopper" };
 
-export function LogList({ events, names }: { events: LogEvent[]; names?: { shopper: string; reviewer: string } }) {
+/** `linked`: each line about a purchase links to it (on History, which lists them all). */
+export function LogList({ events, names, linked = false }: { events: LogEvent[]; names?: { shopper: string; reviewer: string }; linked?: boolean }) {
   // A category's own reviewer (like Dad) is named in the event; otherwise the main reviewer acted.
   const byOf = (e: LogEvent) => (e.detail && typeof e.detail === "object" && "by" in e.detail && typeof e.detail.by === "string" ? e.detail.by : null);
   const who = (e: LogEvent) => {
@@ -151,6 +153,11 @@ export function LogList({ events, names }: { events: LogEvent[]; names?: { shopp
             {who(e)}
           </p>
           <p>{e.message}</p>
+          {linked && e.purchaseId && (
+            <Link href={`/purchase/${e.purchaseId}`} className="text-base font-semibold text-relay underline-offset-4 hover:underline">
+              See this purchase
+            </Link>
+          )}
         </li>
       ))}
     </ol>
