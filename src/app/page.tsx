@@ -96,6 +96,28 @@ const CHANNEL3 = [
   { title: "Price limits that stick", text: "“Under $200” in a search becomes a Channel3 price filter, not a hope." },
 ];
 
+/** Each figure was read at its source (November 2026); keep the links so anyone can check. */
+const WHY: Array<{ figure: string; text: string; source: string; href: string }> = [
+  {
+    figure: "63 million",
+    text: "American adults are family caregivers, and 81% of them help with grocery or other shopping.",
+    source: "AARP and National Alliance for Caregiving, 2025",
+    href: "https://www.aarp.org/pri/topics/ltss/family-caregiving/caregiving-in-the-us-2025/",
+  },
+  {
+    figure: "$2.4 billion",
+    text: "in fraud losses reported by adults 60 and older in 2024, up from about $600 million in 2020. They filed more loss reports on online shopping than on any other kind of fraud.",
+    source: "US Federal Trade Commission, 2025",
+    href: "https://www.ftc.gov/system/files/ftc_gov/pdf/P144400-OlderAdultsReportDec2025.pdf",
+  },
+  {
+    figure: "Up to $1 trillion",
+    text: "in US retail revenue could be orchestrated by AI agents by 2030. Each agent will need permission to spend someone's money.",
+    source: "McKinsey, 2025",
+    href: "https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-agentic-commerce-opportunity-how-ai-agents-are-ushering-in-a-new-era-for-consumers-and-merchants",
+  },
+];
+
 const STACK = ["PayPal REST APIs", "PayPal JavaScript SDK", "Google Gemini", "Channel3", "Next.js 16", "React 19", "TypeScript", "Tailwind CSS", "Neon Postgres", "Vercel", "Zod", "Vitest"];
 
 function Section({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
@@ -193,6 +215,19 @@ export default function FrontPage() {
           <p className="max-w-2xl text-xl">
             Written rules decide what can be bought straight away and what someone else sees first. PayPal makes sure no money moves until it should.
           </p>
+          <dl className="mt-12 grid gap-x-10 gap-y-9 md:grid-cols-3">
+            {WHY.map((w) => (
+              <div key={w.figure}>
+                <dt className="text-[2rem] leading-tight font-extrabold text-relay-deep">{w.figure}</dt>
+                <dd className="mt-2">
+                  {w.text}{" "}
+                  <a href={w.href} target="_blank" rel="noopener noreferrer" className="block pt-2 text-base text-ink-soft underline underline-offset-4 hover:text-ink">
+                    {w.source}
+                  </a>
+                </dd>
+              </div>
+            ))}
+          </dl>
         </Section>
 
         <Section id="setups" title="One engine, three relationships" lead="Each one is a working demo, with its own people, rules and way of paying.">

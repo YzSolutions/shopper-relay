@@ -26,6 +26,23 @@ can be bought straight away and what someone else sees first, with PayPal making
 until it should. Then we noticed AI agents have exactly the same problem. The hard part isn't getting an
 agent to shop. It's trusting one with your money.
 
+### Who it's for, and why it matters
+
+- **Family caregivers.** 63 million American adults are family caregivers, and 81% of them help with grocery
+  or other shopping ([AARP and National Alliance for Caregiving, 2025](https://www.aarp.org/pri/topics/ltss/family-caregiving/caregiving-in-the-us-2025/)).
+- **Older shoppers.** Adults 60 and older reported about $2.4 billion in fraud losses in 2024, up from about
+  $600 million in 2020, and filed more loss reports on online shopping than on any other kind of fraud
+  ([FTC](https://www.ftc.gov/system/files/ftc_gov/pdf/P144400-OlderAdultsReportDec2025.pdf)). The FBI counted $7.7 billion in losses from 201,266 complaints by people 60 and older in 2025
+  ([FBI IC3](https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf)).
+- **Parents and anyone who pays someone to shop for them.** They face the same choice between no limits and
+  answering every request.
+- **Anyone letting an AI agent shop.** The US retail market could see up to $1 trillion in revenue orchestrated
+  by AI agents by 2030 ([McKinsey](https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-agentic-commerce-opportunity-how-ai-agents-are-ushering-in-a-new-era-for-consumers-and-merchants)), and each agent needs a way to be given permission to spend.
+
+ShopperRelay works at the moment of buying: the hidden membership, the pressure to switch a safeguard off, the
+purchase that deserves a second look. It isn't a cure for all of those losses. The largest share goes to
+investment scams, which happen outside a shopping checkout.
+
 ### What it does
 
 - **Shop in one place.** Search in plain words. Real products come from Channel3, and each one shows what
@@ -157,6 +174,9 @@ postgresql, vercel, tailwindcss, zod, vitest
 | 2:25–2:35 | /demo, Kids + parent tab: Leo taps **Ask Dana**; Dana's phone shows his budget; she pays | "The same engine works for kids: Leo asks, Dana sees his budget, and pays with her own PayPal." |
 | 2:35–2:50 | Personal shopper tab: Marcus taps **Let Priya buy it once, up to a price I set**, sets $100; on Priya's screen tap **Send the AI shopper**; it buys for less | "And the same permission works for an AI agent: Marcus authorizes one exact product at a set price. PayPal holds it, the AI shopper finds it for less, and only the real price is charged. It can't buy anything else. One product, once." |
 | 2:50–2:58 | Logo | "ShopperRelay: AI understands, rules enforce, people approve, PayPal executes." |
+
+**A line to use in the opening, if it fits:** "63 million Americans are family caregivers, and 81% of them help
+with shopping." (AARP and National Alliance for Caregiving, 2025. Show the source on screen.)
 
 **Tips:**
 - Record each scene separately and cut them together. Do the screenshot check once before

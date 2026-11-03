@@ -33,6 +33,22 @@ account.
 Each browser gets its own private copy of the demo, so people testing at the same time never see or
 reset each other's purchases.
 
+## Why it matters
+
+- **Family caregivers:** 63 million American adults are family caregivers, and 81% of them help with grocery
+  or other shopping ([AARP and National Alliance for Caregiving, 2025](https://www.aarp.org/pri/topics/ltss/family-caregiving/caregiving-in-the-us-2025/)). 39% already use digital tools
+  to manage the finances of the person they care for.
+- **Older shoppers:** adults 60 and older reported about $2.4 billion in fraud losses in 2024, up from about
+  $600 million in 2020, and filed more loss reports on online shopping than on any other kind of fraud
+  ([FTC, Protecting Older Consumers 2024-2025](https://www.ftc.gov/system/files/ftc_gov/pdf/P144400-OlderAdultsReportDec2025.pdf)). The FBI counted 201,266 internet crime complaints and
+  $7.7 billion in losses from people 60 and older in 2025 ([FBI IC3 2025 report](https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf)).
+- **AI agents:** the US retail market could see up to $1 trillion in revenue orchestrated by AI agents by 2030
+  ([McKinsey, 2025](https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-agentic-commerce-opportunity-how-ai-agents-are-ushering-in-a-new-era-for-consumers-and-merchants)). Each of those agents needs a way to be given permission to spend.
+
+ShopperRelay works at the moment of buying: the hidden membership, the pressure to switch a safeguard off, the
+purchase that deserves a second look. It isn't a cure for all of those losses. The largest share goes to
+investment scams, which happen outside a shopping checkout.
+
 ## Three relationships, one engine
 
 | | Mom + Sarah | Leo + Dana | Priya + Marcus |
