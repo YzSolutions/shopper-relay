@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DemoTour } from "@/components/DemoTour";
 import { api } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
@@ -24,6 +24,17 @@ export default function DemoPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const hidden = session?.household.hideBrands ?? false;
+
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const path = e.data?.openPhone;
+      if (e.origin !== window.location.origin || typeof path !== "string" || !path.startsWith("/review/")) return;
+      phone.current?.contentWindow?.location.replace(path);
+      phone.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   async function run(label: string, json: unknown) {
     setBusy(true);

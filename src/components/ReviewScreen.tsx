@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { PayPalButton } from "./PayPalButton";
 import { Facts, ItemHeader } from "./PurchaseParts";
 import { RelayTrack } from "./RelayTrack";
-import { BudgetBars, Button, ErrorNotice, Money, Notice, Spinner } from "./ui";
+import { BudgetBars, Button, ButtonLink, ErrorNotice, Money, Notice, Spinner } from "./ui";
 import { api, type BudgetLine, type PurchaseView } from "@/lib/client/api";
 
 interface ReviewData {
@@ -24,6 +24,12 @@ export function ReviewScreen({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState<string | null>(null);
   const [mode, setMode] = useState<"choose" | "otpa">("choose");
+  // Beside the shopper's screen in the split demo, that screen updates itself; on its own, this page links back.
+  const [alone, setAlone] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- window isn't available on the server
+    setAlone(window.parent === window);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -170,6 +176,7 @@ export function ReviewScreen({ token }: { token: string }) {
           Nothing was charged.
         </Notice>
       )}
+      {alone && ["hunting", "completed", "declined"].includes(p.state) && <ButtonLink href={`/purchase/${p.id}`}>Back to {shopper}&apos;s screen</ButtonLink>}
     </div>
   );
 }

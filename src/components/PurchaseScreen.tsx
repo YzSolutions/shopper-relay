@@ -6,12 +6,30 @@ import { RELATIONSHIPS } from "@/config/relationships";
 import { PayPalButton } from "@/components/PayPalButton";
 import { Facts, ItemHeader, LogList, Reasons } from "@/components/PurchaseParts";
 import { RelayTrack } from "@/components/RelayTrack";
-import { BudgetBars, Button, ErrorNotice, Money, Notice, OutcomeLine, Spinner } from "@/components/ui";
+import { BudgetBars, Button, ButtonLink, ErrorNotice, Money, Notice, OutcomeLine, Spinner } from "@/components/ui";
 import { api, type AgentStep, type OtpaOption, type PurchaseView, type Session } from "@/lib/client/api";
 import { usePurchase } from "@/lib/client/usePurchase";
 import { useSession } from "@/lib/client/useSession";
 
 const when = (iso: string) => new Date(iso).toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/** Moves the demo on to the reviewer: the split screen opens it on the phone beside this page. */
+function GoToPhone({ path, reviewer, className }: { path: string | null; reviewer: string; className: string }) {
+  if (!path) return null;
+  return (
+    <ButtonLink
+      href={path}
+      className={className}
+      onClick={(e) => {
+        if (window.parent === window) return;
+        e.preventDefault();
+        window.parent.postMessage({ openPhone: path }, window.location.origin);
+      }}
+    >
+      Go to {reviewer}&apos;s phone
+    </ButtonLink>
+  );
+}
 
 export function PurchaseScreen({ id }: { id: string }) {
   const { session, reload: reloadSession } = useSession();
@@ -133,6 +151,9 @@ export function PurchaseScreen({ id }: { id: string }) {
       </div>
 
       <aside aria-labelledby="happened" className="lg:border-l lg:border-line lg:pl-8">
+        {(purchase.state === "requested" || purchase.state === "awaiting_review") && (
+          <GoToPhone path={purchase.reviewPath} reviewer={reviewer} className="mb-6 hidden w-full lg:flex" />
+        )}
         <h2 id="happened" className="mb-4 text-xl font-bold">
           What happened
         </h2>
@@ -351,6 +372,7 @@ function Status({ purchase, shopper, reviewer, standingOn }: { purchase: Purchas
           <div className="mt-2 text-ink-soft">
             <Reasons purchase={purchase} />
           </div>
+          <GoToPhone path={purchase.reviewPath} reviewer={reviewer} className="mt-4 lg:hidden" />
         </Notice>
       );
     case "requested":
@@ -365,6 +387,7 @@ function Status({ purchase, shopper, reviewer, standingOn }: { purchase: Purchas
               <Reasons purchase={purchase} />
             </div>
           )}
+          <GoToPhone path={purchase.reviewPath} reviewer={reviewer} className="mt-4 lg:hidden" />
         </Notice>
       );
     case "hunting":
