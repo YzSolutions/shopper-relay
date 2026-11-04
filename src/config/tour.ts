@@ -68,26 +68,26 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
   family_elder: [
     {
       title: "Buy within the rules",
-      how: "Search for a blood pressure monitor, choose one under $100, and pay. Mom's rules allow it, so it goes straight through.",
+      how: "Search for a blood pressure monitor, pick one under $100, and pay. It goes straight through.",
       go: { path: "/shop", label: "Go to Shop" },
       pays: true,
       fact: "boughtAlone",
     },
     {
       title: "Catch a hidden charge",
-      how: "Use the example with a membership in the small print. The AI finds the $39 a month, and Mom's rules send it to Sarah. Then tap Buy it through ShopperRelay.",
+      how: "Use the example with a membership in the small print, then tap Buy it through ShopperRelay.",
       go: { path: "/check", label: "Go to Check a checkout" },
       fact: "checkedChosen",
     },
     {
       title: "Sarah decides",
-      how: "Pay with PayPal: the money is only held. Then, on Sarah's phone, tap Approve or Decline, and watch PayPal capture or release it.",
+      how: "Pay with PayPal: the money is only held. Then approve or decline on Sarah's phone.",
       pays: true,
       fact: "heldDecided",
     },
     {
       title: "Write a rule",
-      how: "Tick “Replace all the rules with this” and write: Under $75 I decide. Over $150 Sarah decides. It asks about the gap. Add: In between, Sarah takes a look. Then save.",
+      how: "Tick “Replace all the rules with this” and write: Under $75 I decide. Over $150 Sarah decides.",
       go: { path: "/rules", label: "Go to My rules" },
       fact: "rulesChanged",
     },
@@ -95,19 +95,19 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
   parent_child: [
     {
       title: "Leo asks",
-      how: "Search for a Lego set, tap Ask Sarah on one, and send it. Nothing is paid yet.",
+      how: "Search for a Lego set, tap Ask Sarah, and send it.",
       go: { path: "/shop", label: "Go to Shop" },
       fact: "requested",
     },
     {
       title: "Sarah decides",
-      how: "On Sarah's phone, see the request next to Leo's budget. Approve and pay with PayPal, or decline.",
+      how: "On Sarah's phone, approve and pay with PayPal, or decline.",
       pays: true,
       fact: "requestDecided",
     },
     {
       title: "Change a rule",
-      how: "Write: Leo can ask for books up to $25. Check it, then save it as Sarah.",
+      how: "Write: Leo can ask for books up to $25. Then save it as Sarah.",
       go: { path: "/rules", label: "Go to Rules" },
       fact: "rulesChanged",
     },
@@ -115,25 +115,25 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
   personal_shopper: [
     {
       title: "Priya finds it",
-      how: "Search for running shoes, tap Request for Marcus on a pair, and send it.",
+      how: "Search for running shoes, tap Request for Marcus, and send it.",
       go: { path: "/shop", label: "Go to Shop" },
       fact: "requested",
     },
     {
       title: "Marcus sets a price",
-      how: "On Marcus's phone, tap “Let Priya buy it once, up to a price I set”, and approve the hold in PayPal. That money can only buy this one product.",
+      how: "On Marcus's phone, tap “Let Priya buy it once, up to a price I set”, then approve in PayPal.",
       pays: true,
       fact: "otpaGranted",
     },
     {
       title: "Send the AI shopper",
-      how: "On Priya's screen, tap Send the AI shopper. It picks a listing and buys it, and it can only buy what Marcus allowed. PayPal takes the real price and releases the rest.",
+      how: "Tap Send the AI shopper. It can only buy what Marcus allowed, and PayPal releases the rest.",
       goHunting: true,
       fact: "otpaUsed",
     },
     {
       title: "Priya bills Marcus",
-      how: "Send Marcus a bill for Priya's time. PayPal creates a real sandbox invoice.",
+      how: "Send Marcus a bill for Priya's time.",
       go: { path: "/bills", label: "Go to Bills" },
       fact: "billSent",
     },

@@ -234,8 +234,7 @@ product photos.
 ## Built with
 
 Next.js 16, React 19 and TypeScript on Vercel; PayPal Orders v2, Payments v2, Vault v3, Invoicing v2 and the
-JavaScript SDK; Google Gemini; Channel3; Neon Postgres; Tailwind CSS; Zod; Vitest. Development was assisted
-by Claude Code.
+JavaScript SDK; Google Gemini; Channel3; Neon Postgres; Tailwind CSS; Zod; Vitest.
 
 ## Run it yourself
 

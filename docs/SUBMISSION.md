@@ -106,7 +106,6 @@ investment scams, which happen outside a shopping checkout.
   becomes a Channel3 price filter.
 - **A deterministic rules engine** with no I/O and no AI, over 100 unit tests, and an end-to-end test that
   runs every flow against the PayPal sandbox.
-- **Development assisted by Claude Code.**
 
 ### Challenges we ran into
 

@@ -77,23 +77,19 @@ export function DemoTour({ session, onGo }: { session: Session; onGo: (path: str
   const nextToDo = steps.findIndex((s) => !facts[s.fact]);
   const current = picked ?? (nextToDo < 0 ? null : nextToDo);
   const step = current === null ? null : steps[current];
+  const waiting = !!step?.goHunting && !huntingId && !facts[step.fact];
   const go = step?.go ?? (step?.goHunting && huntingId ? { path: `/purchase/${huntingId}`, label: "Open the purchase" } : null);
 
   return (
     <section aria-labelledby="tour-title" className="border-b border-line bg-white px-5 py-3">
-      <div className="flex flex-wrap items-baseline gap-x-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 id="tour-title" className="text-lg font-bold">
           Guided tour
         </h2>
-        <p className="text-base text-ink-soft" role="status">
+        <p className="sr-only" role="status">
           {steps.filter((s) => facts[s.fact]).length} of {steps.length} done
         </p>
-        <button type="button" onClick={() => hide(true)} className="ml-auto text-base font-semibold text-relay underline-offset-4 hover:underline">
-          Hide the tour
-        </button>
-      </div>
-
-      <ol className="mt-2 flex flex-wrap gap-2">
+        <ol className="flex flex-wrap gap-2">
         {steps.map((s, i) => {
           const done = facts[s.fact];
           return (
@@ -115,19 +111,16 @@ export function DemoTour({ session, onGo }: { session: Session; onGo: (path: str
             </li>
           );
         })}
-      </ol>
+        </ol>
+        <button type="button" onClick={() => hide(true)} className="ml-auto text-base font-semibold text-relay underline-offset-4 hover:underline">
+          Hide the tour
+        </button>
+      </div>
 
       {step ? (
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="max-w-4xl text-base">
-            {step.how}
-            {step.pays && (
-              <span className="text-ink-soft">
-                {" "}
-                In PayPal&apos;s window, choose Debit or Credit Card and use the sandbox test card 4111 1111 1111 1111, any future date, any CVV. No real money moves.
-              </span>
-            )}
-          </p>
+          <p className="text-base">{waiting ? "Do the step before this one first. The button appears once Marcus has set a price." : step.how}</p>
+          {step.pays && <p className="text-base text-ink-soft">Test card: 4111 1111 1111 1111, any future date, any CVV.</p>}
           {go && (
             <button
               type="button"

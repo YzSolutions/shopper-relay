@@ -12,6 +12,7 @@ import { ruleRows } from "@/lib/client/describe";
 export function StandingCard({ session, purchases, onChange }: { session: Session; purchases: PurchaseView[] | null; onChange: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const shopper = session.household.shopperName;
   const standing = session.standing;
   const clientId = session.paypal.clientId;
@@ -41,6 +42,15 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
     } finally {
       setBusy(false);
     }
+  }
+
+  // Off, it's an optional extra, so it stays folded away and requests come first.
+  if (!standing && !open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="font-semibold text-relay underline underline-offset-4">
+        Let {shopper} buy without asking
+      </button>
+    );
   }
 
   return (
