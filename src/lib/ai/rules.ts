@@ -57,7 +57,7 @@ const AiRulesSchema = z.object({
     )
     .describe("categories the person mentioned that are not in the list"),
   reviewers: z
-    .array(z.object({ category: CategoryName, reviewer: z.string().describe("first name only, e.g. \"Tom\"") }))
+    .array(z.object({ category: CategoryName, reviewer: z.string().describe("first name only, e.g. \"Marcus\"") }))
     .describe("only when the person says someone other than the usual reviewer should review a category"),
   unclear: z.array(z.string()).describe("only the parts the person said that you could NOT turn into a rule, quoted; leave empty when everything became a rule"),
   summary: z
@@ -99,7 +99,7 @@ Rules:
 - "Subscriptions", "memberships" and "recurring charges" all mean the subscription category.
 - Weekly or monthly totals ("no more than $30 a week") are caps, not bands. "Per purchase" limits across everything are caps with period "purchase".
 - If they don't say what happens when a cap or a top limit is passed, use "exception": someone must knowingly approve going over. Use "blocked" only when they say it's not allowed, never, or no.
-- If they say a different person should review a category ("video games go to Dad, Tom"), add it to reviewers with that person's first name. Typos in names are likely: "sarag" means ${reviewer}.
+- If they say a different person should review a category ("video games go to Dad, Marcus"), add it to reviewers with that person's first name. Typos in names are likely: "sarag" means ${reviewer}.
 - If something is unclear, quote only that part in "unclear" instead of guessing.`;
 }
 
@@ -117,7 +117,7 @@ function toKey(name: string): CategoryKey {
  * The AI's reading as rules. Two things people mean but don't say are filled in
  * by code: "under $100 … over $100" covers exactly $100 too (the stricter side
  * gets it), and amounts a sentence doesn't mention keep the rule they had, so
- * "Tom approves electronics over $200" leaves electronics under $200 as they were.
+ * "Marcus approves electronics over $200" leaves electronics under $200 as they were.
  * Returns the categories whose unmentioned amounts were kept.
  */
 function toUpdate(ai: AiRules, current: RuleSet): { update: RuleSet; kept: CategoryKey[] } {

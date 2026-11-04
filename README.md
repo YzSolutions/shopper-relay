@@ -51,13 +51,13 @@ investment scams, which happen outside a shopping checkout.
 
 ## Three relationships, one engine
 
-| | Mom + Sarah | Leo + Dana | Priya + Marcus |
+| | Mom + Sarah | Leo + Sarah | Priya + Marcus |
 | --- | --- | --- | --- |
 | Who they are | An older parent and an adult child | A child and a parent | A personal shopper and a customer |
 | Who shops | Mom | Leo | Priya, or the AI shopper |
-| Whose rules | Mom's own | Dana's | Marcus's |
-| Who pays | Mom | Dana | Marcus |
-| How a purchase completes | Within Mom's rules: straight away. Otherwise PayPal **holds** it while Sarah takes a look. | Leo **asks**. Dana approves and pays with Dana's own PayPal, or says no. | Priya **asks**. Marcus approves and pays, says no, or grants a **One-Time Purchase Authorization**. |
+| Whose rules | Mom's own | Sarah's | Marcus's |
+| Who pays | Mom | Sarah, or Marcus for video games and tech | Marcus |
+| How a purchase completes | Within Mom's rules: straight away. Otherwise PayPal **holds** it while Sarah takes a look. | Leo **asks**. Sarah approves and pays with Sarah's own PayPal, or says no. Video games and tech go to Marcus. | Priya **asks**. Marcus approves and pays, says no, or grants a **One-Time Purchase Authorization**. |
 | Limits | Per category, e.g. medical devices under $100 | Small per-item budgets, plus $30 a week and $100 a month | Target budgets; anything over is flagged |
 
 ### Check a checkout
@@ -70,7 +70,7 @@ trial"). The rules then decide what happens. The demo has two made-up examples t
 
 Write *"I can buy clothes under $80. Any subscription goes to Sarah."* Gemini structures it, and you see
 exactly what was understood before anything changes. New categories (*"I can buy cars under $10,000"*)
-and extra reviewers (*"video games go to Dad, Tom"*) work the same way. Every change is kept in a rule
+and extra reviewers (*"video games go to Marcus"*) work the same way. Every change is kept in a rule
 history that no one can edit.
 
 Code, not AI, checks the result for gaps. Tick **Replace all the rules with this** and write *"Under $75 I
@@ -107,7 +107,7 @@ If the AI can't answer, it stops and buys nothing, and a person can still buy it
 
 ### Standing permission
 
-Where the reviewer pays (Dana, Marcus), they can save PayPal once, and the shopper can then buy what the
+Where the reviewer pays (Sarah for Leo, Marcus for Priya), they can save PayPal once, and the shopper can then buy what the
 reviewer's rules allow without asking each time. Every such purchase still goes hold, amount check, rules
 again, capture. It can be turned off at any moment.
 

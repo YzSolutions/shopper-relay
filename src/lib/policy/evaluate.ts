@@ -192,6 +192,11 @@ export function evaluatePurchase(
     }
   }
 
+  // Where the reviewer owns the rules, a spending limit goes to whoever this category names.
+  // Mom's limits always go to her main reviewer, so a pressured rule change can't move that safeguard.
+  const categoryReviewers = new Set(found.map((r) => r.reviewer));
+  const capReviewer = ruleOwner === "reviewer" && categoryReviewers.size === 1 ? [...categoryReviewers][0] : reviewerName;
+
   for (const cap of rules.caps) {
     if (cap.category !== null && !facts.categories.includes(cap.category)) continue;
     const total = spentWithin(history, cap, now) + facts.amountCents;
@@ -201,7 +206,7 @@ export function evaluatePurchase(
       cap.period === "purchase"
         ? `${formatCents(total)} is over the ${formatCents(cap.limitCents)} ${scope}per-purchase limit, so ${then(cap.over, w)}.`
         : `This would bring ${scope}spending in the last ${cap.period === "week" ? "7" : "30"} days to ${formatCents(total)}, over the ${formatCents(cap.limitCents)} ${scope}${PERIOD_TEXT[cap.period]} limit, so ${then(cap.over, w)}.`;
-    found.push({ code: "cap", category: cap.category, outcome: cap.over, reviewer: reviewerName, say });
+    found.push({ code: "cap", category: cap.category, outcome: cap.over, reviewer: capReviewer, say });
   }
 
   const outcome = found.map((r) => r.outcome).reduce(stricter, "auto");

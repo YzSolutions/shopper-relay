@@ -34,8 +34,8 @@ describe("ruleDiff", () => {
 
   it("reports added and removed spending limits", () => {
     const after: RuleSet = { ...before, caps: [{ category: null, period: "week", limitCents: 3000, over: "exception" }] };
-    expect(ruleDiff(before, after, "Dana", "request")).toEqual([
-      { label: "Spending limits", before: "None.", after: "All shopping combined: up to $30.00 in any 7 days. Over that, Dana must approve an exception." },
+    expect(ruleDiff(before, after, "Sarah", "request")).toEqual([
+      { label: "Spending limits", before: "None.", after: "All shopping combined: up to $30.00 in any 7 days. Over that, Sarah must approve an exception." },
     ]);
   });
 

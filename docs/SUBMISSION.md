@@ -61,9 +61,9 @@ investment scams, which happen outside a shopping checkout.
 - **Scam-resistant rule changes.** Tightening is instant. Loosening a safeguard, including changing who
   reviews something, tells Sarah and only starts after 24 hours, unless Sarah approves sooner. Sarah can't
   block it: these are Mom's rules. Every change is kept in a rule history no one can edit.
-- **Kids + parent.** Leo browses and taps "Ask Dana". Dana sees the request and Leo's weekly and monthly
-  budget, then approves and pays with Dana's own PayPal or says no. Open requests reserve budget; declined
-  ones release it. Subscriptions are blocked.
+- **Kids + parent.** Leo browses and taps "Ask Sarah". Sarah sees the request and Leo's weekly and monthly
+  budget, then approves and pays with Sarah's own PayPal or says no. Video games and tech go to Leo's dad,
+  Marcus, on Marcus's own tab. Open requests reserve budget; declined ones release it. Subscriptions are blocked.
 - **Personal shopper + One-Time Purchase Authorization.** Priya finds something for Marcus. Marcus can
   approve and pay, or say "buy this exact product once, for $100 or less, by Friday". That places a PayPal
   hold of $100. When it's found for $89, ShopperRelay checks it's the same product and within the price,
@@ -152,35 +152,68 @@ postgresql, vercel, tailwindcss, zod, vitest
 
 ---
 
-## Video script (target 2:45, hard limit 3:00)
+## Video script (target about 2:40, hard limit 3:00)
+
+One person's life. Sarah is the one everybody needs: Mom asks Sarah, Leo asks Sarah, video games and tech go to
+Leo's dad Marcus, and Marcus has Priya, a paid shopping assistant, finding him a suit. The drawn scenes are the
+story, and every shot that claims the product works is the real product.
+
+It covers the judging points: what problem, who it's for, why it matters, the project working end to end, and how
+PayPal and AI are used.
+
+**Order of work:**
+
+1. Finish every site change, because the footage is locked after this.
+2. Record the PayPal clips (see below).
+3. Capture and lock one full take. No deploys until submission.
+4. Match the words to that take, then record the narration in one sitting.
+5. Cut the picture to the voice.
 
 **Before recording:**
-- Open https://www.shopperrelay.com/demo, click **Reset this demo** on each of the three tabs, and click **Hide the tour**.
-- Tick **Hide real store and brand names**. The rules don't allow third-party trademarks in the
-  video; this swaps in invented store names and blurs product photos.
-- Have a sandbox buyer login ready, or use **Debit or Credit Card** with the test card.
-- Record at 1920×1080, browser zoom 100–110%.
 
-| Time | Screen | Say |
+- Open https://www.shopperrelay.com/demo. On **each** of the three tabs, click **Reset this demo** and tick
+  **Hide real store and brand names**. Then click **Hide the tour**. Search again after ticking, because results
+  already on screen keep their names.
+- Run the checkout example once first, so its saved answer makes it instant on camera.
+- Record at 1920×1080 or higher, browser zoom 100–110%.
+
+**Trademarks (the rules don't allow third-party ones without permission):**
+
+- Hiding names removes store and brand names, but **not model names**, so choose plain-named products. Checked on
+  4 Nov 2026, and the catalog changes, so check on the day:
+  - Suit: *Mens Navy Suit* ($179.99) or *Men's Navy Blue Suit* ($199). One store each.
+  - Tech for Marcus: *Gaming Headset* ($89.99). Controllers mostly carry console names, so avoid them.
+- Say "the AI" in the video. Name the model in the Devpost text, which asks for the tools used.
+- Don't show the front page: its hero card names the model.
+- PayPal and Channel3 are the hackathon's own sponsors, so their names stay.
+- Music must be licensed or CC0. Keep the proof.
+
+| Type | Picture | Say |
 | --- | --- | --- |
-| 0:00–0:15 | Logo, then /demo split screen | "When Mom needs help shopping, families usually choose between leaving her on her own and taking over her money. ShopperRelay is the middle ground: Mom shops, her own rules decide when her daughter Sarah takes a look, and PayPal holds the money until it's settled." |
-| 0:15–0:35 | My rules: tick **Replace all the rules with this**, type *Under $75 I decide. Over $150 Sarah decides.* then **Check what I wrote** | "Mom sets her rules in plain English. The AI structures them, and the engine spots the gap: what about $75 to $150? Nothing ambiguous goes live." |
-| 0:35–0:45 | Show the saved rules table | "Her rules: clothing under $80, medical devices under $100, subscriptions always go to Sarah." |
-| 0:45–1:05 | Shop: search *blood pressure monitor*, point at "Counted as Medical Devices", green and orange lines, plain-words summary | "Mom shops right here, no copying links. Real products from Channel3. The category comes from the catalog, not a guess, and she sees up front what her rules say." |
-| 1:05–1:25 | Choose one under $100, pay with PayPal, relay track runs to **Paid** | "Under her limit: PayPal holds the payment, we check PayPal's amount matches to the cent, and it completes. No one else involved." |
-| 1:25–1:50 | Check a checkout: the membership example | "Found something elsewhere? A screenshot is enough. Gemini reads the small print: $149 today, then $39 a month after a free trial. That's a subscription, so Sarah takes a look." |
-| 1:50–2:15 | Buy it through ShopperRelay, pay; Mom's screen says "Order placed. Waiting for Sarah"; Sarah's phone lights up; open it, scroll the facts, **Approve** | "Mom has done her part. PayPal is holding the money; nothing's charged yet. Sarah sees exactly what Mom saw, why she's asked, and the amount PayPal is holding. She approves, and PayPal captures." |
-| 2:15–2:25 | My rules: loosen a rule; show "A change is waiting"; Sarah's inbox shows it | "If someone pressures Mom to switch a safeguard off, it doesn't happen instantly. Sarah is told, and it starts after 24 hours unless she says yes sooner." |
-| 2:25–2:35 | /demo, Kids + parent tab: Leo taps **Ask Dana**; Dana's phone shows his budget; she pays | "The same engine works for kids: Leo asks, Dana sees his budget, and pays with her own PayPal." |
-| 2:35–2:50 | Personal shopper tab: Marcus taps **Let Priya buy it once, up to a price I set**, sets $100; on Priya's screen tap **Send the AI shopper**; it buys for less | "And the same permission works for an AI agent: Marcus authorizes one exact product at a set price. PayPal holds it, the AI shopper finds it for less, and only the real price is charged. It can't buy anything else. One product, once." |
-| 2:50–2:58 | Logo | "ShopperRelay: AI understands, rules enforce, people approve, PayPal executes." |
+| Drawn | Sarah, busy and smiling, phone buzzing. | "This is Sarah. Sarah has a good life, and everybody in it needs her." |
+| Drawn | Mom at the kitchen table. | "Today, Mom's buying a blood pressure monitor." |
+| Real | `public/demo/checkout-membership.png`, zooming in on the grey small print under **Place order**. No music yet. | "It says $149. But down here, in the small print: $39 a month." |
+| Caption | *AARP and National Alliance for Caregiving, 2025.* Music comes in. | "63 million Americans are family caregivers. Most of them help with shopping." |
+| Real | /demo, Mom + Sarah. **Check a checkout**, the membership example. Point at the quoted small print and the reasons. | "ShopperRelay reads the small print. Then Mom's own rules decide, in plain code. Subscriptions go to Sarah." |
+| Real | **Buy it through ShopperRelay**, then your PayPal clip. Sarah's phone: scroll the facts, tap **Approve**. The track reaches **Paid**. | "PayPal holds the money. Nothing's charged. Sarah sees the facts and decides. No answer in a day, and the hold is released." |
+| Drawn, then real | Leo. Then the Kids tab: Leo taps **Ask Sarah**, and Sarah's phone shows it next to the budget. Sarah pays. | "Leo asks Sarah for things. She sees each request next to his budget, and pays with PayPal. He never needs her login." |
+| Drawn, then real | `6-marcus-leo`. Then Leo asks for a gaming headset, and it lands on the **Marcus** tab of the phone. | "But video games and tech? Those go to Dad." |
+| Drawn | `4-marcus-meeting`, then `1-fitting-wide`: Priya holds a jacket up to Marcus. | "Marcus has his own problem: he needs a suit, and has no time. Sarah got him started with Priya, a paid shopping assistant." |
+| Drawn, then real | `2-swatches`. Then the Personal shopper tab: Priya sends the suit. | "Priya finds the right one. Marcus decides." |
+| Real | Marcus's phone: **Let Priya buy it once, up to a price I set**. Set a price above the listed price, then your PayPal clip. | "He says: buy this one suit, once, up to this price. PayPal holds that much." |
+| Real | Priya's screen: **Send the AI shopper**, then **What the AI shopper did**. | "Now an AI shopper finds where to buy it. It can't buy anything else: code checks every listing, and the hold is the ceiling." |
+| Real | What PayPal charged and released. Hold it, with music only. | *(Two or three seconds, no narration.)* |
+| Real, then drawn | The result, then `3-lapel-payoff`: Priya straightens the lapel. Priya's bill, if time allows. Caption: *Orders AUTHORIZE, capture, void, partial capture, Vault, Invoicing, webhooks*. | "PayPal charged what it actually cost, and released the rest. One suit, once. And Priya's time? A PayPal invoice." |
+| Drawn | Sarah at home in the same kitchen, phone quiet. | "AI understands. Rules enforce. People approve. PayPal executes." |
+| Logo | `public/brand/shopperrelay-logo.png` and shopperrelay.com. | "ShopperRelay.com. Sarah's still busy. Just not with this." |
 
-**A line to use in the opening, if it fits:** "63 million Americans are family caregivers, and 81% of them help
-with shopping." (AARP and National Alliance for Caregiving, 2025. Show the source on screen.)
+**Notes:**
 
-**Tips:**
-- Record each scene separately and cut them together. Do the screenshot check once before
-  recording, so the saved AI answer makes it instant on camera.
-- If a PayPal popup is slow, cut the wait.
-- Keep the PayPal and Channel3 names visible: they're the hackathon's own sponsors. Hide
-  everything else with the toggle.
+- Amounts other than the fixed $149 and $39 example stay on screen, not in the narration, so a different take can't
+  make the words wrong.
+- Marcus's price must be above the listed price, or PayPal has nothing to visibly release.
+- Drawn scenes are illustrations, so no phone or laptop screen shows in them.
+- The AI shopper sometimes searches first and sometimes buys straight away. Both fit the words. Don't say it hunts
+  the whole web.
+- If it runs long, cut the invoice line first, then shorten Leo's scene.
+- Judges aren't required to watch past 3:00. Check the final length before uploading to YouTube as public.

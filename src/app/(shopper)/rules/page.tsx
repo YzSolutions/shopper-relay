@@ -10,8 +10,8 @@ import { useSession } from "@/lib/client/useSession";
 
 const EXAMPLES: Record<string, string> = {
   family_elder:
-    "I can buy clothes under $80 and medical devices under $100 on my own. Anything else under $75. Above that, Sarah takes a look. Any subscription goes to Sarah. Video games go to Dad, Tom.",
-  parent_child: "Leo can ask for toys up to $15 and books up to $20. Anything over that is an exception. No more than $30 a week. Video games go to Dad, Tom.",
+    "I can buy clothes under $80 and medical devices under $100 on my own. Anything else under $75. Above that, Sarah takes a look. Any subscription goes to Sarah. Video games go to Marcus.",
+  parent_child: "Leo can ask for toys up to $15 and books up to $20. Anything over that is an exception. No more than $30 a week. Video games go to Marcus.",
   personal_shopper: "Clothing budget $200, shoes and handbags $150, electronics $400. Anything over budget is an exception. Watches budget $300.",
 };
 

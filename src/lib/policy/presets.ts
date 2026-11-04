@@ -57,7 +57,7 @@ export const FAMILY_ELDER_RULES: RuleSet = {
  * Child + parent. Every purchase needs the parent; the per-item amounts are
  * budgets, and going over one, or over the weekly or monthly total, needs an
  * explicit parent exception. Subscriptions are blocked unless the parent
- * enables them.
+ * enables them. Video games and tech go to the other parent.
  */
 export const PARENT_CHILD_RULES: RuleSet = {
   categories: {
@@ -66,16 +66,16 @@ export const PARENT_CHILD_RULES: RuleSet = {
         general: 10_00,
         food: 8_00,
         toys: 15_00,
-        video_games: 20_00,
         clothing: 25_00,
         shoes_handbags: 25_00,
         books: 15_00,
         school_supplies: 20_00,
-        electronics: 30_00,
       },
       "review",
       "exception",
     ),
+    video_games: { ...split(20_01, "review", "exception"), reviewer: "Marcus" },
+    electronics: { ...split(30_01, "review", "exception"), reviewer: "Marcus" },
     subscription: always("blocked"),
   },
   caps: [

@@ -39,7 +39,7 @@ export interface Relationship {
     shopHeading: string;
     placeholder: string;
     suggestions: string[];
-    /** The button on a result: "Choose this", "Ask Dana". */
+    /** The button on a result: "Choose this", "Ask Sarah". */
     choose: (reviewer: string) => string;
     /** Sent from the purchase page in the request flow. */
     sendRequest: (reviewer: string) => string;
@@ -73,10 +73,10 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     id: "parent_child",
     tab: "Kids + parent",
     title: "Kids + parents",
-    summary: "Leo finds things and asks. Dana approves and pays, or says no. Weekly and monthly budgets keep it in check.",
+    summary: "Leo finds things and asks. Sarah approves and pays, or says no, and video games and tech go to Marcus. Weekly and monthly budgets keep it in check.",
     controlNote: "The parent controls spending and payment. Leo never needs a parent's PayPal login.",
     shopper: { role: "Child", demoName: "Leo" },
-    reviewer: { role: "Parent", demoName: "Dana" },
+    reviewer: { role: "Parent", demoName: "Sarah" },
     ruleOwner: "reviewer",
     payer: "reviewer",
     flow: "request",

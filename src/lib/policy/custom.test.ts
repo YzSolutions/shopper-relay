@@ -64,31 +64,31 @@ describe("custom categories", () => {
 });
 
 describe("a reviewer for one category", () => {
-  const withTom: RuleSet = {
+  const withMarcus: RuleSet = {
     ...FAMILY_ELDER_RULES,
-    categories: { ...FAMILY_ELDER_RULES.categories, video_games: { ...FAMILY_ELDER_RULES.categories.general!, reviewer: "Tom" } },
+    categories: { ...FAMILY_ELDER_RULES.categories, video_games: { ...FAMILY_ELDER_RULES.categories.general!, reviewer: "Marcus" } },
   };
 
-  it("asks Tom about video games and Sarah about everything else", () => {
-    const games = evaluatePurchase(withTom, { amountCents: 9000, categories: ["video_games"] }, [], names);
-    expect(games).toMatchObject({ outcome: "review", reviewer: "Tom" });
-    expect(games.reasons[0].message).toBe("Tom takes a look at video game purchases of $75.00 and up.");
-    expect(evaluatePurchase(withTom, { amountCents: 9000, categories: ["clothing"] }, [], names).reviewer).toBe("Sarah");
+  it("asks Marcus about video games and Sarah about everything else", () => {
+    const games = evaluatePurchase(withMarcus, { amountCents: 9000, categories: ["video_games"] }, [], names);
+    expect(games).toMatchObject({ outcome: "review", reviewer: "Marcus" });
+    expect(games.reasons[0].message).toBe("Marcus takes a look at video game purchases of $75.00 and up.");
+    expect(evaluatePurchase(withMarcus, { amountCents: 9000, categories: ["clothing"] }, [], names).reviewer).toBe("Sarah");
   });
 
   it("falls back to the main reviewer when reasons name different people", () => {
-    const d = evaluatePurchase(withTom, { amountCents: 9000, categories: ["video_games", "subscription"] }, [], names);
+    const d = evaluatePurchase(withMarcus, { amountCents: 9000, categories: ["video_games", "subscription"] }, [], names);
     expect(d.reviewer).toBe("Sarah");
   });
 
   it("treats a new reviewer as loosening, so it waits 24 hours or for Sarah", () => {
-    expect(summarizeChange(FAMILY_ELDER_RULES, withTom).kind).toBe("loosen");
+    expect(summarizeChange(FAMILY_ELDER_RULES, withMarcus).kind).toBe("loosen");
     const state: RulesState = { owner: "shopper", rules: FAMILY_ELDER_RULES, pending: null };
-    const r = requestRuleChange(state, withTom, "shopper", NOW);
+    const r = requestRuleChange(state, withMarcus, "shopper", NOW);
     if (!r.ok) throw new Error(r.message);
     expect(r.notify).toBe("reviewer");
     // While it waits, Sarah still reviews video games.
     expect(evaluatePurchase(activeRules(r.state, NOW), { amountCents: 9000, categories: ["video_games"] }, [], names).reviewer).toBe("Sarah");
-    expect(evaluatePurchase(activeRules(r.state, new Date(NOW.getTime() + 25 * 3600_000)), { amountCents: 9000, categories: ["video_games"] }, [], names).reviewer).toBe("Tom");
+    expect(evaluatePurchase(activeRules(r.state, new Date(NOW.getTime() + 25 * 3600_000)), { amountCents: 9000, categories: ["video_games"] }, [], names).reviewer).toBe("Marcus");
   });
 });

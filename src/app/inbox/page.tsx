@@ -83,6 +83,10 @@ export default function ReviewerInbox() {
                 className={`rounded-full px-4 py-1.5 font-semibold ${r === reviewer ? "bg-relay text-white" : "border-2 border-line"}`}
               >
                 {r}
+                {(() => {
+                  const waiting = items?.filter((p) => (p.reviewerName ?? main) === r).length ?? 0;
+                  return waiting > 0 ? ` (${waiting})` : "";
+                })()}
               </button>
             ))}
           </div>

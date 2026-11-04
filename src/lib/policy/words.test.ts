@@ -65,22 +65,33 @@ describe("reasons name the right people", () => {
   const rules: RuleSet = {
     categories: {
       general: { bands: [{ minCents: 0, maxCents: null, outcome: "review" }] },
-      video_games: { bands: [{ minCents: 0, maxCents: 2001, outcome: "review" }, { minCents: 2001, maxCents: null, outcome: "exception" }], reviewer: "Tom" },
+      video_games: { bands: [{ minCents: 0, maxCents: 2001, outcome: "review" }, { minCents: 2001, maxCents: null, outcome: "exception" }], reviewer: "Marcus" },
       toys: { bands: [{ minCents: 0, maxCents: null, outcome: "blocked" }] },
     },
     caps: [{ category: null, period: "week", limitCents: 3000, over: "exception" }],
   };
-  const kids = { now: NOW, shopperName: "Leo", reviewerName: "Dana", flow: "request" as const, ruleOwner: "reviewer" as const };
+  const kids = { now: NOW, shopperName: "Leo", reviewerName: "Sarah", flow: "request" as const, ruleOwner: "reviewer" as const };
 
   it("says the reviewer decides where they approve and pay", () => {
     const d = evaluatePurchase(rules, { amountCents: 1000, categories: ["general"] }, [], kids);
-    expect(d.reasons[0].message).toBe("Dana decides on everyday purchases of any amount.");
+    expect(d.reasons[0].message).toBe("Sarah decides on everyday purchases of any amount.");
   });
 
   it("when two people are named, every reason names the one actually asked", () => {
+    const d = evaluatePurchase(rules, { amountCents: 5000, categories: ["video_games", "general"] }, [], kids);
+    expect(d.reviewer).toBe("Sarah");
+    expect(d.reasons.map((r) => r.message).join(" ")).not.toContain("Marcus");
+  });
+
+  it("a spending limit goes to whoever the purchase's category names", () => {
     const d = evaluatePurchase(rules, { amountCents: 5000, categories: ["video_games"] }, [], kids);
-    expect(d.reviewer).toBe("Dana");
-    expect(d.reasons.map((r) => r.message).join(" ")).not.toContain("Tom");
+    expect(d.reviewer).toBe("Marcus");
+    expect(d.reasons.map((r) => r.message).join(" ")).toContain("Marcus must approve an exception");
+  });
+
+  it("Mom's spending limit stays with her main reviewer, whoever the category names", () => {
+    const d = evaluatePurchase(rules, { amountCents: 5000, categories: ["video_games"] }, [], { now: NOW, shopperName: "Mom", reviewerName: "Sarah", ruleOwner: "shopper" });
+    expect(d.reviewer).toBe("Sarah");
   });
 
   it("a block in Mom's own rules says so, instead of asking her reviewer to change them", () => {
@@ -92,7 +103,7 @@ describe("reasons name the right people", () => {
 describe("changeWords", () => {
   it("names a reviewer change as such, not as loosening", () => {
     const before: RuleSet = { categories: { general: { bands: [{ minCents: 0, maxCents: null, outcome: "review" }] } }, caps: [] };
-    const after: RuleSet = { ...before, categories: { ...before.categories, video_games: { bands: [{ minCents: 0, maxCents: null, outcome: "review" }], reviewer: "Tom" } } };
+    const after: RuleSet = { ...before, categories: { ...before.categories, video_games: { bands: [{ minCents: 0, maxCents: null, outcome: "review" }], reviewer: "Marcus" } } };
     expect(changeWords(summarizeChange(before, after))).toBe("changed who reviews Video Games & Accessories");
     expect(changeWords(summarizeChange(before, after), "ask")).toBe("change who reviews Video Games & Accessories");
   });

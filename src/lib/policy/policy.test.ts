@@ -144,7 +144,7 @@ describe("Mom + Sarah preset", () => {
 
 describe("Kids + parents preset", () => {
   const kid = (amountCents: number, categories: CategoryKey[], history: HistoryEntry[] = []) =>
-    evaluatePurchase(PARENT_CHILD_RULES, { amountCents, categories }, history, { now: NOW, shopperName: "Leo", reviewerName: "Dana" });
+    evaluatePurchase(PARENT_CHILD_RULES, { amountCents, categories }, history, { now: NOW, shopperName: "Leo", reviewerName: "Sarah" });
 
   it("needs the parent for every purchase, even within budget", () => {
     expect(kid(500, ["toys"]).outcome).toBe("review");
@@ -154,8 +154,17 @@ describe("Kids + parents preset", () => {
   it("needs an exception over a category budget", () => {
     const d = kid(1501, ["toys"]);
     expect(d.outcome).toBe("exception");
-    expect(d.reasons[0].message).toBe("Toy purchases over $15.00 are over the limit, so Dana must approve an exception.");
+    expect(d.reasons[0].message).toBe("Toy purchases over $15.00 are over the limit, so Sarah must approve an exception.");
     expect(kid(6900, ["video_games"]).outcome).toBe("exception");
+  });
+
+  it("sends video games and tech to Marcus, even over a budget or a spending limit", () => {
+    expect(kid(1500, ["video_games"]).reviewer).toBe("Marcus");
+    expect(kid(2500, ["electronics"]).reviewer).toBe("Marcus");
+    const overWeek = kid(6900, ["video_games"]);
+    expect(overWeek.outcome).toBe("exception");
+    expect(overWeek.reviewer).toBe("Marcus");
+    expect(kid(1000, ["toys"]).reviewer).toBe("Sarah");
   });
 
   it("needs an exception when the weekly total would pass $30", () => {

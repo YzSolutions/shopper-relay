@@ -28,7 +28,7 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
   {
     mode: "family_elder",
     name: "Mom + Sarah",
-    who: "An older parent and an adult child",
+    who: "Sarah and her mom",
     shops: "Mom",
     rules: "Mom's own",
     pays: "Mom",
@@ -36,21 +36,21 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
   },
   {
     mode: "parent_child",
-    name: "Leo + Dana",
-    who: "A child and a parent",
+    name: "Leo + Sarah",
+    who: "Sarah and her son",
     shops: "Leo",
-    rules: "Dana's",
-    pays: "Dana",
-    how: "Leo asks. Dana sees the request next to Leo's weekly and monthly budget, then pays with Dana's own PayPal or says no. Leo never needs a parent's login.",
+    rules: "Sarah's",
+    pays: "Sarah, or Marcus for video games and tech",
+    how: "Leo asks. Sarah sees the request next to Leo's weekly and monthly budget, then pays with Sarah's own PayPal or says no. Video games and tech go to Marcus. Leo never needs a parent's login.",
   },
   {
     mode: "personal_shopper",
     name: "Priya + Marcus",
-    who: "A personal shopper and a customer",
+    who: "Sarah's husband and his paid shopping assistant",
     shops: "Priya",
     rules: "Marcus's",
     pays: "Marcus",
-    how: "Priya finds, Marcus decides: approve and pay, let Priya or the AI shopper buy one exact item once at a price Marcus sets, or save PayPal once so Priya can buy what Marcus's rules allow. Priya bills for the time spent with a PayPal invoice.",
+    how: "Priya shops online, Marcus decides: approve and pay, let Priya or the AI shopper buy one exact item once at a price Marcus sets, or save PayPal once so Priya can buy what Marcus's rules allow. Priya bills for the time spent with a PayPal invoice.",
   },
 ];
 
@@ -74,7 +74,7 @@ const PAYPAL: Array<{ name: string; what: string }> = [
 ];
 
 const AI_DOES = [
-  "Turns rules written in plain words into exact rules, including new categories (“I can buy cars under $10,000”) and extra reviewers (“video games go to Tom”).",
+  "Turns rules written in plain words into exact rules, including new categories (“I can buy cars under $10,000”) and extra reviewers (“video games go to Marcus”).",
   "Reads a checkout screenshot for the real total, repeat charges and free trials, and quotes the small print.",
   "Boils a long, chatty search down to what to look for, and sums up the results in plain words.",
   "Suggests a category, but only when the store's catalog doesn't have one.",
@@ -230,7 +230,7 @@ export default function FrontPage() {
           </dl>
         </Section>
 
-        <Section id="setups" title="One engine, three relationships" lead="Each one is a working demo, with its own people, rules and way of paying.">
+        <Section id="setups" title="One engine, three relationships" lead="Everybody in Sarah's life needs something. Each of these is a working demo, with its own rules and way of paying.">
           <div className="grid gap-6 md:grid-cols-3">
             {SETUPS.map((s) => (
               <article key={s.mode} className="flex flex-col rounded-2xl border-2 border-line p-6">
@@ -370,7 +370,7 @@ export default function FrontPage() {
 
       <footer className="bg-mist">
         <div className="mx-auto max-w-6xl px-5 py-6 text-base text-ink-soft">
-          Built by Indigituals for the PayPal AI Hackathon. The code is MIT licensed. Payments run in the PayPal sandbox, so no real money moves.
+          Built by Indigitual for the PayPal AI Hackathon. The code is MIT licensed. Payments run in the PayPal sandbox, so no real money moves.
         </div>
       </footer>
     </div>

@@ -95,19 +95,19 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
   parent_child: [
     {
       title: "Leo asks",
-      how: "Search for a Lego set, tap Ask Dana on one, and send it. Nothing is paid yet.",
+      how: "Search for a Lego set, tap Ask Sarah on one, and send it. Nothing is paid yet.",
       go: { path: "/shop", label: "Go to Shop" },
       fact: "requested",
     },
     {
-      title: "Dana decides",
-      how: "On Dana's phone, see the request next to Leo's budget. Approve and pay with PayPal, or decline.",
+      title: "Sarah decides",
+      how: "On Sarah's phone, see the request next to Leo's budget. Approve and pay with PayPal, or decline.",
       pays: true,
       fact: "requestDecided",
     },
     {
       title: "Change a rule",
-      how: "Write: Leo can ask for books up to $25. Check it, then save it as Dana.",
+      how: "Write: Leo can ask for books up to $25. Check it, then save it as Sarah.",
       go: { path: "/rules", label: "Go to Rules" },
       fact: "rulesChanged",
     },

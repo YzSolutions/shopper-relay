@@ -108,18 +108,18 @@ async function mom() {
   const expired = (await api(`/api/purchases/${p4.id}`)).purchase;
   expect(expired.state === "expired" && (await paypal.getAuthorization(expired.paypal.authorizationId)).status === "VOIDED", "expired, and PayPal shows VOIDED");
 
-  step("Video games go to Tom: a reviewer change waits 24 hours, then Tom is asked");
+  step("Video games go to Marcus: a reviewer change waits 24 hours, then Marcus is asked");
   const rules = (await api("/api/session")).rules;
-  const withTom = { ...rules, categories: { ...rules.categories, video_games: { ...rules.categories.general, reviewer: "Tom" } } };
-  const change = await api("/api/rules", { method: "POST", json: { rules: withTom, by: "shopper" } });
+  const withMarcus = { ...rules, categories: { ...rules.categories, video_games: { ...rules.categories.general, reviewer: "Marcus" } } };
+  const change = await api("/api/rules", { method: "POST", json: { rules: withMarcus, by: "shopper" } });
   expect(change.notify === "reviewer" && change.state.pending, "treated as loosening: Sarah is told and it waits");
   await api("/api/demo", { method: "POST", json: { action: "advance", hours: 24 } });
   const s2 = await api("/api/session");
-  expect(!s2.pending && s2.reviewers.includes("Tom"), "after 24 hours, Tom reviews video games");
+  expect(!s2.pending && s2.reviewers.includes("Marcus"), "after 24 hours, Marcus reviews video games");
   const game = (await search("video game controller")).find((r) => r.category.primary === "video_games" && r.preview?.outcome === "review");
   if (game) {
     const g = await shopperPays((await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: game.product.sourceId } })).purchase.id);
-    expect(g.state === "awaiting_review" && g.reviewerName === "Tom", `${game.product.title}: waiting for Tom, not Sarah`);
+    expect(g.state === "awaiting_review" && g.reviewerName === "Marcus", `${game.product.title}: waiting for Marcus, not Sarah`);
     await api(`/api${g.reviewPath}`, { method: "POST", json: { decision: "decline" } });
   } else {
     console.log("  (no video game over $75 in today's catalog; skipped the purchase check)");
@@ -132,24 +132,24 @@ async function kids() {
   step("Kids + parent: reset");
   await api("/api/demo", { method: "POST", json: { action: "reset" } });
   const session = await api("/api/session");
-  expect(session.household.shopperName === "Leo" && session.relationship.flow === "request", "Leo asks, Dana approves and pays");
+  expect(session.household.shopperName === "Leo" && session.relationship.flow === "request", "Leo asks, Sarah approves and pays");
   expect(session.budget.length === 2, `budgets: ${session.budget.map((b: any) => `${formatCents(b.limitCents)} a ${b.period}`).join(", ")}`);
 
-  step("Leo asks for something; Dana approves and pays");
+  step("Leo asks for something; Sarah approves and pays");
   const results = await search("kids book");
   const pick = results.find((r) => r.product.offers[0]?.priceCents <= 3000) ?? results[0];
   const p = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: pick.product.sourceId } })).purchase;
   expect(p.state === "evaluated" && p.flow === "request", `${pick.product.title} (${formatCents(p.reviewedCents)}): ${p.decision.outcome}`);
   const sent = (await api(`/api/purchases/${p.id}/request`, { method: "POST" })).purchase;
-  expect(sent.state === "requested" && sent.reviewPath, "request sent to Dana; nothing paid yet");
+  expect(sent.state === "requested" && sent.reviewPath, "request sent to Sarah; nothing paid yet");
   const reserved = (await api("/api/session")).budget[0];
   expect(reserved.reservedCents === p.reviewedCents, `${formatCents(reserved.reservedCents)} set aside in this week's budget while it waits`);
   const paid = await reviewerPays(sent.reviewPath);
-  expect(paid.state === "completed" && paid.paypal.captureId, `Dana paid: PayPal capture ${paid.paypal.captureId}`);
+  expect(paid.state === "completed" && paid.paypal.captureId, `Sarah paid: PayPal capture ${paid.paypal.captureId}`);
   const after = (await api("/api/session")).budget[0];
   expect(after.spentCents === p.reviewedCents && after.reservedCents === 0, "it now counts as spent, not reserved");
 
-  step("Dana says no to the next one: nothing paid, budget released");
+  step("Sarah says no to the next one: nothing paid, budget released");
   const p2 = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: pick.product.sourceId } })).purchase;
   const sent2 = (await api(`/api/purchases/${p2.id}/request`, { method: "POST" })).purchase;
   const no = (await api(`/api${sent2.reviewPath}`, { method: "POST", json: { decision: "decline" } })).purchase;
@@ -160,6 +160,20 @@ async function kids() {
   const check = await checkoutScreenshot();
   const sub = (await api("/api/purchases", { method: "POST", json: { kind: "checked", checkId: check.checkId } })).purchase;
   expect(sub.state === "blocked", "blocked: subscriptions need a parent to turn them on");
+
+  step("Video games go to Marcus, on Marcus's own tab");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  expect((await api("/api/session")).reviewers.includes("Marcus"), "Sarah and Marcus each have an inbox");
+  const game = (await search("video game controller")).find((r) => r.category.primary === "video_games");
+  if (game) {
+    const g = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: game.product.sourceId } })).purchase;
+    const asked = (await api(`/api/purchases/${g.id}/request`, { method: "POST" })).purchase;
+    expect(asked.state === "requested" && asked.reviewerName === "Marcus", `${game.product.title} (${formatCents(g.reviewedCents)}): waiting for Marcus, not Sarah`);
+    const dad = await reviewerPays(asked.reviewPath);
+    expect(dad.state === "completed" && dad.paypal.captureId, `Marcus paid: PayPal capture ${dad.paypal.captureId}`);
+  } else {
+    console.log("  (no video game in today's catalog; skipped the purchase check)");
+  }
   await tourDone("requested", "requestDecided");
 }
 
