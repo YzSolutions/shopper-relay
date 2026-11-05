@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RELATIONSHIPS } from "@/config/relationships";
 import { parseRules } from "@/lib/ai/rules";
 import { body, handle } from "@/lib/http";
 import { settle } from "@/lib/policy";
@@ -16,6 +17,6 @@ export async function POST(req: Request) {
     const household = await currentHousehold();
     assertSameHousehold(household.id, householdId);
     const current = startFresh ? { categories: {}, caps: [] } : settle(await getRulesState(household.id)).rules;
-    return parseRules(text, { shopper: household.shopperName, reviewer: household.reviewerName }, current);
+    return parseRules(text, { shopper: household.shopperName, reviewer: household.reviewerName, owner: RELATIONSHIPS[household.relationship].ruleOwner }, current);
   });
 }

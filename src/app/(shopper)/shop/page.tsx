@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { RELATIONSHIPS } from "@/config/relationships";
+import { AiGoal } from "@/components/AiGoal";
 import { BudgetBars, Button, CountedAs, ErrorNotice, Money, OutcomeLine, Spinner } from "@/components/ui";
 import { api, type PurchaseView, type SearchResult } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
@@ -136,6 +137,10 @@ export default function ShopPage() {
   const notes = new Map(explanation?.notes.map((n) => [n.id, n.note]));
   const pickedPoint = picked === null ? undefined : explanation?.points[picked];
   const shown = pickedPoint ? (results ?? []).filter((r) => pickedPoint.ids.includes(r.product.sourceId)) : (results ?? []);
+
+  if (session && relationship?.id === "ai_shopper") {
+    return <AiGoal session={session} heading={relationship.words.shopHeading} placeholder={relationship.words.placeholder} suggestions={relationship.words.suggestions} />;
+  }
 
   return (
     <div className="max-w-3xl">

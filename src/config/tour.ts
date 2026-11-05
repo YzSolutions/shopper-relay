@@ -20,6 +20,10 @@ export interface TourFacts {
   otpaUsed: boolean;
   billSent: boolean;
   rulesChanged: boolean;
+  standingOn: boolean;
+  /** The AI Shopper bought within the rules, or asked because it couldn't. */
+  goalBought: boolean;
+  goalAsked: boolean;
 }
 
 export const NO_FACTS: TourFacts = {
@@ -32,6 +36,9 @@ export const NO_FACTS: TourFacts = {
   otpaUsed: false,
   billSent: false,
   rulesChanged: false,
+  standingOn: false,
+  goalBought: false,
+  goalAsked: false,
 };
 
 export function tourFacts(purchases: Array<Pick<Purchase, "flow" | "state" | "terms" | "decision">>, eventTypes: string[]): TourFacts {
@@ -48,6 +55,9 @@ export function tourFacts(purchases: Array<Pick<Purchase, "flow" | "state" | "te
     otpaUsed: types.has("otpa_used"),
     billSent: types.has("bill_sent"),
     rulesChanged: types.has("rules_changed"),
+    standingOn: types.has("standing_on"),
+    goalBought: types.has("agent_goal_bought"),
+    goalAsked: types.has("agent_goal_asked"),
   };
 }
 
@@ -136,6 +146,31 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
       how: "Send Marcus a bill for Priya's time.",
       go: { path: "/bills", label: "Go to Bills" },
       fact: "billSent",
+    },
+  ],
+  ai_shopper: [
+    {
+      title: "Marcus writes a rule",
+      how: "Write: The AI shopper can buy DDR5 RAM under $300 without asking. Then save it as Marcus.",
+      go: { path: "/rules", label: "Go to Rules" },
+      fact: "rulesChanged",
+    },
+    {
+      title: "Marcus saves PayPal",
+      how: "On Marcus's phone, tap Let AI Shopper buy without asking, then log in with a PayPal sandbox account.",
+      fact: "standingOn",
+    },
+    {
+      title: "Send it shopping",
+      how: "Ask for DDR5 16GB RAM. It's within the rule, so the AI buys it.",
+      go: { path: "/shop", label: "Go to AI Shopper" },
+      fact: "goalBought",
+    },
+    {
+      title: "Outside the rule",
+      how: "Ask for a gaming laptop. The rule doesn't cover it, so the AI asks Marcus instead.",
+      go: { path: "/shop", label: "Go to AI Shopper" },
+      fact: "goalAsked",
     },
   ],
 };

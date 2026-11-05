@@ -36,5 +36,5 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
 /** The links depend on the relationship this browser is showing (a cookie), so this streams in. */
 async function Nav() {
   const r = RELATIONSHIPS[await currentMode()];
-  return <ShopperNav bills={r.bills} ownRules={r.ruleOwner === "shopper"} />;
+  return <ShopperNav bills={r.bills} ownRules={r.ruleOwner === "shopper"} check={r.id !== "ai_shopper"} />;
 }

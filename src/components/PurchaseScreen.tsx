@@ -281,6 +281,7 @@ const STEP_DOT: Record<AgentStep["kind"], string> = {
   chose: "bg-relay-deep",
   refused: "bg-stop",
   bought: "bg-ledger",
+  asked: "bg-signal",
   stopped: "bg-signal",
 };
 

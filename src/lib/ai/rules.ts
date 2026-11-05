@@ -53,6 +53,8 @@ const AiRulesSchema = z.object({
       z.object({
         name: z.string().describe("short name, capitalized, e.g. \"Cars\""),
         matchWords: z.array(z.string()).min(1).max(10).describe("words that identify these products in a store's category or a product name, singular, e.g. [\"car\", \"vehicle\", \"automobile\", \"truck\"]"),
+        exactWords: z.array(z.string()).describe("only for one specific thing inside a listed category: the words every such product's name must contain, e.g. [\"ddr5\"]; otherwise empty"),
+        notWords: z.array(z.string()).describe("only with exactWords: products that merely contain this part, e.g. [\"laptop\", \"notebook\", \"computer\", \"pc\", \"motherboard\", \"server\", \"tablet\"]; otherwise empty"),
       }),
     )
     .describe("categories the person mentioned that are not in the list"),
@@ -62,16 +64,18 @@ const AiRulesSchema = z.object({
   unclear: z.array(z.string()).describe("only the parts the person said that you could NOT turn into a rule, quoted; leave empty when everything became a rule"),
   summary: z
     .string()
-    .describe('the rules restated in short, plain sentences, speaking to the shopper as "you" and naming the reviewer, e.g. "You buy on your own under $75. Sarah takes a look at anything over $150."'),
+    .describe('the rules restated in short, plain sentences that name who can do what, e.g. "You buy on your own under $75. Sarah takes a look at anything over $150."'),
 });
 type AiRules = z.infer<typeof AiRulesSchema>;
 
 export interface RuleNames {
   shopper: string;
   reviewer: string;
+  /** Whose rules these are: the summary speaks to them as "you". */
+  owner?: "shopper" | "reviewer";
 }
 
-function systemPrompt({ shopper, reviewer }: RuleNames): string {
+function systemPrompt({ shopper, reviewer, owner = "shopper" }: RuleNames): string {
   const categories = CATEGORY_IDS.map((id) => `- ${id}: ${CATEGORY_LABELS[id]}`).join("\n");
   return `You turn spending rules, written or spoken in plain English, into structured data for a shopping app.
 ${shopper} is the person shopping. ${reviewer} usually reviews purchases when the rules say so.
@@ -85,6 +89,7 @@ Outcomes:
 Categories:
 ${categories}
 If the person names a kind of purchase that isn't in this list (for example cars, pet supplies, garden tools), use its own short name as the category and add it to newCategories with words that identify it. Don't squeeze it into general.
+If they name something much narrower than a listed category (for example "DDR5 RAM" inside electronics), do the same: a rule about one thing must never loosen the whole category. Give it exactWords and notWords so only that thing matches.
 
 Amount ranges use minDollars (inclusive) and maxDollars (exclusive):
 - "under $75" or "less than $75" -> maxDollars 75
@@ -100,7 +105,9 @@ Rules:
 - Weekly or monthly totals ("no more than $30 a week") are caps, not bands. "Per purchase" limits across everything are caps with period "purchase".
 - If they don't say what happens when a cap or a top limit is passed, use "exception": someone must knowingly approve going over. Use "blocked" only when they say it's not allowed, never, or no.
 - If they say a different person should review a category ("video games go to Dad, Marcus"), add it to reviewers with that person's first name. Typos in names are likely: "sarag" means ${reviewer}.
-- If something is unclear, quote only that part in "unclear" instead of guessing.`;
+- Rules can only say what ${shopper} may buy. If they name any other buyer${shopper.includes("AI") ? ', other than calling the AI shopper "AI"' : ""}, quote that part in "unclear" instead of treating it as ${shopper}.
+- If something is unclear, quote only that part in "unclear" instead of guessing.
+- In "summary", ${owner === "reviewer" ? `the person writing is ${reviewer}: call them "you" and name ${shopper}, e.g. "${shopper} can buy this without asking."` : `the person writing is ${shopper}: call them "you".`}`;
 }
 
 /** Map the AI's category name to a key: a built-in id or label, otherwise a custom category. */
@@ -154,7 +161,9 @@ function toUpdate(ai: AiRules, current: RuleSet): { update: RuleSet; kept: Categ
     const key = toKey(c.name);
     if (!isCustomCategory(key)) continue;
     const words = [...new Set([c.name, ...c.matchWords].map((w) => w.trim().toLowerCase()).filter((w) => w.length > 1))].slice(0, 20);
-    custom[key] = { match: words };
+    const clean = (list: string[]) => [...new Set(list.map((w) => w.trim().toLowerCase()).filter((w) => w.length > 1))];
+    const all = clean(c.exactWords).slice(0, 5);
+    custom[key] = { match: words, ...(all.length && { all, not: clean(c.notWords).slice(0, 20) }) };
   }
   // A custom category used without matchWords still needs at least its own name.
   for (const key of Object.keys(categories) as CategoryKey[]) {
@@ -209,7 +218,7 @@ export interface ParsedRules {
 
 export async function parseRules(text: string, names: RuleNames, current: RuleSet = { categories: {}, caps: [] }): Promise<ParsedRules> {
   const { data, model } = await generateJson({
-    task: "parse-rules-v3",
+    task: "parse-rules-v5",
     schema: AiRulesSchema,
     system: systemPrompt(names),
     parts: [{ text }],

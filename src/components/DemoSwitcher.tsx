@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
-/** Demo only: switch which of the three relationships this browser shows. */
+/** Demo only: switch which of the four setups this browser shows. */
 export function DemoSwitcher() {
   const { session } = useSession();
   const [busy, setBusy] = useState(false);

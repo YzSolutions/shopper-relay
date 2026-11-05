@@ -1,10 +1,10 @@
-import { FAMILY_ELDER_RULES, PARENT_CHILD_RULES, PERSONAL_SHOPPER_RULES, type Role, type RuleSet } from "@/lib/policy";
+import { AI_SHOPPER_RULES, FAMILY_ELDER_RULES, PARENT_CHILD_RULES, PERSONAL_SHOPPER_RULES, type Role, type RuleSet } from "@/lib/policy";
 import type { Flow } from "@/lib/purchases/lifecycle";
 
-// One engine, three relationships. What differs is who finds products, whose
+// One engine, four relationships. What differs is who finds products, whose
 // rules they are, who pays, and the words each person sees.
 
-export const RELATIONSHIP_IDS = ["family_elder", "parent_child", "personal_shopper"] as const;
+export const RELATIONSHIP_IDS = ["family_elder", "parent_child", "personal_shopper", "ai_shopper"] as const;
 export type RelationshipId = (typeof RELATIONSHIP_IDS)[number];
 
 export function isRelationshipId(v: unknown): v is RelationshipId {
@@ -110,6 +110,28 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
       placeholder: "For example, running shoes",
       suggestions: ["Running shoes", "Leather jacket", "Wireless headphones", "Blood pressure monitor"],
       choose: (r) => `Request for ${r}`,
+      sendRequest: (r) => `Send to ${r}`,
+    },
+  },
+  ai_shopper: {
+    id: "ai_shopper",
+    tab: "AI Shopper",
+    title: "AI shopper + owner",
+    summary: "Give the AI a job. Within Marcus's rules it buys with Marcus's saved PayPal, and anything else goes to Marcus first.",
+    controlNote: "The owner writes the rules. Code checks them on every listing, and the AI can't buy outside them.",
+    shopper: { role: "AI shopper", demoName: "AI Shopper" },
+    reviewer: { role: "Owner", demoName: "Marcus" },
+    ruleOwner: "reviewer",
+    payer: "reviewer",
+    flow: "request",
+    otpa: true,
+    bills: false,
+    defaultRules: AI_SHOPPER_RULES,
+    words: {
+      shopHeading: "What should the AI shopper find?",
+      placeholder: "For example, DDR5 16GB RAM",
+      suggestions: ["DDR5 16GB RAM", "Gaming laptop", "Wireless mouse"],
+      choose: (r) => `Ask ${r}`,
       sendRequest: (r) => `Send to ${r}`,
     },
   },

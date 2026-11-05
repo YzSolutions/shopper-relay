@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FAMILY_ELDER_RULES, PARENT_CHILD_RULES } from "../policy";
-import { assertTransition, canTransition, decideAfterHold, historyFrom, isFinal, otpaAllows, type Otpa, type PurchaseSummary } from "./lifecycle";
+import { assertTransition, canTransition, decideAfterHold, goalVerdict, historyFrom, isFinal, otpaAllows, type Otpa, type PurchaseSummary } from "./lifecycle";
 
 const NOW = new Date("2026-11-01T12:00:00Z");
 const base = { currency: "USD", history: [], now: NOW, shopperName: "Mom", reviewerName: "Sarah" };
@@ -117,5 +117,20 @@ describe("one-time purchase authorization", () => {
   it("reserves budget while requests and authorizations are open", () => {
     const open = (state: PurchaseSummary["state"]): PurchaseSummary => ({ id: state, state, createdAt: "2026-10-31T12:00:00Z", categories: ["toys"], amountCents: 1000 });
     expect(historyFrom([open("requested"), open("hunting"), open("declined"), open("expired")]).map((h) => h.status)).toEqual(["pending_review", "pending_review"]);
+  });
+});
+
+describe("what the AI Shopper may do with a listing", () => {
+  it("buys only what the rules allow, with PayPal saved", () => {
+    expect(goalVerdict("auto", true, 10000, null)).toBe("buy");
+    expect(goalVerdict("auto", false, 10000, null)).toBe("ask");
+    expect(goalVerdict("review", true, 10000, null)).toBe("ask");
+    expect(goalVerdict("exception", true, 10000, null)).toBe("ask");
+  });
+
+  it("never touches a blocked listing, or one over the price in the job", () => {
+    expect(goalVerdict("blocked", true, 10000, null)).toBe("no");
+    expect(goalVerdict("auto", true, 10001, 10000)).toBe("no");
+    expect(goalVerdict("auto", true, 10000, 10000)).toBe("buy");
   });
 });

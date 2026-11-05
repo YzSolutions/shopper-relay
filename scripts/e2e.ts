@@ -1,5 +1,5 @@
 // End-to-end run through the real API, Neon, Channel3, Gemini and the PayPal
-// sandbox, for all three relationships. Wherever a person would approve in
+// sandbox, for all four setups. Wherever a person would approve in
 // PayPal's window, this script confirms the order with PayPal's sandbox test
 // card instead. SANDBOX ONLY.
 //
@@ -380,6 +380,45 @@ async function isolation() {
   expect(/sr_visitor=/.test(fresh.headers.get("set-cookie") ?? ""), "a new browser is handed its own visitor id");
 }
 
+async function aiShopper() {
+  mode = "ai_shopper";
+  step("AI Shopper: reset");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  const session = await api("/api/session");
+  expect(session.household.shopperName === "AI Shopper" && session.household.reviewerName === "Marcus", "the AI shops, Marcus owns the rules");
+
+  step("Before any rule, everything goes to Marcus");
+  const first = await api("/api/agent", { method: "POST", json: { goal: "DDR5 16GB RAM" } });
+  for (const s of first.steps) console.log(`    · [${s.kind}] ${s.text}`);
+  expect(first.purchase?.state === "requested", `${first.purchase?.item.title}: asked Marcus, nothing paid`);
+  await api(`/api/purchases/${first.purchase.id}/cancel`, { method: "POST" }); // an open request reserves the weekly budget
+
+  step("Marcus writes a rule in plain words: it must not open up all electronics");
+  const parsed = await api("/api/rules/parse", { method: "POST", json: { text: "The AI shopper can buy DDR5 RAM under $300 without asking", householdId: session.household.id } });
+  console.log(`    · ${parsed.summary}`);
+  const auto = Object.entries(parsed.rules.categories).filter(([, r]: any) => r.bands.some((b: any) => b.outcome === "auto")).map(([k]) => k);
+  expect(auto.length === 1 && auto[0] !== "electronics", `only "${auto[0]}" can be bought without asking`);
+  expect(parsed.rules.custom?.[auto[0]]?.all?.length, `exact words: ${parsed.rules.custom?.[auto[0]]?.all?.join(", ")}; not: ${parsed.rules.custom?.[auto[0]]?.not?.join(", ")}`);
+  await api("/api/rules", { method: "POST", json: { rules: parsed.rules, by: "reviewer", householdId: session.household.id } });
+
+  step("Marcus saves a payment method (a sandbox test card stands in for his PayPal)");
+  const setup = await paypal.createTestCardSetupToken(TEST_CARD);
+  await api("/api/standing", { method: "POST", json: { action: "confirm", setupTokenId: setup.id } });
+
+  step("Within the rule, the AI buys it");
+  const job = await api("/api/agent", { method: "POST", json: { goal: "DDR5 16GB RAM" } });
+  for (const s of job.steps) console.log(`    · [${s.kind}] ${s.text}`);
+  expect(job.purchase?.state === "completed" && job.purchase.standing && job.purchase.paypal.captureId, `${job.purchase?.item.title}: bought, PayPal capture ${job.purchase?.paypal.captureId}`);
+  expect(job.purchase.paypalCapturedCents === job.purchase.reviewedCents, "PayPal took exactly the listed price");
+
+  step("Outside the rule, the AI asks Marcus");
+  const out = await api("/api/agent", { method: "POST", json: { goal: "gaming laptop" } });
+  for (const s of out.steps) console.log(`    · [${s.kind}] ${s.text}`);
+  expect(out.purchase?.state === "requested" && out.purchase.reviewerName === "Marcus", `${out.purchase?.item.title}: asked Marcus, nothing paid`);
+  await api("/api/standing", { method: "POST", json: { action: "revoke" } });
+  await tourDone("rulesChanged", "standingOn", "goalBought", "goalAsked");
+}
+
 async function main() {
   const only = process.argv[2];
   if (!only || only === "isolation") await isolation();
@@ -389,6 +428,7 @@ async function main() {
   if (!only || only === "agent") await agent();
   if (!only || only === "standing") await standing();
   if (!only || only === "bills") await bills();
+  if (!only || only === "ai") await aiShopper();
   console.log("\nAll end-to-end checks passed.");
 }
 

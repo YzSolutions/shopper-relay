@@ -63,6 +63,29 @@ describe("custom categories", () => {
   });
 });
 
+describe("a rule about one exact thing", () => {
+  const custom: RuleSet["custom"] = { "custom:DDR5 RAM": { match: ["ddr5", "ram"], all: ["ddr5"], not: ["laptop", "computer"] } };
+  const at = (title: string) => resolveCategory({ catalogPath: ["Electronics", "Computers"], title, custom, recurring: "no" });
+
+  it("settles the category when the title has its exact words", () => {
+    expect(at("Vengeance 16GB DDR5 UDIMM").categories).toEqual(["custom:DDR5 RAM"]);
+  });
+
+  it("doesn't open up things that only contain that part", () => {
+    expect(at("Gaming Laptop 16GB DDR5").categories).toContain("electronics");
+    expect(at("USB Flash Drive").categories).toEqual(["electronics"]);
+  });
+
+  it("without exact words, a title mention still only adds a rule, so the stricter one wins", () => {
+    const plain: RuleSet["custom"] = { "custom:Cars": { match: ["car"] } };
+    expect(resolveCategory({ catalogPath: ["Electronics"], title: "Car phone mount", custom: plain, recurring: "no" }).categories).toEqual(["electronics", "custom:Cars"]);
+  });
+
+  it("keeps the exact words through validation", () => {
+    expect(RuleSetSchema.parse({ categories: {}, caps: [], custom }).custom).toEqual(custom);
+  });
+});
+
 describe("a reviewer for one category", () => {
   const withMarcus: RuleSet = {
     ...FAMILY_ELDER_RULES,

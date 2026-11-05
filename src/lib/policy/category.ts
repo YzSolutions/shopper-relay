@@ -58,6 +58,14 @@ export function customMatches(text: string | null | undefined, custom: RuleSet["
     .map(([key]) => key);
 }
 
+/** Custom categories about one specific thing whose exact words are in the title. */
+function exactMatches(title: string | null | undefined, custom: RuleSet["custom"]): CustomCategoryKey[] {
+  if (!title || !custom) return [];
+  return (Object.entries(custom) as Array<[CustomCategoryKey, { all?: string[]; not?: string[] }]>)
+    .filter(([, c]) => c.all?.length && c.all.every((w) => mentions(title, w)) && !c.not?.some((w) => mentions(title, w)))
+    .map(([key]) => key);
+}
+
 export function categoryFromCatalog(path: string[] | null | undefined): CategoryId | null {
   if (!path?.length) return null;
   const text = path.join(" > ");
@@ -100,13 +108,23 @@ export function resolveCategory(evidence: CategoryEvidence): CategoryResolution 
   // If only the title mentions it ("car phone mount"), its rule is added and
   // the stricter one wins, so a custom category can't become a loophole.
   const inCatalog = customMatches(evidence.catalogPath?.join(" > "), evidence.custom);
-  const inTitle = customMatches(evidence.title, evidence.custom).filter((k) => !inCatalog.includes(k));
+  // An owner's rule about one exact thing ("DDR5 RAM") settles it, instead of the store's broader category.
+  const exact = exactMatches(evidence.title, evidence.custom);
+  const inTitle = customMatches(evidence.title, evidence.custom).filter((k) => !inCatalog.includes(k) && !exact.includes(k));
   if (inCatalog.length) {
     resolution = {
       categories: [...inCatalog],
       primary: inCatalog[0],
       basis: "custom",
       note: `The store files it under ${categoryLabel(inCatalog[0])}, one of your own categories.`,
+    };
+  }
+  if (exact.length) {
+    resolution = {
+      categories: [...exact],
+      primary: exact[0],
+      basis: "custom",
+      note: `Its name matches ${categoryLabel(exact[0])}, one of your own rules.`,
     };
   }
   if (inTitle.length) {

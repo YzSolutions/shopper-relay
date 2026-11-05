@@ -21,7 +21,7 @@ Built for the PayPal AI Hackathon.
 ## Try it in three minutes
 
 Open **[/demo](https://www.shopperrelay.com/demo)** and follow the guided tour above the two screens.
-Its steps tick off as they really happen. Use the tabs to switch between the three relationships.
+Its steps tick off as they really happen. Use the tabs to switch between the four setups.
 
 ![The demo: guided tour above the shopper's screen and the reviewer's phone](docs/images/demo-tour.png)
 
@@ -49,7 +49,9 @@ ShopperRelay works at the moment of buying: the hidden membership, the pressure 
 purchase that deserves a second look. It isn't a cure for all of those losses. The largest share goes to
 investment scams, which happen outside a shopping checkout.
 
-## Three relationships, one engine
+## Four setups, one engine
+
+Mom, Leo and Priya are below. The fourth is the **AI Shopper**: Marcus writes a rule in plain words and saves PayPal once, then gives the AI a job. Within the rule it buys; anything else goes to Marcus first. Code checks the rules on every listing, so the AI can't buy outside them.
 
 | | Mom + Sarah | Leo + Sarah | Priya + Marcus |
 | --- | --- | --- | --- |
@@ -252,7 +254,7 @@ Service checks: `npm run paypal:check`, `npm run channel3:check`, `npm run gemin
 
 ## Code map
 
-- `src/lib/policy/`: the rules engine, plain code with no I/O and no AI. Presets for all three relationships
+- `src/lib/policy/`: the rules engine, plain code with no I/O and no AI. Presets for all four relationships
   live in `presets.ts`.
 - `src/lib/purchases/`: the purchase lifecycle (all flows, OTPA), the service that runs it against PayPal, and
   the AI shopper (`agent.ts`).
@@ -260,7 +262,7 @@ Service checks: `npm run paypal:check`, `npm run channel3:check`, `npm run gemin
 - `src/lib/ai/`: the Gemini jobs.
 - `src/lib/catalog/`: Channel3 adapter, comparisons, demo name hiding.
 - `src/lib/store/`, `db/migrations/`: Postgres storage.
-- `src/config/relationships.ts`: the three relationships, their roles, flows and wording.
+- `src/config/relationships.ts`: the four relationships, their roles, flows and wording.
 - `src/config/tour.ts`: the guided tour.
 - `src/app/`: screens (the front page, `/shop`, `/demo`) and the HTTP API (`src/app/api/`).
 

@@ -14,10 +14,12 @@ const LINKS = [
  * Pass current={null} to render without reading the URL (the loading fallback).
  * `bills`: the shopper bills for their time here (Personal shopper).
  * `ownRules`: the rules are the shopper's own (Mom), so they're "My rules".
+ * `check`: people check checkouts they found elsewhere; the AI Shopper doesn't.
  */
-export function ShopperNav({ current, bills = false, ownRules = false }: { current?: null; bills?: boolean; ownRules?: boolean }) {
-  const named = ownRules ? LINKS.map((l) => (l.href === "/rules" ? { ...l, label: "My rules" } : l)) : LINKS;
-  const links = bills ? [...named.slice(0, 3), { href: "/bills", label: "Bills" }, ...named.slice(3)] : named;
+export function ShopperNav({ current, bills = false, ownRules = false, check = true }: { current?: null; bills?: boolean; ownRules?: boolean; check?: boolean }) {
+  const shown = check ? LINKS : LINKS.filter((l) => l.href !== "/check");
+  const named = ownRules ? shown.map((l) => (l.href === "/rules" ? { ...l, label: "My rules" } : l)) : shown;
+  const links = bills ? [...named.slice(0, -1), { href: "/bills", label: "Bills" }, ...named.slice(-1)] : named;
   return current === null ? <NavLinks path={null} links={links} /> : <NavWithPath links={links} />;
 }
 

@@ -32,6 +32,9 @@ describe("tourFacts", () => {
       otpaUsed: true,
       billSent: true,
       rulesChanged: true,
+      standingOn: false,
+      goalBought: false,
+      goalAsked: false,
     });
   });
 });

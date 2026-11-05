@@ -127,6 +127,9 @@ export const CapSchema = z.object({
 /** Words that identify a custom category in a store's category or a product title. */
 export interface CustomCategory {
   match: string[];
+  /** A rule about one specific thing: a title with all of these words, and none of `not`, is settled as this category. */
+  all?: string[];
+  not?: string[];
 }
 
 export interface RuleSet {
@@ -140,7 +143,11 @@ export const RuleSetSchema = z.object({
   categories: z.record(z.string(), CategoryRuleSchema).refine((c) => Object.keys(c).every(isCategoryKey), "Unknown category"),
   caps: z.array(CapSchema),
   custom: z
-    .record(z.string(), z.object({ match: z.array(z.string().trim().min(2).max(40)).min(1).max(20) }))
+    .record(z.string(), z.object({
+        match: z.array(z.string().trim().min(2).max(40)).min(1).max(20),
+        all: z.array(z.string().trim().min(2).max(40)).max(5).optional(),
+        not: z.array(z.string().trim().min(2).max(40)).max(20).optional(),
+      }))
     .refine((c) => Object.keys(c).every(isCustomCategory), "Custom categories must start with custom:")
     .optional(),
 }) as unknown as z.ZodType<RuleSet>;

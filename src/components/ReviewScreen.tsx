@@ -119,7 +119,7 @@ export function ReviewScreen({ token }: { token: string }) {
                 )}
               </div>
               {data.relationship.otpa && (
-                <Button tone="quiet" className="w-full" onClick={() => setMode("otpa")}>
+                <Button className="min-h-16 w-full text-xl" onClick={() => setMode("otpa")}>
                   Let {shopper} buy it once, up to a price I set
                 </Button>
               )}

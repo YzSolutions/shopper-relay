@@ -85,6 +85,15 @@ export const PARENT_CHILD_RULES: RuleSet = {
 };
 
 /**
+ * AI shopper + owner. Nothing is bought without the owner until the owner writes
+ * a rule that allows it. Subscriptions are blocked.
+ */
+export const AI_SHOPPER_RULES: RuleSet = {
+  categories: { general: always("review"), subscription: always("blocked") },
+  caps: [{ category: null, period: "week", limitCents: 500_00, over: "exception" }],
+};
+
+/**
  * Personal shopper + customer. The shopper never buys on their own: every
  * find goes to the customer, who declines, approves and pays, or grants a
  * One-Time Purchase Authorization. The amounts are the customer's target

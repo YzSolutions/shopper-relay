@@ -52,6 +52,15 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
     pays: "Marcus",
     how: "Priya shops online, Marcus decides: approve and pay, let Priya or the AI shopper buy one exact item once at a price Marcus sets, or save PayPal once so Priya can buy what Marcus's rules allow. Priya bills for the time spent with a PayPal invoice.",
   },
+  {
+    mode: "ai_shopper",
+    name: "AI Shopper + Marcus",
+    who: "Marcus and the AI that shops for him",
+    shops: "The AI",
+    rules: "Marcus's",
+    pays: "Marcus",
+    how: "Marcus writes a rule and saves PayPal once. Give the AI a job: within the rule it buys, and anything else goes to Marcus first. Code checks the rules on every listing, so the AI can't buy outside them.",
+  },
 ];
 
 const AGENT: Array<{ title: string; text: string }> = [
@@ -230,8 +239,8 @@ export default function FrontPage() {
           </dl>
         </Section>
 
-        <Section id="setups" title="One engine, three relationships" lead="Everybody in Sarah's life needs something. Each of these is a working demo, with its own rules and way of paying.">
-          <div className="grid gap-6 md:grid-cols-3">
+        <Section id="setups" title="One engine, four relationships" lead="Everybody in Sarah's life needs something. Each of these is a working demo, with its own rules and way of paying.">
+          <div className="grid gap-6 md:grid-cols-2">
             {SETUPS.map((s) => (
               <article key={s.mode} className="flex flex-col rounded-2xl border-2 border-line p-6">
                 <h3 className="text-2xl font-bold">{s.name}</h3>
@@ -328,7 +337,7 @@ export default function FrontPage() {
         <Section
           id="built"
           title="Built with"
-          lead="Over 100 unit tests cover the rules engine and the purchase steps, and an end-to-end test runs all three relationships against the PayPal sandbox."
+          lead="Over 100 unit tests cover the rules engine and the purchase steps, and an end-to-end test runs all four setups against the PayPal sandbox."
         >
           <ul className="flex flex-wrap gap-2">
             {STACK.map((s) => (

@@ -16,6 +16,7 @@
 //
 // Any hold that doesn't end in "completed" is voided, so nothing is charged.
 
+import type { Outcome } from "../policy";
 import {
   checkPayPalAmount,
   evaluatePurchase,
@@ -183,4 +184,12 @@ export function decideAfterHold(input: {
     case "blocked":
       return { action: "void", next: "blocked", decision, amount, message: decision.reasons[0]?.message ?? "This purchase isn't allowed." };
   }
+}
+
+export type GoalVerdict = "buy" | "ask" | "no";
+
+/** What the AI Shopper may do with a listing. Decided by code, from the rules. */
+export function goalVerdict(outcome: Outcome, standingOn: boolean, priceCents: number, maxPriceCents: number | null): GoalVerdict {
+  if (outcome === "blocked" || (maxPriceCents !== null && priceCents > maxPriceCents)) return "no";
+  return outcome === "auto" && standingOn ? "buy" : "ask";
 }

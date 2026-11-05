@@ -25,7 +25,7 @@ const MAX_TURNS = 4;
 const PER_SEARCH = 6;
 
 export interface AgentStep {
-  kind: "checked" | "searched" | "chose" | "refused" | "bought" | "stopped";
+  kind: "checked" | "searched" | "chose" | "refused" | "bought" | "asked" | "stopped";
   text: string;
 }
 
@@ -63,6 +63,19 @@ function variantWords(p: Product): string {
     .slice(0, 3)
     .map(([k, v]) => `${k}: ${v.slice(0, 4).join(", ")}`)
     .join("; ");
+}
+
+/** For demo mode: real store and brand names out of a sentence, including in Gemini's own words. */
+export function hideNames(text: string, merchants: Iterable<string>, brands: Iterable<string>): string {
+  let t = text;
+  for (const m of merchants) {
+    t = t.split(m).join(storeAlias(m));
+    // Gemini may write "Walmart" for walmart.com.
+    const name = m.replace(/^www\./, "").split(".")[0];
+    if (name.length >= 4) t = t.replace(new RegExp(`\\b${name}\\b`, "gi"), storeAlias(m));
+  }
+  for (const b of brands) t = stripBrand(t, b);
+  return t;
 }
 
 function listingLine(l: Listing): string {
@@ -122,18 +135,7 @@ export async function runAgent(household: Household, id: string): Promise<AgentR
   }
 
   // In demo mode the screen mustn't show real store or brand names, including in Gemini's own words.
-  const shown = (text: string) => {
-    if (!household.hideBrands) return text;
-    let t = text;
-    for (const l of seen.values()) {
-      t = t.split(l.merchant).join(storeAlias(l.merchant));
-      // Gemini may write "Walmart" for walmart.com.
-      const name = l.merchant.replace(/^www\./, "").split(".")[0];
-      if (name.length >= 4) t = t.replace(new RegExp(`\\b${name}\\b`, "gi"), storeAlias(l.merchant));
-    }
-    for (const b of brands) t = stripBrand(t, b);
-    return t;
-  };
+  const shown = (text: string) => (household.hideBrands ? hideNames(text, [...seen.values()].map((l) => l.merchant), brands) : text);
   const steps: AgentStep[] = [];
   const say = async (kind: AgentStep["kind"], text: string, log = true) => {
     steps.push({ kind, text: shown(text) });

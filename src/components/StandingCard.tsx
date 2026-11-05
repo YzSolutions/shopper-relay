@@ -19,7 +19,7 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
   const bought = (purchases ?? []).filter((p) => p.standing && p.state === "completed").slice(0, 3);
   // What standing permission would actually let the shopper buy: the rules' "buys on their own" rows.
   const own = ruleRows(session.active).flatMap((r) => r.bands.filter((b) => b.outcome === "auto").map((b) => `${r.label}: ${b.range.toLowerCase()}`));
-  const example = session.household.relationship === "parent_child" ? `${shopper} can buy books under $20 without asking` : `${shopper} can buy shoes under $80 without asking`;
+  const example = { parent_child: "books under $20", ai_shopper: "DDR5 RAM under $300" }[session.household.relationship as string] ?? "shoes under $80";
   const whatItCovers = own.length ? (
     <p>
       Your rules let {shopper} buy these without asking: {own.join("; ")}.
@@ -27,7 +27,7 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
   ) : (
     <p className="rounded-xl bg-signal-wash px-4 py-3">
       Right now your rules don&apos;t let {shopper} buy anything without asking, so this changes nothing yet. Add a rule on the Rules page first, for
-      example &ldquo;{example}&rdquo;.
+      example &ldquo;{shopper} can buy {example} without asking&rdquo;.
     </p>
   );
 
