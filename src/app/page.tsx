@@ -54,12 +54,12 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
   },
   {
     mode: "ai_shopper",
-    name: "AI Shopper + Marcus",
-    who: "Marcus and the AI that shops for him",
+    name: "AI Shopper + Sarah",
+    who: "Sarah and the AI that shops for her",
     shops: "The AI",
-    rules: "Marcus's",
-    pays: "Marcus",
-    how: "Marcus writes a rule and saves PayPal once. Give the AI a job: within the rule it buys, and anything else goes to Marcus first. Code checks the rules on every listing, so the AI can't buy outside them.",
+    rules: "Sarah's",
+    pays: "Sarah",
+    how: "Sarah writes a rule and saves PayPal once. Give the AI a job: within the rule it buys, and anything else goes to Sarah first. Code checks the rules on every listing, so the AI can't buy outside them.",
   },
 ];
 

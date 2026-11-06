@@ -8,6 +8,7 @@ import { RuleChangeList, RuleUpdateLines, useRuleHistory } from "@/components/Ru
 import { StandingCard } from "@/components/StandingCard";
 import { Button, ErrorNotice, Money, Notice, Spinner } from "@/components/ui";
 import { api, type BillsData, type BillView, type PurchaseView } from "@/lib/client/api";
+import { usePolling } from "@/lib/client/usePolling";
 import { useSession } from "@/lib/client/useSession";
 import { changeWords, summarizeChange } from "@/lib/policy/changes";
 
@@ -24,8 +25,8 @@ export default function ReviewerInbox() {
   const [who, setWho] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Refetched with the session, which this page reloads every few seconds.
-  const history = useRuleHistory(session);
+  // The session reloads every few seconds, but the history only changes when the rules do.
+  const history = useRuleHistory(session && JSON.stringify([session.household.id, session.active, session.pending]));
 
   const load = useCallback(async () => {
     try {
@@ -40,11 +41,10 @@ export default function ReviewerInbox() {
   }, [reload]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load, then refresh every few seconds
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load
     void load();
-    const t = setInterval(() => void load(), 3000);
-    return () => clearInterval(t);
   }, [load]);
+  usePolling(load, 3000);
 
   async function answerChange(action: "approve" | "drop") {
     setBusy(true);

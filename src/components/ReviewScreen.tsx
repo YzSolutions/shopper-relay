@@ -5,7 +5,7 @@ import { PayPalButton } from "./PayPalButton";
 import { Facts, ItemHeader } from "./PurchaseParts";
 import { RelayTrack } from "./RelayTrack";
 import { BudgetBars, Button, ButtonLink, ErrorNotice, Money, Notice, Spinner } from "./ui";
-import { api, type BudgetLine, type PurchaseView } from "@/lib/client/api";
+import { api, type BetterOption, type BudgetLine, type PurchaseView } from "@/lib/client/api";
 
 interface ReviewData {
   household: { shopperName: string; reviewerName: string };
@@ -24,6 +24,7 @@ export function ReviewScreen({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState<string | null>(null);
   const [mode, setMode] = useState<"choose" | "otpa">("choose");
+  const [sentBetter, setSentBetter] = useState(false);
   // Beside the shopper's screen in the split demo, that screen updates itself; on its own, this page links back.
   const [alone, setAlone] = useState(false);
   useEffect(() => {
@@ -102,7 +103,19 @@ export function ReviewScreen({ token }: { token: string }) {
           <ErrorNotice error={error} />
 
           {p.flow === "hold" ? (
-            <HoldActions p={p} shopper={shopper} reviewer={reviewer} busy={busy} onDecide={decide} />
+            <>
+              <HoldActions p={p} shopper={shopper} reviewer={reviewer} busy={busy} onDecide={decide} />
+              <SendBetter
+                token={token}
+                shopper={shopper}
+                disabled={busy !== null}
+                onSent={(purchase) => {
+                  setSentBetter(true);
+                  setDone(purchase);
+                }}
+                onError={setError}
+              />
+            </>
           ) : mode === "choose" ? (
             <div className="space-y-5">
               <div className="space-y-2">
@@ -168,7 +181,7 @@ export function ReviewScreen({ token }: { token: string }) {
       )}
       {p.state === "declined" && (
         <Notice tone="relay" title="Declined.">
-          {p.flow === "hold" ? "PayPal released the hold, so nothing was charged." : "Nothing was paid."} {shopper} will see your answer.
+          {p.flow === "hold" ? "PayPal released the hold, so nothing was charged." : "Nothing was paid."} {sentBetter ? `${shopper} will see your answer, and the better option.` : `${shopper} will see your answer.`}
         </Notice>
       )}
       {(p.state === "expired" || p.state === "canceled" || p.state === "failed" || p.state === "blocked") && (
@@ -205,6 +218,60 @@ function HoldActions({ p, shopper, reviewer, busy, onDecide }: { p: PurchaseView
         </Button>
       </div>
     </>
+  );
+}
+
+/** A similar product within the shopper's own rules: decline and send it in one tap. Shows nothing if there isn't one. */
+function SendBetter({
+  token,
+  shopper,
+  disabled,
+  onSent,
+  onError,
+}: {
+  token: string;
+  shopper: string;
+  disabled: boolean;
+  onSent: (p: PurchaseView) => void;
+  onError: (m: string) => void;
+}) {
+  const [option, setOption] = useState<BetterOption | null | undefined>(undefined);
+  const [sending, setSending] = useState(false);
+  useEffect(() => {
+    api<{ option: BetterOption | null }>(`/api/review/${token}/better`)
+      .then((r) => setOption(r.option))
+      .catch(() => setOption(null)); // a nice-to-have: approving and declining still work without it
+  }, [token]);
+
+  if (option === undefined) return <Spinner label={`Looking for a better option for ${shopper}…`} />;
+  if (!option) return null;
+
+  async function send() {
+    setSending(true);
+    try {
+      const { purchase } = await api<{ purchase: PurchaseView }>(`/api/review/${token}`, { method: "POST", json: { decision: "decline", better: option!.sourceId } });
+      onSent(purchase);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+      setOption(null);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="better" className="space-y-3 rounded-2xl border-2 border-line p-5">
+      <h2 id="better" className="text-xl font-bold">
+        A better option for {shopper}
+      </h2>
+      <p className="text-lg font-semibold">{option.title}</p>
+      <p>
+        <Money cents={option.priceCents} className="font-bold" /> at {option.merchant}. No monthly fee listed, and it&apos;s within {shopper}&apos;s own rules.
+      </p>
+      <Button className="w-full" disabled={disabled || sending} onClick={() => void send()}>
+        {sending ? "Sending…" : `Decline and send ${shopper} this one`}
+      </Button>
+    </section>
   );
 }
 

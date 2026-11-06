@@ -51,7 +51,7 @@ investment scams, which happen outside a shopping checkout.
 
 ## Four setups, one engine
 
-Mom, Leo and Priya are below. The fourth is the **AI Shopper**: Marcus writes a rule in plain words and saves PayPal once, then gives the AI a job. Within the rule it buys; anything else goes to Marcus first. Code checks the rules on every listing, so the AI can't buy outside them.
+Mom, Leo and Priya are below. The fourth is the **AI Shopper**: Sarah writes a rule in plain words and saves PayPal once, then gives the AI a job. Within the rule it buys; anything else goes to Sarah first. Code checks the rules on every listing, so the AI can't buy outside them.
 
 | | Mom + Sarah | Leo + Sarah | Priya + Marcus |
 | --- | --- | --- | --- |

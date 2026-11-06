@@ -3,6 +3,7 @@ import { z } from "zod";
 import { RELATIONSHIPS } from "@/config/relationships";
 import { body, handle } from "@/lib/http";
 import { findByReviewToken } from "@/lib/review";
+import { declineWithBetter } from "@/lib/purchases/better";
 import { expireIfOverdue, reviewerDecides } from "@/lib/purchases/service";
 import { householdBudget } from "@/lib/store/budget";
 import { purchaseView } from "@/lib/views";
@@ -28,8 +29,9 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/review/[tok
 export async function POST(req: NextRequest, ctx: RouteContext<"/api/review/[token]">) {
   return handle(async () => {
     const { token } = await ctx.params;
-    const { decision } = await body(req, z.object({ decision: z.enum(["approve", "decline", "cancel"]) }));
+    const { decision, better } = await body(req, z.object({ decision: z.enum(["approve", "decline", "cancel"]), better: z.string().min(1).max(64).optional() }));
     const { purchase, household } = await findByReviewToken(token);
+    if (better && decision === "decline") return { purchase: purchaseView(await declineWithBetter(household, purchase, better)) };
     return { purchase: purchaseView(await reviewerDecides(household, purchase, decision)) };
   });
 }

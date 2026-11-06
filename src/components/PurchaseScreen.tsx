@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { RELATIONSHIPS } from "@/config/relationships";
 import { PayPalButton } from "@/components/PayPalButton";
 import { Facts, ItemHeader, LogList, Reasons } from "@/components/PurchaseParts";
 import { RelayTrack } from "@/components/RelayTrack";
 import { BudgetBars, Button, ButtonLink, ErrorNotice, Money, Notice, OutcomeLine, Spinner } from "@/components/ui";
-import { api, type AgentStep, type OtpaOption, type PurchaseView, type Session } from "@/lib/client/api";
+import { api, type AgentStep, type BetterOption, type OtpaOption, type PurchaseView, type Session } from "@/lib/client/api";
 import { usePurchase } from "@/lib/client/usePurchase";
 import { useSession } from "@/lib/client/useSession";
 
@@ -80,6 +81,7 @@ export function PurchaseScreen({ id }: { id: string }) {
   }[purchase.state as string] ?? "Cancel";
   const canCancel = canPay || canSend || ["awaiting_review", "requested", "hunting"].includes(purchase.state);
   const agentSteps = log.filter((e) => e.actor === "agent");
+  const better = purchase.state === "declined" ? (log.find((e) => e.type === "better_sent")?.detail as BetterOption | undefined) : undefined;
 
   return (
     <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -88,6 +90,7 @@ export function PurchaseScreen({ id }: { id: string }) {
         <RelayTrack state={purchase.state} flow={purchase.flow} shopper={shopper} reviewer={reviewer} needsReview={needsReview} otpa={!!purchase.otpa} standing={viaStanding} />
         <ErrorNotice error={error} />
         <Status purchase={purchase} shopper={shopper} reviewer={reviewer} standingOn={standingOn} />
+        {better && <BetterFromReviewer option={better} reviewer={reviewer} onError={setError} />}
 
         {purchase.state === "hunting" && purchase.otpa && <OtpaHunt purchase={purchase} reviewer={reviewer} onDone={update} onError={setError} />}
 
@@ -160,6 +163,38 @@ export function PurchaseScreen({ id }: { id: string }) {
         <LogList events={log} names={{ shopper, reviewer }} />
       </aside>
     </div>
+  );
+}
+
+/** What the reviewer sent instead. Choosing it starts a new purchase, with the price and rules read again. */
+function BetterFromReviewer({ option, reviewer, onError }: { option: BetterOption; reviewer: string; onError: (m: string) => void }) {
+  const router = useRouter();
+  const [opening, setOpening] = useState(false);
+
+  async function open() {
+    setOpening(true);
+    try {
+      const { purchase } = await api<{ purchase: PurchaseView }>("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: option.sourceId, merchant: option.merchant } });
+      router.push(`/purchase/${purchase.id}`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+      setOpening(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="better" className="space-y-3 rounded-2xl border-2 border-ledger/30 bg-ledger-wash/60 p-5">
+      <h2 id="better" className="text-2xl font-bold">
+        {reviewer} sent you a better option
+      </h2>
+      <p className="text-lg font-semibold">{option.title}</p>
+      <p>
+        <Money cents={option.priceCents} className="font-bold" /> at {option.merchant}. No monthly fee listed, and it&apos;s within your own rules.
+      </p>
+      <Button tone="ledger" disabled={opening} onClick={() => void open()}>
+        {opening ? "Opening…" : "Take a look"}
+      </Button>
+    </section>
   );
 }
 

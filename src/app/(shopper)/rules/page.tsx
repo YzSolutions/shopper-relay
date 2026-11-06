@@ -9,7 +9,7 @@ import { changeWords, summarizeChange } from "@/lib/policy/changes";
 import { useSession } from "@/lib/client/useSession";
 
 const EXAMPLES: Record<string, string> = {
-  ai_shopper: "The AI shopper can buy DDR5 RAM under $300 without asking. No more than $500 a week.",
+  ai_shopper: "The AI shopper can buy desk clocks under $25 without asking. No more than $500 a week.",
   family_elder:
     "I can buy clothes under $80 and medical devices under $100 on my own. Anything else under $75. Above that, Sarah takes a look. Any subscription goes to Sarah. Video games go to Marcus.",
   parent_child: "Leo can ask for toys up to $15 and books up to $20. Anything over that is an exception. No more than $30 a week. Video games go to Marcus.",

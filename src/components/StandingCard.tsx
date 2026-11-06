@@ -19,7 +19,7 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
   const bought = (purchases ?? []).filter((p) => p.standing && p.state === "completed").slice(0, 3);
   // What standing permission would actually let the shopper buy: the rules' "buys on their own" rows.
   const own = ruleRows(session.active).flatMap((r) => r.bands.filter((b) => b.outcome === "auto").map((b) => `${r.label}: ${b.range.toLowerCase()}`));
-  const example = { parent_child: "books under $20", ai_shopper: "DDR5 RAM under $300" }[session.household.relationship as string] ?? "shoes under $80";
+  const example = { parent_child: "books under $20", ai_shopper: "desk clocks under $25" }[session.household.relationship as string] ?? "shoes under $80";
   const whatItCovers = own.length ? (
     <p>
       Your rules let {shopper} buy these without asking: {own.join("; ")}.

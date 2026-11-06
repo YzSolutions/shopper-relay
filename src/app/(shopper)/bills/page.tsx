@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BillLine } from "@/components/Bills";
 import { Button, ErrorNotice, Money, Notice, PageTitle, Spinner } from "@/components/ui";
 import { api, type BillsData } from "@/lib/client/api";
+import { usePolling } from "@/lib/client/usePolling";
 import { useSession } from "@/lib/client/useSession";
 import { formatCents, parseToCents } from "@/lib/money";
 
@@ -29,11 +30,10 @@ export default function BillsPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load, then refresh to see when it's paid
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load
     void load();
-    const t = setInterval(() => void load(), 5000);
-    return () => clearInterval(t);
   }, [load]);
+  usePolling(load, 5000); // to see when it's paid
 
   if (!session) return loadError ? <ErrorNotice error={loadError} /> : <Spinner label="Loading…" />;
   const customer = session.household.reviewerName;

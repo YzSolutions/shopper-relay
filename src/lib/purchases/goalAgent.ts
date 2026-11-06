@@ -104,8 +104,10 @@ export async function runGoal(household: Household, goal: string): Promise<{ ste
     let next: z.infer<typeof Turn> | null = null;
     for (const speed of ["quick", "careful"] as const) {
       try {
-        next = (await generateJson({ task: "goal-agent-v3", speed, schema: Turn, system, parts: [{ text: prompt }] })).data;
-        break;
+        // The careful try never reuses a saved answer: it's the second opinion on the one saved for this same prompt.
+        next = (await generateJson({ task: "goal-agent-v3", speed, schema: Turn, system, parts: [{ text: prompt }], fresh: speed === "careful" })).data;
+        // Choosing is how it asks, so stopping with something to choose from is a bad answer. Get that second opinion.
+        if (next.action !== "stop" || ![...seen.values()].some((l) => l.verdict !== "no")) break;
       } catch (e) {
         console.error(`AI shopper turn failed (${speed})`, e);
       }

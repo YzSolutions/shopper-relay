@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, type LogEvent, type PurchaseView } from "./api";
+import { usePolling } from "./usePolling";
 
 /** States where someone else may act at any moment, so the page keeps checking. */
 const LIVE = new Set(["checkout", "awaiting_review", "requested", "hunting"]);
@@ -29,11 +30,13 @@ export function usePurchase(id: string) {
   }, [reload]);
 
   const live = purchase ? LIVE.has(purchase.state) : false;
+  usePolling(reload, 3000, live);
+  // One more look once it settles: the last lines of the log land just after the state changes.
   useEffect(() => {
-    if (!live) return;
-    const t = setInterval(() => void reload(), 3000);
-    return () => clearInterval(t);
-  }, [live, reload]);
+    if (!purchase || live) return;
+    const t = setTimeout(() => void reload(), 3000);
+    return () => clearTimeout(t);
+  }, [purchase?.state, live, reload]); // eslint-disable-line react-hooks/exhaustive-deps -- only when the state changes, not on each reload
 
   return { purchase, log, error, reload, setPurchase };
 }

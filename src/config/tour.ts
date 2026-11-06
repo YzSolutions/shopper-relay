@@ -150,25 +150,25 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
   ],
   ai_shopper: [
     {
-      title: "Marcus writes a rule",
-      how: "Write: The AI shopper can buy DDR5 RAM under $300 without asking. Then save it as Marcus.",
+      title: "Sarah writes a rule",
+      how: "Write: The AI shopper can buy desk clocks under $25 without asking. Then save it as Sarah.",
       go: { path: "/rules", label: "Go to Rules" },
       fact: "rulesChanged",
     },
     {
-      title: "Marcus saves PayPal",
-      how: "On Marcus's phone, tap Let AI Shopper buy without asking, then log in with a PayPal sandbox account.",
+      title: "Sarah saves PayPal",
+      how: "On Sarah's phone, tap Let AI Shopper buy without asking, then log in with a PayPal sandbox account.",
       fact: "standingOn",
     },
     {
       title: "Send it shopping",
-      how: "Ask for DDR5 16GB RAM. It's within the rule, so the AI buys it.",
+      how: "Ask for a modern desk clock under $25. It's within the rule, so the AI buys it.",
       go: { path: "/shop", label: "Go to AI Shopper" },
       fact: "goalBought",
     },
     {
       title: "Outside the rule",
-      how: "Ask for a gaming laptop. The rule doesn't cover it, so the AI asks Marcus instead.",
+      how: "Ask for a gaming laptop. The rule doesn't cover it, so the AI asks Sarah instead.",
       go: { path: "/shop", label: "Go to AI Shopper" },
       fact: "goalAsked",
     },

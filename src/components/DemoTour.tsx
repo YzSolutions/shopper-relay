@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NO_FACTS, TOURS, type TourFacts } from "@/config/tour";
 import { api, type Session } from "@/lib/client/api";
+import { usePolling } from "@/lib/client/usePolling";
 
 const HIDDEN_KEY = "shopperrelay:tourHidden";
 const CHECK_EVERY_MS = 4000;
@@ -58,11 +59,7 @@ export function DemoTour({ session, onGo }: { session: Session; onGo: (path: str
   }, [check, session]);
 
   const allDone = steps.every((s) => facts[s.fact]);
-  useEffect(() => {
-    if (hidden || allDone) return;
-    const t = setInterval(() => void check(), CHECK_EVERY_MS);
-    return () => clearInterval(t);
-  }, [hidden, allDone, check]);
+  usePolling(check, CHECK_EVERY_MS, !hidden && !allDone);
 
   if (hidden) {
     return (

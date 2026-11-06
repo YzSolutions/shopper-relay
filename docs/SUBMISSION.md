@@ -72,9 +72,9 @@ investment scams, which happen outside a shopping checkout.
   plans the hunt: what to search for, which listing to pick and why. Code checks every listing against the
   authorization before Gemini sees it and again before paying, so it can't buy anything Marcus didn't allow,
   and PayPal can't capture more than it holds.
-- **The AI Shopper setup.** Its own tab, with its own rules. Marcus writes "The AI shopper can buy DDR5 RAM under
-  $300 without asking", saves PayPal once, then gives it a job. Within the rule it buys with the saved PayPal, and
-  anything else becomes a request to Marcus. The rule covers only that product, not all electronics.
+- **The AI Shopper setup.** Its own tab, with its own rules. Sarah writes "The AI shopper can buy desk clocks under
+  $25 without asking", saves PayPal once, then gives it a job. Within the rule it buys with the saved PayPal, and
+  anything else becomes a request to Sarah. The rule covers only that product, not everything in the store's category.
 - **Standing permission.** Where the reviewer pays, they can save PayPal once, and the shopper can buy what
   the reviewer's rules allow without asking each time. Every purchase still goes through a hold, an amount
   check and the rules again. It can be turned off at any moment.
