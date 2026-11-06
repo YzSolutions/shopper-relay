@@ -71,7 +71,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
   },
   parent_child: {
     id: "parent_child",
-    tab: "Kids + parent",
+    tab: "Leo + Sarah",
     title: "Kids + parents",
     summary: "Leo finds things and asks. Sarah approves and pays, or says no, and video games and tech go to Marcus. Weekly and monthly budgets keep it in check.",
     controlNote: "The parent controls spending and payment. Leo never needs a parent's PayPal login.",
@@ -93,7 +93,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
   },
   personal_shopper: {
     id: "personal_shopper",
-    tab: "Personal shopper",
+    tab: "Priya + Marcus",
     title: "Personal shopper + customer",
     summary: "Priya finds things Marcus will like. Marcus approves and pays, or lets Priya buy one exact item once, at a price Marcus sets.",
     controlNote: "The customer makes every buying decision. A one-time authorization is for one product, once.",
@@ -115,7 +115,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
   },
   ai_shopper: {
     id: "ai_shopper",
-    tab: "AI Shopper",
+    tab: "AI Shopper + Sarah",
     title: "AI shopper + owner",
     summary: "Give the AI a job. Within Sarah's rules it buys with Sarah's saved PayPal, and anything else goes to Sarah first.",
     controlNote: "The owner writes the rules. Code checks them on every listing, and the AI can't buy outside them.",
