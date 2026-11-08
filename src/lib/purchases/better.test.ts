@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Product } from "../catalog/types";
 import { FAMILY_ELDER_RULES } from "../policy";
 
-const mocks = vi.hoisted(() => ({ search: vi.fn(), get: vi.fn(), decide: vi.fn(), log: vi.fn() }));
+const mocks = vi.hoisted(() => ({ generateJson: vi.fn(), search: vi.fn(), get: vi.fn(), decide: vi.fn(), log: vi.fn() }));
 
-vi.mock("../ai/search", () => ({ searchTerms: async (q: string) => ({ query: q, maxPriceCents: null }) }));
+vi.mock("../ai/gemini", () => ({ generateJson: mocks.generateJson }));
 vi.mock("../catalog/channel3", () => ({ createChannel3Source: () => ({ search: mocks.search, get: mocks.get }) }));
 vi.mock("../store/events", () => ({ logEvent: mocks.log }));
 vi.mock("../store/households", () => ({ getRulesState: async () => ({ owner: "shopper", rules: FAMILY_ELDER_RULES, pending: null }) }));
@@ -23,18 +23,19 @@ const held = {
   reviewedCents: 14900,
   reviewerName: "Sarah",
   item: { title: "Blood pressure monitor" },
+  terms: null,
   category: { primary: "medical_device", categories: ["medical_device", "subscription"] },
 } as unknown as Purchase;
 
 const MEDICAL = ["Health", "Medical Devices", "Blood Pressure Monitors"];
-function listing(sourceId: string, priceCents: number, categoryPath = MEDICAL): Product {
+function listing(sourceId: string, priceCents: number, { categoryPath = MEDICAL, description = "" } = {}): Product {
   return {
     source: "channel3",
     sourceId,
     title: `Monitor ${sourceId}`,
     brand: null,
     modelNumber: null,
-    description: "",
+    description,
     imageUrl: null,
     categoryPath,
     keyFeatures: [],
@@ -43,18 +44,50 @@ function listing(sourceId: string, priceCents: number, categoryPath = MEDICAL): 
   } as unknown as Product;
 }
 
-beforeEach(() => vi.clearAllMocks());
+/** The AI's answers: what to search for, then which listing it picks. */
+function aiPicks(listingId: string) {
+  mocks.generateJson.mockResolvedValueOnce({ data: { query: "digital upper arm blood pressure monitor" } }).mockResolvedValueOnce({ data: { listing: listingId } });
+}
+const shownToAi = () => mocks.generateJson.mock.calls[1][0].parts[0].text as string;
+
+beforeEach(() => vi.resetAllMocks());
 
 describe("finding a better option", () => {
-  it("skips what Mom's rules would send back to Sarah, and other kinds of product", async () => {
-    mocks.search.mockResolvedValue([listing("toobig", 12000), listing("cuff", 3000, ["Clothing"]), listing("good", 8900)]);
-    expect(await findBetter(household, held)).toMatchObject({ sourceId: "good", priceCents: 8900 });
+  it("takes the AI's closest match, not the cheapest", async () => {
+    mocks.search.mockResolvedValue([listing("manual", 1699), listing("digital", 6949)]);
+    aiPicks("L2");
+    expect(await findBetter(household, held)).toMatchObject({ sourceId: "digital", priceCents: 6949 });
+    expect(mocks.search.mock.calls[0][0]).toBe("digital upper arm blood pressure monitor");
   });
 
-  it("offers nothing when nothing qualifies, or once the purchase is settled", async () => {
+  it("only shows the AI what code already allows", async () => {
+    mocks.search.mockResolvedValue([
+      listing("toobig", 12000),
+      listing("cuff", 3000, { categoryPath: ["Clothing"] }),
+      listing("plan", 5000, { description: "Includes a monthly membership" }),
+      listing("good", 8900),
+    ]);
+    aiPicks("L1");
+    expect(await findBetter(household, held)).toMatchObject({ sourceId: "good" });
+    expect(shownToAi()).toContain("Monitor good");
+    for (const no of ["toobig", "cuff", "plan"]) expect(shownToAi()).not.toContain(`Monitor ${no}`);
+  });
+
+  it("offers nothing when none qualifies, the AI finds none, or it answers with a listing that isn't there", async () => {
     mocks.search.mockResolvedValue([listing("toobig", 12000)]);
+    mocks.generateJson.mockResolvedValueOnce({ data: { query: "monitor" } });
     expect(await findBetter(household, held)).toBeNull();
+
+    for (const answer of ["", "L9"]) {
+      mocks.search.mockResolvedValue([listing("good", 8900)]);
+      aiPicks(answer);
+      expect(await findBetter(household, held)).toBeNull();
+    }
+  });
+
+  it("offers nothing once the purchase is settled", async () => {
     expect(await findBetter(household, { ...held, state: "declined" })).toBeNull();
+    expect(mocks.generateJson).not.toHaveBeenCalled();
   });
 });
 

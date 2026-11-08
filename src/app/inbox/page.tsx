@@ -46,7 +46,7 @@ export default function ReviewerInbox() {
   }, [load]);
   usePolling(load, 3000);
 
-  async function answerChange(action: "approve" | "drop") {
+  async function answerChange(action: "approve" | "delay" | "drop") {
     setBusy(true);
     setError(null);
     try {
@@ -120,7 +120,7 @@ export default function ReviewerInbox() {
             </p>
             <p>
               {pending.autoActivateAt
-                ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}. You can let it start now. You can't block it: these are ${shopper}'s rules.`
+                ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}. ${pending.delayedAt ? "You delayed it to talk with" : "You can't block it: these are"} ${shopper}${pending.delayedAt ? " about it, and you can still let it start now." : `'s rules. You can let it start now, or delay it 3 days to talk.`}`
                 : `It waits for your answer.`}
             </p>
             <RuleChangeList before={session.rules} after={pending.proposed} reviewer={main} flow={session.relationship.flow} shopper={shopper} />
@@ -128,6 +128,11 @@ export default function ReviewerInbox() {
               <Button tone="ledger" onClick={() => answerChange("approve")} disabled={busy}>
                 {shopperOwns ? "Let it start now" : "Approve the change"}
               </Button>
+              {pending.autoActivateAt && !pending.delayedAt && (
+                <Button onClick={() => answerChange("delay")} disabled={busy}>
+                  Delay for 3 days
+                </Button>
+              )}
               {!shopperOwns && (
                 <Button tone="stop" onClick={() => answerChange("drop")} disabled={busy}>
                   Say no
@@ -143,7 +148,7 @@ export default function ReviewerInbox() {
 
         {reviewer === main && <RuleUpdateLines history={history} shopper={shopper} reviewer={main} flow={session.relationship.flow} waiting={!!pending} />}
 
-        <Notice tone="relay">In a real app these arrive as text messages. This page stands in for {reviewer}&apos;s phone in the demo.</Notice>
+        <Notice tone="relay">For this demonstration, we&apos;re showing a preview of the notification {reviewer} would receive on {reviewer}&apos;s phone.</Notice>
       </div>
     </PhoneShell>
   );

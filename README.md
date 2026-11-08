@@ -51,7 +51,7 @@ investment scams, which happen outside a shopping checkout.
 
 ## Four setups, one engine
 
-Mom, Leo and Priya are below. The fourth is the **AI Shopper**: Sarah writes a rule in plain words and saves PayPal once, then gives the AI a job. Within the rule it buys; anything else goes to Sarah first. Code checks the rules on every listing, so the AI can't buy outside them.
+Mom, Leo and Priya are below. The fourth is the **AI Shopper**: Sarah writes a rule in plain words and saves PayPal once, then gives the AI a job. Within the rule it buys; anything else goes to Sarah first. Code checks the rules on every listing, so the AI can't buy outside them. Sarah can also put dates on its **Occasions** calendar, like Leo's birthday or the office Secret Santa, and the AI shops for each one a few days ahead on its own.
 
 | | Mom + Sarah | Leo + Sarah | Priya + Marcus |
 | --- | --- | --- | --- |
@@ -233,10 +233,27 @@ The rules are only as good as what they know about the product. Channel3 supplie
 For the video, **Hide real store and brand names** swaps real store names for invented ones and blurs
 product photos.
 
+## The spending table (AG Grid)
+
+History opens with every purchase in one table, built on AG Grid Community: what was bought, what PayPal
+actually charged, its status, who decided (the shopper's own rules, a reviewer, a one-time limit or saved
+PayPal), and the PayPal capture or authorization ID. It sorts, filters by text, number and date, searches,
+keeps a pinned total of what was paid in the last 30 days, and downloads as CSV for a caregiver's records.
+Only the community modules it uses are loaded, styled to match the app (`src/components/SpendingGrid.tsx`).
+
+## Occasions (Bryntum Calendar)
+
+On the AI Shopper tab, Sarah puts her dates on a Bryntum Calendar: Leo's birthday, Mom's birthday, the office
+Secret Santa, each with a job for the AI ("a modern desk clock under $25") and how many days ahead to shop.
+Each morning a Vercel cron runs the AI Shopper for every occasion whose day has come, through the same rules
+and saved PayPal as any other job, so anything outside the rules still goes to Sarah first. The calendar shows
+each date and the day the AI shops, coloured by how it went: bought, waiting for Sarah, or nothing found.
+**Shop now** skips the wait for the demo (`src/app/(shopper)/occasions`, `src/lib/purchases/occasions.ts`).
+
 ## Built with
 
 Next.js 16, React 19 and TypeScript on Vercel; PayPal Orders v2, Payments v2, Vault v3, Invoicing v2 and the
-JavaScript SDK; Google Gemini; Channel3; Neon Postgres; Tailwind CSS; Zod; Vitest.
+JavaScript SDK; Google Gemini; Channel3; AG Grid Community; Bryntum Calendar; Neon Postgres; Tailwind CSS; Zod; Vitest.
 
 ## Run it yourself
 

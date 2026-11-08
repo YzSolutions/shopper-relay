@@ -15,9 +15,11 @@ const LINKS = [
  * `bills`: the shopper bills for their time here (Personal shopper).
  * `ownRules`: the rules are the shopper's own (Mom), so they're "My rules".
  * `check`: people check checkouts they found elsewhere; the AI Shopper doesn't.
+ * `occasions`: dates the AI shops ahead of (AI Shopper).
  */
-export function ShopperNav({ current, bills = false, ownRules = false, check = true }: { current?: null; bills?: boolean; ownRules?: boolean; check?: boolean }) {
-  const shown = check ? LINKS : LINKS.filter((l) => l.href !== "/check");
+export function ShopperNav({ current, bills = false, ownRules = false, check = true, occasions = false }: { current?: null; bills?: boolean; ownRules?: boolean; check?: boolean; occasions?: boolean }) {
+  const kept = check ? LINKS : LINKS.filter((l) => l.href !== "/check");
+  const shown = occasions ? [kept[0], { href: "/occasions", label: "Occasions" }, ...kept.slice(1)] : kept;
   const named = ownRules ? shown.map((l) => (l.href === "/rules" ? { ...l, label: "My rules" } : l)) : shown;
   const links = bills ? [...named.slice(0, -1), { href: "/bills", label: "Bills" }, ...named.slice(-1)] : named;
   return current === null ? <NavLinks path={null} links={links} /> : <NavWithPath links={links} />;

@@ -44,8 +44,8 @@ describe("custom categories", () => {
     const r = resolveCategory({ catalogPath: ["Electronics", "Phone Accessories"], title: "Car phone mount", custom: withCars.custom, recurring: "no" });
     expect(r.primary).toBe("electronics");
     expect(r.categories).toEqual(["electronics", "custom:Cars"]);
-    // $90: fine under Cars, but over general's $75, so Sarah looks.
-    expect(evaluatePurchase(withCars, { amountCents: 9000, categories: r.categories }, [], names).outcome).toBe("review");
+    // $160: fine under Cars, but over general's $150, so Sarah looks.
+    expect(evaluatePurchase(withCars, { amountCents: 16000, categories: r.categories }, [], names).outcome).toBe("review");
   });
 
   it("matches whole words and plurals only", () => {
@@ -93,10 +93,10 @@ describe("a reviewer for one category", () => {
   };
 
   it("asks Marcus about video games and Sarah about everything else", () => {
-    const games = evaluatePurchase(withMarcus, { amountCents: 9000, categories: ["video_games"] }, [], names);
+    const games = evaluatePurchase(withMarcus, { amountCents: 16000, categories: ["video_games"] }, [], names);
     expect(games).toMatchObject({ outcome: "review", reviewer: "Marcus" });
-    expect(games.reasons[0].message).toBe("Marcus takes a look at video game purchases of $75.00 and up.");
-    expect(evaluatePurchase(withMarcus, { amountCents: 9000, categories: ["clothing"] }, [], names).reviewer).toBe("Sarah");
+    expect(games.reasons[0].message).toBe("Marcus takes a look at video game purchases of $150.00 and up.");
+    expect(evaluatePurchase(withMarcus, { amountCents: 21000, categories: ["clothing"] }, [], names).reviewer).toBe("Sarah");
   });
 
   it("falls back to the main reviewer when reasons name different people", () => {

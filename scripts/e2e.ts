@@ -121,6 +121,23 @@ async function mom() {
   const expired = (await api(`/api/purchases/${p4.id}`)).purchase;
   expect(expired.state === "expired" && (await paypal.getAuthorization(expired.paypal.authorizationId)).status === "VOIDED", "expired, and PayPal shows VOIDED");
 
+  step("Mom loosens a rule; Sarah delays it 3 days to talk, once, and can't block it");
+  const current = (await api("/api/session")).rules;
+  const loosened = { ...current, categories: { ...current.categories, medical_device: { bands: [{ minCents: 0, maxCents: 50000, outcome: "auto" }, { minCents: 50000, maxCents: null, outcome: "review" }] } } };
+  await api("/api/rules", { method: "POST", json: { rules: loosened, by: "shopper" } });
+  expect((await raw("/api/rules/pending", { method: "POST", json: { action: "delay", by: "shopper" } })).status === 403, "Mom can't use Sarah's delay");
+  await api("/api/rules/pending", { method: "POST", json: { action: "delay", by: "reviewer" } });
+  const heldBack = await api("/api/session");
+  expect(heldBack.pending?.delayedAt && Date.parse(heldBack.pending.autoActivateAt) > Date.now() + 2.9 * 24 * 3600_000, "it now starts in 3 days");
+  expect((await raw("/api/rules/pending", { method: "POST", json: { action: "delay", by: "reviewer" } })).status === 409, "a second delay is refused");
+  expect((await raw("/api/rules/pending", { method: "POST", json: { action: "drop", by: "reviewer" } })).status === 403, "Sarah still can't cancel it");
+  await api("/api/demo", { method: "POST", json: { action: "advance", hours: 24 } });
+  expect((await api("/api/session")).pending, "past the old 24 hours, it's still waiting");
+  await api("/api/demo", { method: "POST", json: { action: "advance", hours: 48 } });
+  const started = await api("/api/session");
+  expect(!started.pending && started.rules.categories.medical_device.bands[0].maxCents === 50000, "after the 3 days, it starts");
+  expect((await api("/api/rules/history")).history.some((h: any) => h.type === "rules_delayed"), "the delay is in the rule history");
+
   step("Video games go to Marcus: a reviewer change waits 24 hours, then Marcus is asked");
   const rules = (await api("/api/session")).rules;
   const withMarcus = { ...rules, categories: { ...rules.categories, video_games: { ...rules.categories.general, reviewer: "Marcus" } } };
@@ -135,7 +152,7 @@ async function mom() {
     expect(g.state === "awaiting_review" && g.reviewerName === "Marcus", `${game.product.title}: waiting for Marcus, not Sarah`);
     await api(`/api${g.reviewPath}`, { method: "POST", json: { decision: "decline" } });
   } else {
-    console.log("  (no video game over $75 in today's catalog; skipped the purchase check)");
+    console.log("  (no video game over $150 in today's catalog; skipped the purchase check)");
   }
   await tourDone("boughtAlone", "checkedChosen", "heldDecided", "rulesChanged");
 }

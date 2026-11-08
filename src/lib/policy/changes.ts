@@ -4,6 +4,8 @@ import { categoryLabel, isCustomCategory, type Cap, type CategoryKey, type Role,
 
 /** How long a shopper's loosening waits if the reviewer doesn't approve it sooner. */
 export const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
+/** How long the reviewer can hold a change on its way, to talk about it first. */
+export const DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 
 export interface CategoryChange {
   category: CategoryKey;
@@ -83,6 +85,8 @@ export interface PendingChange {
   /** When the change applies on its own; null means it waits for approval. */
   autoActivateAt: string | null;
   approvedAt: string | null;
+  /** The reviewer used their one delay. Older saved changes don't have this. */
+  delayedAt?: string | null;
 }
 
 /** The current rules plus any loosening that hasn't taken effect yet. */
@@ -107,7 +111,8 @@ export type ChangeResult =
  * - The owner, when the owner is the reviewer: applies at once.
  * - The owner, when the owner is the shopper: the reviewer is notified and
  *   can approve it early; otherwise it applies by itself after the
- *   cooling-off period. The reviewer can speed it up, never block it.
+ *   cooling-off period. The reviewer can speed it up, or delay it once to talk
+ *   about it, but never block it.
  * - The shopper, when the reviewer owns the rules: waits for the reviewer.
  * The reviewer can't loosen rules the shopper owns.
  */
@@ -128,6 +133,9 @@ export function requestRuleChange(
     return { ok: false, summary, message: "Only the shopper can loosen their own safeguards." };
   }
   const coolingOff = isOwner; // shopper loosening their own rules
+  const earliest = now.getTime() + COOLING_OFF_MS;
+  // Changing a delayed change again mustn't shorten the wait, or the delay protects nothing.
+  const delayed = current.pending?.delayedAt ? current.pending : null;
   return {
     ok: true,
     state: {
@@ -136,8 +144,9 @@ export function requestRuleChange(
         proposed,
         requestedBy,
         requestedAt: now.toISOString(),
-        autoActivateAt: coolingOff ? new Date(now.getTime() + COOLING_OFF_MS).toISOString() : null,
+        autoActivateAt: coolingOff ? new Date(Math.max(earliest, Date.parse(delayed?.autoActivateAt ?? "0") || 0)).toISOString() : null,
         approvedAt: null,
+        delayedAt: delayed?.delayedAt ?? null,
       },
     },
     summary,
@@ -149,6 +158,17 @@ export function requestRuleChange(
 export function approvePendingChange(state: RulesState, now = new Date()): RulesState {
   if (!state.pending) return state;
   return settle({ ...state, pending: { ...state.pending, approvedAt: now.toISOString() } }, now);
+}
+
+/**
+ * The reviewer holds a change that would start on its own, to talk about it first:
+ * it starts 3 days from now instead. Once per change, because repeating it would
+ * amount to a block. Null if there's nothing it can apply to.
+ */
+export function delayPendingChange(state: RulesState, now = new Date()): RulesState | null {
+  const p = state.pending;
+  if (!p?.autoActivateAt || p.delayedAt) return null;
+  return { ...state, pending: { ...p, autoActivateAt: new Date(now.getTime() + DELAY_MS).toISOString(), delayedAt: now.toISOString() } };
 }
 
 /** The requester withdraws it, or the reviewer turns down a shopper's request. */

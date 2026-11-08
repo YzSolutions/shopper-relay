@@ -16,9 +16,13 @@
     "e2e": "tsx scripts/e2e.ts"
   },
   "dependencies": {
+    "@bryntum/calendar": "npm:@bryntum/calendar-trial@7.3.8",
+    "@bryntum/calendar-react": "7.3.8",
     "@channel3/sdk": "^4.4.1",
     "@google/genai": "^2.30.0",
     "@neondatabase/serverless": "^1.2.0",
+    "ag-grid-community": "36.2.0",
+    "ag-grid-react": "36.2.0",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",

@@ -49,7 +49,7 @@ export interface CheckoutTerms {
 }
 
 /** Words that suggest a repeating charge, checked by code rather than trusted from the model. */
-const RECURRING_WORDS = /renew|recurr|subscri|membership|per month|\/\s?mo|monthly|weekly|annual|yearly|per year|billed every|auto-?ship|trial/i;
+export const RECURRING_WORDS = /renew|recurr|subscri|membership|per month|\/\s?mo|monthly|weekly|annual|yearly|per year|billed every|auto-?ship|trial/i;
 
 /**
  * Policy-facing reading: anything short of a clear "no" counts as possibly

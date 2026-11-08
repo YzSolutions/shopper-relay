@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { PayPalButton } from "./PayPalButton";
-import { Facts, ItemHeader } from "./PurchaseParts";
+import { ItemHeader } from "./PurchaseParts";
 import { RelayTrack } from "./RelayTrack";
-import { BudgetBars, Button, ButtonLink, ErrorNotice, Money, Notice, Spinner } from "./ui";
+import { Button, ButtonLink, ErrorNotice, Money, Notice, Spinner } from "./ui";
 import { api, type BetterOption, type BudgetLine, type PurchaseView } from "@/lib/client/api";
+import { phoneName, phoneSpecs, whyWords } from "@/lib/client/describe";
 
 interface ReviewData {
   household: { shopperName: string; reviewerName: string };
@@ -68,43 +69,33 @@ export function ReviewScreen({ token }: { token: string }) {
 
   const { shopperName: shopper, reviewerName: reviewer } = data.household;
   const p = done ?? data.purchase;
-  const exception = p.decision.outcome === "exception";
   // Once paid, show what PayPal actually charged; before that, what it holds (or the price).
   const amount = p.state === "completed" ? (p.paypalCapturedCents ?? p.reviewedCents) : (p.paypalAmountCents ?? p.reviewedCents);
   const open = p.state === "awaiting_review" || p.state === "requested";
-  // Whose money the limits are about: Mom's own, Leo's allowance, or the customer's own budget.
-  const kids = data.relationship.id === "parent_child";
-  const overTitle = p.flow === "hold" ? `This goes past ${shopper}'s own limit` : kids ? `This is over ${shopper}'s budget` : "This is over your budget";
-  const budgetTitle = p.flow === "hold" ? `${shopper}'s limits, not counting this` : kids ? `${shopper}'s budget, not counting this request` : "Your budget, not counting this request";
 
   return (
-    <div className="space-y-7">
-      <p className="text-lg font-semibold text-relay-deep">{open ? `${shopper} would like your OK` : `${shopper}'s request`}</p>
-      <ItemHeader purchase={p} />
-      <p className="text-[2.75rem] leading-none font-extrabold">
-        <Money cents={p.state === "hunting" && p.otpa ? p.otpa.maxCents : amount} />
-        {p.state === "hunting" && <span className="ml-2 text-xl font-semibold text-ink-soft">at most</span>}
-      </p>
-
-      <RelayTrack state={p.state} flow={p.flow} shopper={shopper} reviewer={reviewer} needsReview otpa={!!p.otpa} />
+    <div className="space-y-6">
+      {open ? (
+        <ShortMessage p={p} shopper={shopper} budget={data.budget} />
+      ) : (
+        <>
+          <p className="text-lg font-semibold text-relay-deep">{shopper}&apos;s request</p>
+          <ItemHeader purchase={p} textOnly />
+          <p className="text-[2.75rem] leading-none font-extrabold">
+            <Money cents={p.state === "hunting" && p.otpa ? p.otpa.maxCents : amount} />
+            {p.state === "hunting" && <span className="ml-2 text-xl font-semibold text-ink-soft">at most</span>}
+          </p>
+          <RelayTrack state={p.state} flow={p.flow} shopper={shopper} reviewer={reviewer} needsReview otpa={!!p.otpa} />
+        </>
+      )}
 
       {open && (
         <>
-          <Notice tone="signal" title={exception ? overTitle : p.flow === "request" ? `${shopper} is asking` : "Why you're being asked"}>
-            <ul className="space-y-1">
-              {p.decision.reasons.map((r, i) => (
-                <li key={i}>{r.message}</li>
-              ))}
-            </ul>
-          </Notice>
-          {data.budget.length > 0 && <BudgetBars lines={data.budget} title={budgetTitle} />}
-          {p.terms?.plainSummary && <p className="text-lg">{p.terms.plainSummary}</p>}
-          <Facts purchase={p} />
           <ErrorNotice error={error} />
 
           {p.flow === "hold" ? (
             <>
-              <HoldActions p={p} shopper={shopper} reviewer={reviewer} busy={busy} onDecide={decide} />
+              <HoldActions p={p} reviewer={reviewer} busy={busy} onDecide={decide} />
               <SendBetter
                 token={token}
                 shopper={shopper}
@@ -119,9 +110,7 @@ export function ReviewScreen({ token }: { token: string }) {
           ) : mode === "choose" ? (
             <div className="space-y-5">
               <div className="space-y-2">
-                <p className="text-xl font-bold">
-                  {exception ? "Approve this as an exception and pay" : "Approve and pay"} <Money cents={amount} />
-                </p>
+                <p className="text-xl font-bold">Approve with PayPal</p>
                 {data.paypal.clientId && (
                   <PayPalButton
                     clientId={data.paypal.clientId}
@@ -151,12 +140,6 @@ export function ReviewScreen({ token }: { token: string }) {
               onBack={() => setMode("choose")}
             />
           )}
-
-          <p className="text-base text-ink-soft">
-            {data.relationship.id === "family_elder"
-              ? `${shopper} chose these rules. You only see the purchases ${shopper}'s rules send to you, and you're told when ${shopper} changes them.`
-              : `Nothing is charged unless you approve in PayPal.`}
-          </p>
         </>
       )}
 
@@ -194,16 +177,60 @@ export function ReviewScreen({ token }: { token: string }) {
   );
 }
 
+/** What the reviewer needs to decide, as short as a text message. The store link fills in the rest. */
+function ShortMessage({ p, shopper, budget }: { p: PurchaseView; shopper: string; budget: BudgetLine[] }) {
+  const specs = phoneSpecs(p.item.specs, p.item.imageHidden);
+  const why = whyWords(p.decision, p.category.primary, p.flow, shopper);
+  const r = p.terms?.recurring;
+  const repeat =
+    p.recurring === "yes"
+      ? `Repeat charge${r?.amountDollars != null ? `: ${fmt(Math.round(r.amountDollars * 100))} per ${r.interval ?? "period"}` : ""}${r?.startsWhen ? `, ${r.startsWhen}` : ""}`
+      : p.recurring === "uncertain"
+        ? "Possibly a repeat charge: the terms aren't clear"
+        : null;
+  return (
+    <div className="space-y-4">
+      <p className="text-lg font-semibold text-relay-deep">{p.flow === "request" ? `${shopper} is asking` : `${shopper} would like your OK`}</p>
+      <div className="space-y-1">
+        <h1 className="text-2xl font-extrabold">{phoneName(p.item)}</h1>
+        {specs.length > 0 && <p className="text-ink-soft">{specs.join(" · ")}</p>}
+        <p className="text-xl">
+          <Money cents={p.reviewedCents} currency={p.currency} className="font-extrabold" />
+          {p.item.merchant && ` at ${p.item.merchant}`}
+        </p>
+      </div>
+      <div className="space-y-1">
+        {why.map((w) => (
+          <p key={w} className="font-bold text-signal-text">
+            {w}
+          </p>
+        ))}
+        {repeat && <p className="font-bold text-signal-text">{repeat}</p>}
+        {budget.map((l) => (
+          <p key={`${l.label}${l.period}`}>
+            {l.period === "week" ? "Weekly" : "Monthly"}: {fmt(l.leftCents)} left of {fmt(l.limitCents)}
+          </p>
+        ))}
+      </div>
+      {p.item.url && (
+        <a href={p.item.url} target="_blank" rel="noopener noreferrer" className="inline-block font-semibold text-relay underline underline-offset-4">
+          View at store
+        </a>
+      )}
+    </div>
+  );
+}
+
 function fmt(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-function HoldActions({ p, shopper, reviewer, busy, onDecide }: { p: PurchaseView; shopper: string; reviewer: string; busy: string | null; onDecide: (d: "approve" | "decline") => void }) {
+function HoldActions({ p, reviewer, busy, onDecide }: { p: PurchaseView; reviewer: string; busy: string | null; onDecide: (d: "approve" | "decline") => void }) {
   return (
     <>
       <p className="text-ink-soft">
-        PayPal is holding {shopper}&apos;s payment. Nothing is charged unless you approve.
-        {p.reviewExpiresAt && <> If you don&apos;t answer by {when(p.reviewExpiresAt)}, the hold is released.</>}
+        PayPal is holding <Money cents={p.paypalAmountCents ?? p.reviewedCents} />. Nothing is charged unless you approve.
+        {p.reviewExpiresAt && <> It&apos;s released {when(p.reviewExpiresAt)} if you don&apos;t answer.</>}
       </p>
       <div className="grid gap-3">
         <Button tone="ledger" className="min-h-16 text-xl" disabled={busy !== null} onClick={() => onDecide("approve")} aria-label={`Approve as ${reviewer}`}>

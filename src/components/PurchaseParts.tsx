@@ -5,20 +5,23 @@ import { Money } from "./ui";
 
 // Pieces shown to both the shopper and the reviewer, so they see the same facts.
 
-export function ItemHeader({ purchase }: { purchase: PurchaseView }) {
+/** `textOnly`: the reviewer's phone stands in for a text message, so it has words and numbers, no picture. */
+export function ItemHeader({ purchase, textOnly = false }: { purchase: PurchaseView; textOnly?: boolean }) {
   const { item } = purchase;
   return (
     <div className="flex gap-5">
-      <div className="size-24 shrink-0 overflow-hidden rounded-xl border border-line bg-white sm:size-32">
-        {item.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- catalog images come from many retailer hosts
-          <img src={item.imageUrl} alt="" className={`size-full object-contain ${item.imageHidden ? "scale-110 blur-md" : ""}`} />
-        ) : (
-          <div className="grid size-full place-items-center bg-mist text-4xl font-black text-ink-soft/40" aria-hidden>
-            ?
-          </div>
-        )}
-      </div>
+      {!textOnly && (
+        <div className="size-24 shrink-0 overflow-hidden rounded-xl border border-line bg-white sm:size-32">
+          {item.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- catalog images come from many retailer hosts
+            <img src={item.imageUrl} alt="" className={`size-full object-contain ${item.imageHidden ? "scale-110 blur-md" : ""}`} />
+          ) : (
+            <div className="grid size-full place-items-center bg-mist text-4xl font-black text-ink-soft/40" aria-hidden>
+              ?
+            </div>
+          )}
+        </div>
+      )}
       <div className="min-w-0">
         <h1 className="text-[1.75rem] font-extrabold sm:text-[2.125rem]">{item.title}</h1>
         <p className="mt-1 text-lg text-ink-soft">

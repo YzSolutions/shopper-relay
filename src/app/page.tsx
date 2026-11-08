@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { brand } from "@/config/brand";
@@ -7,6 +7,11 @@ import type { RelationshipId } from "@/config/relationships";
 import { TryDemoButton } from "@/components/TryDemoButton";
 import { ButtonLink } from "@/components/ui";
 import logo from "../../public/brand/shopperrelay-logo-trimmed.png";
+import shotAgent from "../../public/prizes/agent.jpg";
+import shotAgGrid from "../../public/prizes/aggrid.jpg";
+import shotBryntum from "../../public/prizes/bryntum.jpg";
+import shotChannel3 from "../../public/prizes/channel3.jpg";
+import shotPayPal from "../../public/prizes/paypal.jpg";
 
 // The front page: what ShopperRelay is, who it's for, and what it's built on,
 // for anyone arriving cold (judges included). The app itself lives at /shop.
@@ -32,7 +37,7 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
     shops: "Mom",
     rules: "Mom's own",
     pays: "Mom",
-    how: "Within Mom's rules, a purchase goes straight through. Otherwise PayPal holds the payment while Sarah takes a look. Loosening a rule waits 24 hours, so nobody can pressure Mom out of a safeguard on the spot.",
+    how: "Within Mom's rules, a purchase goes straight through. Otherwise PayPal holds the payment while Sarah takes a look. Loosening a rule waits 24 hours, and Sarah can hold it 3 more days to talk, so nobody can pressure Mom out of a safeguard on the spot.",
   },
   {
     mode: "parent_child",
@@ -105,6 +110,90 @@ const CHANNEL3 = [
   { title: "Price limits that stick", text: "“Under $200” in a search becomes a Channel3 price filter, not a hope." },
 ];
 
+/** The hackathon's prize tracks we built for, each with a screen from the live demo (names hidden, as in the video). */
+const PRIZES: Array<{
+  prize: string;
+  title: string;
+  points: string[];
+  shot: StaticImageData;
+  alt: string;
+  /** Tall phone-style screens get a narrower frame. */
+  tall?: boolean;
+  mode: RelationshipId;
+  tryLabel: string;
+}> = [
+  {
+    prize: "Best Use of PayPal + AI",
+    title: "PayPal holds the money while a person decides",
+    points: [
+      "Gemini turns rules written in plain words into exact rules, and reads the small print on any checkout, like a free trial that becomes $39 a month.",
+      "When a purchase needs a second look, PayPal holds the exact amount instead of charging it. Approving captures it. Declining, or no answer, releases it.",
+      "A one-time limit holds a maximum and captures only what the item cost. PayPal releases the rest and refuses a second capture.",
+      "Saved PayPal (Vault) lets a trusted shopper buy within the rules, and PayPal invoices bill for a personal shopper's time.",
+    ],
+    shot: shotPayPal,
+    alt: "Sarah's phone: PayPal is holding $149.00 for Mom's purchase, with Approve and Decline, and a cheaper option within Mom's own rules.",
+    tall: true,
+    mode: "family_elder",
+    tryLabel: "Try Mom + Sarah",
+  },
+  {
+    prize: "Best Use of Agentic Commerce",
+    title: "An AI shopper that can only buy inside your rules",
+    points: [
+      "Give it a job in plain words. Gemini plans the search, picks a listing and says why in one sentence.",
+      "Code checks every listing against the owner's rules before the AI can choose it, so it can't buy outside them.",
+      "Within the rules it pays with the owner's saved PayPal. Anything else becomes a request the owner approves.",
+      "Every step is on the record: what it searched, what it chose and what PayPal charged.",
+    ],
+    shot: shotAgent,
+    alt: "What the AI shopper did: searched stores for a modern desk clock, chose one, and bought it for $21.99 within Sarah's rules.",
+    mode: "ai_shopper",
+    tryLabel: "Try the AI Shopper",
+  },
+  {
+    prize: "Best Use of Channel3",
+    title: "Real products, and the facts the rules need",
+    points: [
+      "Real products, prices, stores and stock, searched right inside the app.",
+      "Channel3's catalog category decides which rule applies: a blood pressure monitor counts as a medical device.",
+      "Its product grouping is what lets a one-time limit say yes to the same product at another store, and no to anything else.",
+      "“Under $200” in a search becomes a Channel3 price filter, and Gemini sums up the results in plain words.",
+    ],
+    shot: shotChannel3,
+    alt: "Search results for a blood pressure monitor, each counted as a medical device and checked against Mom's rules.",
+    mode: "family_elder",
+    tryLabel: "Search as Mom",
+  },
+  {
+    prize: "Best Use of AG Grid",
+    title: "A spending record a caregiver can keep",
+    points: [
+      "Every purchase in one table: what was bought, what PayPal charged, its status, who decided and the PayPal ID.",
+      "Sort, filter by text, number and date, and search.",
+      "A pinned total of what was paid in the last 30 days.",
+      "Download as CSV for records or taxes. On a phone it keeps the date, item and amount.",
+    ],
+    shot: shotAgGrid,
+    alt: "The spending table on History: five purchases with amount, status, who decided and PayPal ID, and the 30-day total.",
+    mode: "parent_child",
+    tryLabel: "Try Leo + Sarah",
+  },
+  {
+    prize: "Best Use of Bryntum",
+    title: "Occasions the AI shops ahead of",
+    points: [
+      "Sarah puts birthdays, holidays and the office Secret Santa on a Bryntum calendar, each with a job for the AI.",
+      "A few days before each date, the AI shops for it on its own, within her rules and saved PayPal.",
+      "The calendar marks each date and the day the AI shops, coloured by how it went: bought, waiting for Sarah, or nothing found.",
+    ],
+    shot: shotBryntum,
+    alt: "Sarah's Occasions calendar for November: Leo's and Mom's birthdays and the office Secret Santa, with a green cart where the AI already bought the Secret Santa gift.",
+    mode: "ai_shopper",
+    tryLabel: "Try the AI Shopper",
+  },
+];
+
 /** Each figure was read at its source (November 2026); keep the links so anyone can check. */
 const WHY: Array<{ figure: string; text: string; source: string; href: string }> = [
   {
@@ -127,7 +216,7 @@ const WHY: Array<{ figure: string; text: string; source: string; href: string }>
   },
 ];
 
-const STACK = ["PayPal REST APIs", "PayPal JavaScript SDK", "Google Gemini", "Channel3", "Next.js 16", "React 19", "TypeScript", "Tailwind CSS", "Neon Postgres", "Vercel", "Zod", "Vitest"];
+const STACK = ["PayPal REST APIs", "PayPal JavaScript SDK", "Google Gemini", "Channel3", "AG Grid", "Bryntum Calendar", "Next.js 16", "React 19", "TypeScript", "Tailwind CSS", "Neon Postgres", "Vercel", "Zod", "Vitest"];
 
 function Section({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
   return (
@@ -154,6 +243,9 @@ export default function FrontPage() {
           {/* On a phone the page is one scroll; only the demo link stays. */}
           <a href="#setups" className="hidden text-ink-soft hover:text-ink md:inline">
             Who it&apos;s for
+          </a>
+          <a href="#prizes" className="hidden text-ink-soft hover:text-ink md:inline">
+            Hackathon
           </a>
           <a href="#agent" className="hidden text-ink-soft hover:text-ink md:inline">
             AI shopper
@@ -257,6 +349,39 @@ export default function FrontPage() {
                 <TryDemoButton mode={s.mode} className="mt-6 self-start">
                   Try {s.name}
                 </TryDemoButton>
+              </article>
+            ))}
+          </div>
+        </Section>
+
+        <Section
+          id="prizes"
+          title="What we built for each prize"
+          lead={`The PayPal AI Hackathon has prizes for the best use of each sponsor's tools. Here's how ${brand.name} uses every one, with a screen from the live demo.`}
+        >
+          <div className="space-y-20">
+            {PRIZES.map((p, i) => (
+              <article key={p.prize} className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+                <div className={i % 2 ? "lg:order-2" : undefined}>
+                  <p className="font-bold text-relay">{p.prize}</p>
+                  <h3 className="mt-1 text-[1.75rem] leading-tight font-extrabold">{p.title}</h3>
+                  <ul className="mt-5 space-y-3">
+                    {p.points.map((t) => (
+                      <li key={t} className="border-l-4 border-line pl-4">
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                  <TryDemoButton mode={p.mode} className="mt-6">
+                    {p.tryLabel}
+                  </TryDemoButton>
+                </div>
+                <Image
+                  src={p.shot}
+                  alt={p.alt}
+                  sizes="(min-width: 1024px) 34rem, 100vw"
+                  className={`w-full rounded-2xl border-2 border-line shadow-[0_24px_60px_-30px_rgba(1,62,163,0.35)] ${p.tall ? "mx-auto max-w-[22rem]" : ""}`}
+                />
               </article>
             ))}
           </div>

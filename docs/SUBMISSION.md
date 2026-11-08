@@ -59,8 +59,9 @@ investment scams, which happen outside a shopping checkout.
   Approve captures; decline or no answer within 24 hours voids the hold. Nothing is charged unless the
   purchase goes through.
 - **Scam-resistant rule changes.** Tightening is instant. Loosening a safeguard, including changing who
-  reviews something, tells Sarah and only starts after 24 hours, unless Sarah approves sooner. Sarah can't
-  block it: these are Mom's rules. Every change is kept in a rule history no one can edit.
+  reviews something, tells Sarah and only starts after 24 hours, unless Sarah approves sooner. Sarah can
+  delay it once by 3 days to talk it over, but can't block it: these are Mom's rules. Every change is kept in
+  a rule history no one can edit.
 - **Kids + parent.** Leo browses and taps "Ask Sarah". Sarah sees the request and Leo's weekly and monthly
   budget, then approves and pays with Sarah's own PayPal or says no. Video games and tech go to Leo's dad,
   Marcus, on Marcus's own tab. Open requests reserve budget; declined ones release it. Subscriptions are blocked.
@@ -107,6 +108,10 @@ investment scams, which happen outside a shopping checkout.
 - **Channel3** for product search, real prices and stock, and catalog categories that decide which rule
   applies. Its product grouping is what makes "same product" an honest claim, and a stated price limit
   becomes a Channel3 price filter.
+- **AG Grid Community** for the spending table on History: every purchase with what PayPal charged, who
+  decided and the PayPal ID, with sorting, filters, search, a pinned 30-day total and CSV download.
+- **Bryntum Calendar** for Occasions on the AI Shopper tab: Sarah's birthdays and holidays, each with a job for
+  the AI. A daily run shops for each one a few days ahead, within her rules, and the calendar shows what it did.
 - **A deterministic rules engine** with no I/O and no AI, over 100 unit tests, and an end-to-end test that
   runs every flow against the PayPal sandbox.
 
@@ -157,7 +162,7 @@ postgresql, vercel, tailwindcss, zod, vitest
 ## Video script (target about 2:45, hard limit 3:00)
 
 One person's life. Sarah is the one everybody needs: Mom asks Sarah, Leo asks Sarah, video games and tech go to
-Leo's dad Marcus, and Marcus has Priya, a paid shopping assistant, finding him a suit and then shoes. Trust grows: one exact suit, once, then a standing rule for shoes. The drawn scenes are the
+Leo's dad Marcus, and Marcus has Priya, a paid shopping assistant, finding him a suit. Then the AI Shopper tab: Marcus's own rule, and an AI that buys within it and asks outside it. The drawn scenes are the
 story, and every shot that claims the product works is the real product.
 
 It covers the judging points: what problem, who it's for, why it matters, the project working end to end, and how
@@ -184,11 +189,14 @@ PayPal and AI are used.
 - Hiding names removes store and brand names, but **not model names**, so choose plain-named products. Checked on
   4 Nov 2026, and the catalog changes, so check on the day:
   - Suit: *Mens Navy Suit* ($179.99) or *Men's Navy Blue Suit* ($199). One store each.
-  - Shoes: *Men's Executive Dress Shoe* ($188), under the $200 rule.
+  - RAM for the AI: run it with names hidden, and check the title it picks has no model name. Prices move, so check
+    that something is under $300 on the day.
+  - Outside the rule: check what the AI picks. A gaming laptop can come back with a model name like "OMEN", so choose
+    a job that gives a plain-named product, or retake.
   - Tech for Marcus: *Gaming Headset* ($89.99). Controllers mostly carry console names, so avoid them.
 - Say "the AI" in the video. Name the model in the Devpost text, which asks for the tools used.
 - Don't show the front page: its hero card names the model.
-- PayPal and Channel3 are the hackathon's own sponsors, so their names stay.
+- PayPal, Channel3, AG Grid and Bryntum are the hackathon's own sponsors, so their names stay.
 - Music must be licensed or CC0. Keep the proof.
 
 | # | Time | Picture | Say |
@@ -202,29 +210,32 @@ PayPal and AI are used.
 | 7 | 0:16 | Real: Mom pays in PayPal's window, Sarah's phone, Approve, Paid | "PayPal holds the money. Nothing's charged. Sarah sees the facts and decides. No answer in a day, and the hold is released." |
 | 8 | 0:12 | Real: Mom's rules, **A change is waiting**, Sarah's phone | "Mom writes her rules in her own words. If a scammer pressures her to loosen one, it waits 24 hours, and Sarah's told." |
 | 9 | 0:08 | Drawn: Leo. Real: **Ask Sarah**, her phone with the budget, she pays | "Leo asks Sarah, and she sees it next to his budget. He never needs her login." |
-| 10 | 0:06 | Drawn: Marcus and Leo. Real: a headset request on the **Marcus** tab | "But video games and tech? Those go to Dad." |
+| 10 | 0:06 | Drawn: Marcus and Leo. Real: a request on the **Marcus (1)** tab | "But video games and tech? Those go to Dad." |
 | 11 | 0:05 | Drawn: Marcus in a meeting | "Marcus has his own problem: he needs a suit, and has no time." |
 | 12 | 0:05 | Drawn: split panel: Priya at her desk, Marcus between meetings, messaging | "Sarah got him started with Priya, a paid shopping assistant." |
 | 13 | 0:08 | Real: Priya searches online and sends the suit, then **Go to Marcus's phone** | "Priya shops online, and finds the right one. Marcus decides." |
 | 14 | 0:10 | Real: **Let Priya buy it once, up to a price I set**, then your PayPal clip | "He says: buy this one suit, once, up to this price. PayPal holds that much." |
-| 15 | 0:12 | Real: **Send the AI shopper**, **What the AI shopper did** | "An AI shopper finds where to buy it. It can't buy anything else: code checks every listing, and the hold is the ceiling." |
+| 15 | 0:08 | Real: Priya buys it from **where it's listed now** | "Priya buys it. PayPal charges what it actually cost." |
 | 16 | 0:03 | Real: charged and released, music only | *(no narration)* |
-| 17 | 0:04 | Real: the result. Caption: PayPal's APIs | "PayPal charged what it actually cost, and released the rest. One suit, once." |
-| 18 | 0:03 | Drawn: same split panel: Marcus in the new suit, looking down at old shoes, Priya amused | "Now he trusts her. And he needs shoes." |
-| 19 | 0:08 | Real: Marcus's Rules: *Priya can buy shoes up to $200 without asking* | "So Marcus changes one rule: shoes up to $200, no need to ask." |
-| 20 | 0:06 | Real: Marcus's phone: **Let Priya buy without asking**, then your PayPal clip | "He saves PayPal once. He can turn it off any time." |
-| 21 | 0:07 | Real: Priya picks the shoes and taps **Buy it now**. Marcus's phone shows the message | "Priya buys them. PayPal still checks the amount, and Marcus gets a message." |
-| 22 | 0:07 | Drawn: Sarah's desk again, phone quiet, Sarah smiling | "AI understands. Rules enforce. People approve. PayPal executes." |
-| 23 | 0:03 | Logo: `public/brand/shopperrelay-logo.png` | "ShopperRelay.com. Sarah's still busy. Just not with this." |
+| 17 | 0:03 | Drawn: same split panel: Marcus in the new suit, Priya pleased | "One suit, once." |
+| 18 | 0:05 | Drawn: Marcus at his desk, surrounded by computer parts | "But computer parts? For those, Marcus has an AI shopper, with its own rules." |
+| 19 | 0:08 | Real: AI Shopper tab, Rules: *The AI shopper can buy DDR5 RAM under $300 without asking*, **Demo: save as Marcus** | "He writes one rule: DDR5 RAM under $300, no need to ask." |
+| 20 | 0:05 | Real: Marcus's phone: **Let AI Shopper buy without asking**, then your PayPal clip | "He saves PayPal once." |
+| 21 | 0:12 | Real: type the job, **Send the AI shopper**, **What the AI shopper did**. Cut the wait | "Give it a job, and the AI shops. Code reads his rule on every listing, so it can't buy outside it." |
+| 22 | 0:05 | Real: bought, and the purchase page with what PayPal charged | "Within the rule, it buys. PayPal still checks the amount." |
+| 23 | 0:07 | Real: a second job outside the rule. Marcus's phone shows the request | "Outside the rule, it stops and asks." |
+| 24 | 0:07 | Drawn: Sarah's desk again, phone quiet, Sarah smiling. Caption: PayPal's APIs | "AI understands. Rules enforce. People approve. PayPal executes." |
+| 25 | 0:03 | Logo: `public/brand/shopperrelay-logo.png` | "ShopperRelay.com. Sarah's still busy. Just not with this." |
 
 **Notes:**
 
 - Amounts other than the fixed $149 and $39 example stay on screen, not in the narration, so a different take can't
   make the words wrong.
-- Marcus's price must be above the listed price, or PayPal has nothing to visibly release.
+- In shot 14, Marcus's price must be above the listed price, or PayPal has nothing to visibly release.
 - Drawn scenes are illustrations, so no phone or laptop screen shows in them.
-- The AI shopper sometimes searches first and sometimes buys straight away. Both fit the words. Don't say it hunts
-  the whole web.
-- If it runs long, shorten Leo's scene first. Marcus's headset shot can go next.
-- Before filming, hand-test shots 19–21: writing the shoe rule as Marcus, saving PayPal, then Buy it now.
+- The AI's wording and pick change between runs, so match the words to the locked take. Don't say it hunts the whole
+  web.
+- If it runs long, shorten Leo's scene first. Marcus's request shot can go next.
+- Before filming, hand-test shots 14–15 (Priya's one-time limit through PayPal's window) and shot 20 (saving PayPal).
+- Reset the AI Shopper tab between takes: open requests hold the $500 weekly budget.
 - Judges aren't required to watch past 3:00. Check the final length before uploading to YouTube as public.

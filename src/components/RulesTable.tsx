@@ -49,7 +49,7 @@ export function RulesTable({ rules, reviewer, caption, flow = "hold" }: { rules:
       {rules.caps.length > 0 && (
         <ul className="mt-4 space-y-1">
           {rules.caps.map((c, i) => (
-            <li key={i}>{capWords(c, reviewer, flow)}</li>
+            <li key={i}>{capWords(c, reviewer, flow, rules)}</li>
           ))}
         </ul>
       )}

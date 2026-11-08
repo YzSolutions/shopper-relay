@@ -6,7 +6,7 @@ import { getRulesState, type Household } from "./households";
 // Every rule change is kept, with the rules before and after, so both people can
 // see what changed, who changed it and when. Nobody can edit or delete it.
 
-export const RULE_EVENT_TYPES = ["rules_changed", "rules_approved", "rules_change_dropped", "rules_activated"] as const;
+export const RULE_EVENT_TYPES = ["rules_changed", "rules_approved", "rules_delayed", "rules_change_dropped", "rules_activated"] as const;
 export type RuleEventType = (typeof RULE_EVENT_TYPES)[number];
 
 export interface RuleChangeDetail {
@@ -47,7 +47,7 @@ export async function currentRulesState(household: Household, now = new Date()):
     await logRuleEvent(household.id, {
       type: "rules_activated",
       actor: "system",
-      message: `${who}'s rule change started: the 24 hours passed.`,
+      message: `${who}'s rule change started: ${stored.pending.delayedAt ? "the 3-day delay" : "the 24 hours"} passed.`,
       change: { before: stored.rules, after: state.rules, status: "applied" },
     });
   }

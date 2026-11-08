@@ -11,7 +11,7 @@ import { useSession } from "@/lib/client/useSession";
 const EXAMPLES: Record<string, string> = {
   ai_shopper: "The AI shopper can buy desk clocks under $25 without asking. No more than $500 a week.",
   family_elder:
-    "I can buy clothes under $80 and medical devices under $100 on my own. Anything else under $75. Above that, Sarah takes a look. Any subscription goes to Sarah. Video games go to Marcus.",
+    "I can buy clothes under $200 and medical devices under $100 on my own. Anything else under $150. Above that, Sarah takes a look. Any subscription goes to Sarah. Video games go to Marcus.",
   parent_child: "Leo can ask for toys up to $15 and books up to $20. Anything over that is an exception. No more than $30 a week. Video games go to Marcus.",
   personal_shopper: "Clothing budget $200, shoes and handbags $150, electronics $400. Anything over budget is an exception. Watches budget $300.",
 };
@@ -105,6 +105,7 @@ export default function RulesPage() {
               ? `You ${changeWords(summarizeChange(session.rules, pending.proposed))}.`
               : `${shopper} asked to ${changeWords(summarizeChange(session.rules, pending.proposed), "ask")}.`}{" "}
             {reviewer} has been told.{" "}
+            {pending.delayedAt && `${reviewer} asked for 3 more days to talk. `}
             {pending.autoActivateAt
               ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}, or sooner if ${reviewer} says yes.`
               : `It starts when ${reviewer} says yes.`}{" "}

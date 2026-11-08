@@ -98,6 +98,8 @@ function phoneLine(h: RuleHistoryEntry, shopper: string, what: string, shownAbov
       return `${shopper} withdrew the change to ${what}.`;
     case "rules_approved":
       return `The change to ${what} applies now.`;
+    case "rules_delayed":
+      return `The change to ${what} is delayed 3 days.`;
     case "rules_changed":
       return h.change?.status === "waiting" ? `${shopper} wants to change ${what}.${shownAbove ? " See above." : ""}` : `${shopper} changed ${what}. It applies now.`;
   }

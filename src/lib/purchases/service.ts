@@ -151,6 +151,7 @@ function itemFromProduct(p: Product, merchant: string, url: string): PurchaseIte
     sourceId: p.sourceId,
     categoryPath: p.categoryPath,
     modelNumber: p.modelNumber,
+    specs: p.keyFeatures.slice(0, 12),
     ...(p.imageHidden && { imageHidden: true }),
   };
 }

@@ -39,9 +39,9 @@ export const FAMILY_ELDER_RULES: RuleSet = {
   categories: {
     ...under(
       {
-        general: 75_00,
-        food: 100_00,
-        clothing: 80_00,
+        general: 150_00,
+        food: 200_00,
+        clothing: 200_00,
         medical_device: 100_00,
         medical_visit: 150_00,
       },

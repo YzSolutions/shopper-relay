@@ -16,6 +16,8 @@ export interface PurchaseItem {
   categoryPath: string[];
   /** Kept so a one-time authorization can recognize the same model at another store. */
   modelNumber?: string | null;
+  /** The listing's key features, for the reviewer's short message. */
+  specs?: string[];
   /** Demo mode: blur the photo. */
   imageHidden?: boolean;
 }

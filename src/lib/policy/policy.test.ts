@@ -3,6 +3,7 @@ import { numberToCents, parseToCents } from "../money";
 import {
   activeRules,
   approvePendingChange,
+  delayPendingChange,
   checkPayPalAmount,
   evaluatePurchase,
   FAMILY_ELDER_RULES,
@@ -108,18 +109,19 @@ describe("Mom + Sarah preset", () => {
   it("lets Mom buy under each limit, and sends the limit itself to Sarah", () => {
     expect(mom(9999, ["medical_device"])).toBe("auto");
     expect(mom(10000, ["medical_device"])).toBe("review");
-    expect(mom(7999, ["clothing"])).toBe("auto");
-    expect(mom(8000, ["clothing"])).toBe("review");
-    expect(mom(9999, ["food"])).toBe("auto");
+    expect(mom(19999, ["clothing"])).toBe("auto");
+    expect(mom(20000, ["clothing"])).toBe("review");
+    expect(mom(19999, ["food"])).toBe("auto");
+    expect(mom(20000, ["food"])).toBe("review");
     expect(mom(14999, ["medical_visit"])).toBe("auto");
     expect(mom(15000, ["medical_visit"])).toBe("review");
-    expect(mom(7499, ["general"])).toBe("auto");
-    expect(mom(7500, ["general"])).toBe("review");
+    expect(mom(14999, ["general"])).toBe("auto");
+    expect(mom(15000, ["general"])).toBe("review");
   });
 
   it("falls back to General Shopping for categories without a rule", () => {
-    expect(mom(7000, ["toys"])).toBe("auto");
-    expect(mom(7500, ["toys"])).toBe("review");
+    expect(mom(14000, ["toys"])).toBe("auto");
+    expect(mom(15000, ["toys"])).toBe("review");
   });
 
   it("always reviews subscriptions, even tiny ones", () => {
@@ -131,9 +133,9 @@ describe("Mom + Sarah preset", () => {
   });
 
   it("takes the strictest rule when several categories apply", () => {
-    // $78 is under clothing's $80 but over general's $75.
-    expect(mom(7800, ["clothing"])).toBe("auto");
-    expect(mom(7800, ["clothing", "general"])).toBe("review");
+    // $160 is under clothing's $200 but over general's $150.
+    expect(mom(16000, ["clothing"])).toBe("auto");
+    expect(mom(16000, ["clothing", "general"])).toBe("review");
   });
 
   it("reviews anything recurring even with no subscription rule at all", () => {
@@ -239,8 +241,8 @@ describe("resolveCategory", () => {
     const r = resolveCategory({ catalogPath: null, ai: { category: "clothing", confidence: 0.5 }, recurring: "no" });
     expect(r.basis).toBe("ambiguous");
     expect(r.categories).toEqual(["clothing", "general"]);
-    // $78 is under clothing's $80 but over general's $75, so it goes to review.
-    expect(judge(FAMILY_ELDER_RULES, 7800, r.categories).outcome).toBe("review");
+    // $160 is under clothing's $200 but over general's $150, so it goes to review.
+    expect(judge(FAMILY_ELDER_RULES, 16000, r.categories).outcome).toBe("review");
   });
 
   it("adds the subscription rule when recurring is yes or uncertain", () => {
@@ -289,6 +291,39 @@ describe("rule changes", () => {
     expect(outcomeFor(state, hoursFrom(NOW, 23))).toBe("review");
     expect(outcomeFor(state, hoursFrom(NOW, 24))).toBe("auto"); // Sarah can't block it forever
     expect(outcomeFor(approvePendingChange(state, hoursFrom(NOW, 1)), hoursFrom(NOW, 1))).toBe("auto");
+  });
+
+  describe("Sarah delaying a change to talk about it", () => {
+    const waiting = () => ok(requestRuleChange(start, withMedicalLimit(50000), "shopper", NOW)).state;
+    const later = hoursFrom(NOW, 2);
+
+    it("moves the start to 3 days from when she taps it", () => {
+      const delayed = delayPendingChange(waiting(), later)!;
+      expect(delayed.pending?.autoActivateAt).toBe(hoursFrom(later, 72).toISOString());
+      expect(outcomeFor(delayed, hoursFrom(NOW, 30))).toBe("review"); // past the old 24 hours: still waiting
+      expect(outcomeFor(delayed, hoursFrom(later, 72))).toBe("auto"); // she can delay it, never block it
+    });
+
+    it("works once per change", () => {
+      expect(delayPendingChange(delayPendingChange(waiting(), later)!, later)).toBeNull();
+    });
+
+    it("has nothing to delay when no change is starting on its own", () => {
+      expect(delayPendingChange(start, later)).toBeNull();
+      const asked: RulesState = { owner: "reviewer", rules: FAMILY_ELDER_RULES, pending: null };
+      expect(delayPendingChange(ok(requestRuleChange(asked, withMedicalLimit(50000), "shopper", NOW)).state, NOW)).toBeNull();
+    });
+
+    it("can't be shortened by changing the rule again", () => {
+      const delayed = delayPendingChange(waiting(), later)!;
+      const again = ok(requestRuleChange(delayed, withMedicalLimit(60000), "shopper", hoursFrom(NOW, 3))).state;
+      expect(again.pending?.autoActivateAt).toBe(delayed.pending?.autoActivateAt);
+      expect(delayPendingChange(again, hoursFrom(NOW, 3))).toBeNull();
+    });
+
+    it("still lets her start it early", () => {
+      expect(outcomeFor(approvePendingChange(delayPendingChange(waiting(), later)!, later), later)).toBe("auto");
+    });
   });
 
   it("doesn't let Sarah loosen Mom's rules", () => {
@@ -351,7 +386,7 @@ describe("rule changes", () => {
   });
 
   it("treats deleting a category rule by what the fallback allows", () => {
-    // Dropping the $80 clothing rule makes clothing fall back to general's $75: a tightening.
+    // Dropping the $200 clothing rule makes clothing fall back to general's $150: a tightening.
     const rest = { ...FAMILY_ELDER_RULES.categories };
     delete rest.clothing;
     expect(summarizeChange(FAMILY_ELDER_RULES, { ...FAMILY_ELDER_RULES, categories: rest }).kind).toBe("tighten");

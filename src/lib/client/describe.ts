@@ -52,10 +52,52 @@ export function ruleRows(rules: RuleSet): RuleRow[] {
     }));
 }
 
-export function capWords(cap: Cap, reviewer: string, flow: "hold" | "request" = "hold"): string {
+const SPEC_MAX_CHARS = 34;
+
+/** The top line of the reviewer's short message: maker and model when the listing has them and they aren't hidden for filming. */
+export function phoneName(item: { title: string; brand: string | null; modelNumber?: string | null; imageHidden?: boolean }): string {
+  const has = (word: string) => item.title.toLowerCase().includes(word.toLowerCase());
+  const brand = item.brand && !has(item.brand) ? `${item.brand} ` : "";
+  const model = item.modelNumber && !item.imageHidden && !has(item.modelNumber) ? ` ${item.modelNumber}` : "";
+  return `${brand}${item.title}${model}`;
+}
+
+const PROCESSOR = /processor|\bcpu\b|core i\d|ryzen|pentium|celeron|alder lake|snapdragon|\bN\d{3,4}\b/i;
+const CHIP_BRANDS = /\b(intel|amd|apple|qualcomm|snapdragon|ryzen|core|pentium|celeron|alder lake)\b-?\s*/gi;
+
+/**
+ * Up to three short specs for one line, the processor first when the listing has one.
+ * Long marketing sentences and anything naming a hidden maker are left out.
+ * `hideNames`: chip makers' names come out too, for filming.
+ */
+export function phoneSpecs(specs: string[] | undefined, hideNames = false): string[] {
+  const usable = (specs ?? []).filter((s) => !s.includes("the maker"));
+  const chip = usable.find((s) => PROCESSOR.test(s) && !/graphics/i.test(s));
+  const others = usable.filter((s) => s !== chip && s.length <= SPEC_MAX_CHARS);
+  if (!chip) return others.slice(0, 3);
+  const named = hideNames ? chip.replace(CHIP_BRANDS, "").trim() : chip;
+  return [/processor/i.test(named) ? named : `Processor: ${named}`, ...others].slice(0, 3);
+}
+
+/** Why the reviewer is being asked, in as few words as possible. A repeat charge gets its own line, so it's left out here. */
+export function whyWords(decision: { outcome: Outcome; reasons: Array<{ category: CategoryKey | null }> }, primary: CategoryKey, flow: "hold" | "request", shopper: string): string[] {
+  if (flow === "request") return [decision.outcome === "exception" ? `Over budget: ${categoryLabel(primary)}` : categoryLabel(primary)];
+  const limits = decision.reasons.filter((r) => r.category !== "subscription");
+  return [...new Set(limits.map((r) => `Over ${shopper}'s limit${r.category ? `: ${categoryLabel(r.category)}` : ""}`))];
+}
+
+/** Who a spending limit goes to. Where someone reviews a category for the rule's owner, its limit goes to them too. */
+function capDeciders(cap: Cap, reviewer: string, flow: "hold" | "request", rules?: RuleSet): string {
+  if (flow !== "request" || !rules) return reviewer;
+  if (cap.category !== null) return rules.categories[cap.category]?.reviewer ?? reviewer;
+  const others = [...new Set(Object.values(rules.categories).flatMap((r) => (r?.reviewer && r.reviewer !== reviewer ? [r.reviewer] : [])))];
+  return others.length ? `${[reviewer, ...others].join(" or ")}, whoever decides on it,` : reviewer;
+}
+
+export function capWords(cap: Cap, reviewer: string, flow: "hold" | "request" = "hold", rules?: RuleSet): string {
   const scope = cap.category === null ? "All shopping combined" : categoryLabel(cap.category);
   const period = { purchase: "per purchase", week: "in any 7 days", month: "in any 30 days" }[cap.period];
-  const then = cap.over === "exception" ? `${reviewer} must approve an exception` : lowerFirst(outcomeWords(cap.over, reviewer, flow));
+  const then = cap.over === "exception" ? `${capDeciders(cap, reviewer, flow, rules)} must approve an exception` : lowerFirst(outcomeWords(cap.over, reviewer, flow));
   return `${scope}: up to ${formatCents(cap.limitCents)} ${period}. Over that, ${then}.`;
 }
 
@@ -88,8 +130,8 @@ export function ruleDiff(before: RuleSet, after: RuleSet, reviewer: string, flow
     const bw = b ? rowWords(b, reviewer, flow, shopper) : null;
     if (aw !== bw) lines.push({ label: (a ?? b)!.label, before: aw ?? OWN_RULE_NONE, after: bw ?? OWN_RULE_NONE });
   }
-  const capsBefore = before.caps.map((c) => capWords(c, reviewer, flow));
-  const capsAfter = after.caps.map((c) => capWords(c, reviewer, flow));
+  const capsBefore = before.caps.map((c) => capWords(c, reviewer, flow, before));
+  const capsAfter = after.caps.map((c) => capWords(c, reviewer, flow, after));
   const gone = capsBefore.filter((c) => !capsAfter.includes(c));
   const added = capsAfter.filter((c) => !capsBefore.includes(c));
   if (gone.length || added.length) lines.push({ label: "Spending limits", before: gone.join(" ") || "None.", after: added.join(" ") || "None." });
