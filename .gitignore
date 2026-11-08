@@ -42,3 +42,6 @@ next-env.d.ts
 
 # example env is safe to commit
 !.env.example
+
+# Copied from node_modules on every build (scripts/copy-bryntum.mjs)
+/public/bryntum
