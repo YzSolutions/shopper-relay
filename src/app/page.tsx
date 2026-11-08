@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { brand } from "@/config/brand";
 import type { RelationshipId } from "@/config/relationships";
+import { FrontNav } from "@/components/FrontNav";
 import { TryDemoButton } from "@/components/TryDemoButton";
 import { ButtonLink } from "@/components/ui";
 import logo from "../../public/brand/shopperrelay-logo-trimmed.png";
@@ -218,9 +219,18 @@ const WHY: Array<{ figure: string; text: string; source: string; href: string }>
 
 const STACK = ["PayPal REST APIs", "PayPal JavaScript SDK", "Google Gemini", "Channel3", "AG Grid", "Bryntum Calendar", "Next.js 16", "React 19", "TypeScript", "Tailwind CSS", "Neon Postgres", "Vercel", "Zod", "Vitest"];
 
+const NAV = [
+  { href: "#setups", label: "Who it's for" },
+  { href: "#prizes", label: "Hackathon" },
+  { href: "#agent", label: "AI shopper" },
+  { href: "#paypal", label: "PayPal" },
+  { href: "#ai", label: "AI" },
+  { href: "#channel3", label: "Channel3" },
+];
+
 function Section({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-8 border-t border-line py-16 md:py-20">
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-20 border-t border-line py-16 md:py-20">
       <div className="max-w-2xl">
         <h2 id={`${id}-title`} className="text-[2rem] font-extrabold md:text-[2.5rem]">
           {title}
@@ -235,34 +245,14 @@ function Section({ id, title, lead, children }: { id: string; title: string; lea
 export default function FrontPage() {
   return (
     <div className="min-h-dvh">
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-x-8 px-5 py-5">
-        <Link href="/" aria-label={`${brand.name} home`}>
-          <Image src={logo} alt={brand.name} priority className="h-11 w-auto" />
-        </Link>
-        <nav aria-label="Page" className="flex items-center gap-x-6 text-lg font-semibold">
-          {/* On a phone the page is one scroll; only the demo link stays. */}
-          <a href="#setups" className="hidden text-ink-soft hover:text-ink md:inline">
-            Who it&apos;s for
-          </a>
-          <a href="#prizes" className="hidden text-ink-soft hover:text-ink md:inline">
-            Hackathon
-          </a>
-          <a href="#agent" className="hidden text-ink-soft hover:text-ink md:inline">
-            AI shopper
-          </a>
-          <a href="#paypal" className="hidden text-ink-soft hover:text-ink md:inline">
-            PayPal
-          </a>
-          <a href="#ai" className="hidden text-ink-soft hover:text-ink md:inline">
-            AI
-          </a>
-          <a href="#channel3" className="hidden text-ink-soft hover:text-ink md:inline">
-            Channel3
-          </a>
-          <Link href="/demo" className="rounded-xl bg-relay px-4 py-2 text-white hover:bg-relay-deep">
-            Live demo
+      {/* Stays at the top while the page scrolls, so the sections are always a tap away. */}
+      <header className="sticky top-0 z-50 border-b border-line bg-white/95 backdrop-blur">
+        <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-x-3 px-5 py-3 sm:gap-x-6">
+          <Link href="/" aria-label={`${brand.name} home`} className="shrink-0">
+            <Image src={logo} alt={brand.name} priority className="h-8 w-auto sm:h-11" />
           </Link>
-        </nav>
+          <FrontNav links={NAV} />
+        </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-5">
