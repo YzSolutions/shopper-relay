@@ -108,8 +108,10 @@ investment scams, which happen outside a shopping checkout.
 - **Channel3** for product search, real prices and stock, and catalog categories that decide which rule
   applies. Its product grouping is what makes "same product" an honest claim, and a stated price limit
   becomes a Channel3 price filter.
-- **AG Grid Community** for the spending table on History: every purchase with what PayPal charged, who
-  decided and the PayPal ID, with sorting, filters, search, a pinned 30-day total and CSV download.
+- **AG Grid Community** for the spending table on History: everything charged to one person's PayPal, from
+  every relationship (Sarah's shows Leo's requests, her AI shopper's buys and her own shopping), with who it
+  was for, what PayPal charged, who decided and the PayPal ID, plus sorting, filters, search, a pinned 30-day
+  total and CSV download.
 - **Bryntum Calendar** for Occasions on the AI Shopper tab: Sarah's birthdays and holidays, each with a job for
   the AI. A daily run shops for each one a few days ahead, within her rules, and the calendar shows what it did.
 - **A deterministic rules engine** with no I/O and no AI, over 100 unit tests, and an end-to-end test that

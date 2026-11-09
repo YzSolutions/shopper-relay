@@ -66,12 +66,12 @@ export async function removeOccasion(householdId: string, id: string): Promise<v
 }
 
 /** Marks it as being shopped for. Only one caller ever gets it back, so it's shopped for once. */
-export async function claimOccasion(id: string, householdId?: string): Promise<{ id: string; householdId: string; job: string } | null> {
+export async function claimOccasion(id: string, householdId?: string): Promise<{ id: string; householdId: string; title: string; job: string } | null> {
   const rows = (await db()`
     update occasions set shopped_at = now()
     where id = ${id} and shopped_at is null and (${householdId ?? null}::uuid is null or household_id = ${householdId ?? null}::uuid)
-    returning id, household_id, job`) as Array<{ id: string; household_id: string; job: string }>;
-  return rows[0] ? { id: rows[0].id, householdId: rows[0].household_id, job: rows[0].job } : null;
+    returning id, household_id, title, job`) as Array<{ id: string; household_id: string; title: string; job: string }>;
+  return rows[0] ? { id: rows[0].id, householdId: rows[0].household_id, title: rows[0].title, job: rows[0].job } : null;
 }
 
 /** Lets it be shopped for again (the run failed before it could finish). */

@@ -73,6 +73,8 @@ const shortDay = (d: Date) => d.toLocaleDateString([], { month: "short", day: "n
 function ItemCell({ data }: ICellRendererParams<Row>) {
   if (!data) return null;
   if (isTotal(data)) return <span className="font-bold">{data.item}</span>;
+  // A row from another relationship's tab opens from that tab.
+  if (!data.here) return <span title={data.item}>{data.item}</span>;
   return (
     <Link href={`/purchase/${data.id}`} title={data.item} className="font-semibold text-relay underline-offset-4 hover:underline">
       {data.item}
@@ -92,7 +94,7 @@ function sameDay(filterDate: Date, cell: Date | null): number {
   return d === filterDate.getTime() ? 0 : d < filterDate.getTime() ? -1 : 1;
 }
 
-export function SpendingGrid({ purchases, names }: { purchases: LedgerPurchase[]; names: { shopper: string; reviewer: string } }) {
+export function SpendingGrid({ purchases, names, holder }: { purchases: LedgerPurchase[]; names: { shopper: string; reviewer: string }; holder: string }) {
   const grid = useRef<AgGridReact<Row>>(null);
   const [search, setSearch] = useState("");
   const [narrow, setNarrow] = useState(false);
@@ -112,11 +114,12 @@ export function SpendingGrid({ purchases, names }: { purchases: LedgerPurchase[]
     () => [
       { headerName: "Date", field: "date" as never, initialSort: "desc", filter: "agDateColumnFilter", filterParams: { comparator: sameDay }, valueFormatter: (p) => (p.value ? shortDay(p.value) : ""), flex: 0.8, minWidth: narrow ? 76 : 104 },
       { headerName: "Item", field: "item", cellRenderer: ItemCell, filter: "agTextColumnFilter", flex: 2, minWidth: 140 },
+      { headerName: "For", field: "forName" as never, filter: "agTextColumnFilter", hide: narrow, flex: 0.7, minWidth: 84 },
       { headerName: "Category", field: "category" as never, filter: "agTextColumnFilter", hide: narrow, flex: 1, minWidth: 110 },
       { headerName: "Amount", field: "amount", filter: "agNumberColumnFilter", valueFormatter: (p) => money(p.value), cellClass: "ag-right-aligned-cell tabular-nums font-semibold", headerClass: "ag-right-aligned-header", flex: 1, minWidth: 100 },
       { headerName: "Status", field: "status" as never, cellRenderer: StatusCell, filter: "agTextColumnFilter", hide: narrow, flex: 1, minWidth: 118 },
-      { headerName: "Decided by", field: "decidedBy" as never, filter: "agTextColumnFilter", hide: narrow, flex: 1.3, minWidth: 140 },
-      { headerName: "PayPal ID", field: "paypalId" as never, filter: "agTextColumnFilter", hide: narrow, cellClass: "tabular-nums text-ink-soft", flex: 1.2, minWidth: 130 },
+      { headerName: "Decided by", field: "decidedBy" as never, filter: "agTextColumnFilter", hide: narrow, flex: 1.4, minWidth: 140 },
+      { headerName: "PayPal ID", field: "paypalId" as never, filter: "agTextColumnFilter", hide: narrow, cellClass: "tabular-nums text-ink-soft", flex: 1.1, minWidth: 130 },
     ],
     [narrow],
   );
@@ -129,12 +132,16 @@ export function SpendingGrid({ purchases, names }: { purchases: LedgerPurchase[]
     });
   }
 
+  // On wide screens the table takes more room than the text column, so no column is cut short.
   return (
-    <section aria-labelledby="spending" className="space-y-4">
+    <section aria-labelledby="spending" className="space-y-4 xl:-mx-24">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 id="spending" className="text-2xl font-bold">
-          Spending
-        </h2>
+        <div>
+          <h2 id="spending" className="text-2xl font-bold">
+            {holder}&apos;s PayPal
+          </h2>
+          <p className="text-lg text-ink-soft">Everything charged to {holder}&apos;s PayPal, or asked of it, from every relationship.</p>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             <span className="sr-only">Search the spending table</span>
@@ -152,7 +159,7 @@ export function SpendingGrid({ purchases, names }: { purchases: LedgerPurchase[]
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="text-lg text-ink-soft">Nothing yet. Purchases show up here once they&apos;re paid for or sent to {names.reviewer}.</p>
+        <p className="text-lg text-ink-soft">Nothing yet. Purchases show up here once they&apos;re paid from {holder}&apos;s PayPal or sent to {holder}.</p>
       ) : (
         <AgGridReact<Row>
           ref={grid}

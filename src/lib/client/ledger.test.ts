@@ -38,6 +38,14 @@ describe("the spending table", () => {
     expect(ledgerRows([purchase({ state: "expired" })], names)[0]).toMatchObject({ status: "Released", decidedBy: "No answer in time" });
   });
 
+  it("in a PayPal table across relationships, uses each row's own people", () => {
+    const bed = ledgerRows([purchase({ flow: "hold", decision: { outcome: "auto" }, people: { shopper: "Sarah", reviewer: "Sarah", for: "Sarah" }, here: false })], names)[0];
+    expect(bed).toMatchObject({ forName: "Sarah", decidedBy: "Sarah", here: false });
+    const clock = ledgerRows([purchase({ standing: true, decision: { outcome: "auto" }, people: { shopper: "AI Shopper", reviewer: "Sarah", for: "Sarah" } })], names)[0];
+    expect(clock).toMatchObject({ forName: "Sarah", decidedBy: "Sarah's saved PayPal", here: true });
+    expect(ledgerRows([purchase({ state: "declined" })], names)[0].forName).toBe("Leo");
+  });
+
   it("leaves out purchases that were only looked at", () => {
     expect(ledgerRows([purchase({ state: "evaluated" }), purchase({ state: "checkout" })], names)).toEqual([]);
   });

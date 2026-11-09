@@ -35,7 +35,9 @@ describe("tourFacts", () => {
       standingOn: false,
       goalBought: false,
       goalAsked: false,
+      occasionAdded: false,
     });
+    expect(tourFacts([], ["occasion_added", "occasion_shopped"])).toMatchObject({ occasionAdded: true, occasionShopped: true });
   });
 });
 

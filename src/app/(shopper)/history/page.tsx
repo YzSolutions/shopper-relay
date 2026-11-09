@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { LogList } from "@/components/PurchaseParts";
 import { SpendingGrid } from "@/components/SpendingGrid";
 import { ErrorNotice, PageTitle, Spinner } from "@/components/ui";
-import { api, type LogEvent, type PurchaseView } from "@/lib/client/api";
+import { api, type LogEvent } from "@/lib/client/api";
+import type { LedgerPurchase } from "@/lib/client/ledger";
 import { useSession } from "@/lib/client/useSession";
 
 export default function HistoryPage() {
   const { session } = useSession();
   const [events, setEvents] = useState<LogEvent[] | null>(null);
-  const [purchases, setPurchases] = useState<PurchaseView[] | null>(null);
+  const [account, setAccount] = useState<{ holder: string; purchases: LedgerPurchase[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,8 +19,8 @@ export default function HistoryPage() {
     api<{ events: LogEvent[] }>("/api/log")
       .then((d) => setEvents(d.events))
       .catch(fail);
-    api<{ purchases: PurchaseView[] }>("/api/purchases")
-      .then((d) => setPurchases(d.purchases))
+    api<{ holder: string; purchases: LedgerPurchase[] }>("/api/purchases/account")
+      .then(setAccount)
       .catch(fail);
   }, []);
 
@@ -29,7 +30,7 @@ export default function HistoryPage() {
     <div className="space-y-12">
       <PageTitle lead="Every purchase and rule change, and the reason for each step. Newest first.">History</PageTitle>
       <ErrorNotice error={error} />
-      {purchases && names && <SpendingGrid purchases={purchases} names={names} />}
+      {account && names && <SpendingGrid purchases={account.purchases} names={names} holder={account.holder} />}
 
       <section aria-labelledby="steps" className="max-w-3xl space-y-4">
         <h2 id="steps" className="text-2xl font-bold">

@@ -17,12 +17,18 @@ export interface LedgerPurchase {
   standing: boolean;
   otpa: { maxCents: number } | null;
   paypal: { authorizationId: string | null; captureId: string | null };
+  /** In a PayPal table spanning several relationships: the people in this one, and who it was bought for. */
+  people?: { shopper: string; reviewer: string; for: string };
+  /** Whether it's from the relationship this tab shows (only those open from here). */
+  here?: boolean;
 }
 
 export interface LedgerRow {
   id: string;
   date: Date;
   item: string;
+  /** Who it was bought for. */
+  forName: string;
   category: string;
   /** What PayPal charged once paid; otherwise the price asked about. */
   amount: number;
@@ -30,6 +36,7 @@ export interface LedgerRow {
   decidedBy: string;
   paypalId: string;
   paid: boolean;
+  here: boolean;
 }
 
 export type LedgerStatus = "Paid" | "Held" | "Waiting" | "Declined" | "Released" | "Not allowed" | "Stopped";
@@ -52,6 +59,8 @@ function decidedBy(p: LedgerPurchase, names: { shopper: string; reviewer: string
   if (p.state === "completed") {
     if (p.otpa) return `${reviewer}'s one-time limit`;
     if (p.standing) return `${reviewer}'s saved PayPal`;
+    // Someone shopping for themselves just bought it.
+    if (names.shopper === reviewer) return names.shopper;
     if (p.decision.outcome === "auto") return `${names.shopper}'s own rules`;
     return reviewer;
   }
@@ -69,17 +78,20 @@ export function ledgerRows(purchases: LedgerPurchase[], names: { shopper: string
     const status = STATUS[p.state];
     if (!status) return [];
     const paid = p.state === "completed";
+    const people = p.people ?? { ...names, for: names.shopper };
     return [
       {
         id: p.id,
         date: new Date(p.createdAt),
         item: p.item.title,
+        forName: people.for,
         category: categoryLabel(p.category.primary),
         amount: (paid ? (p.paypalCapturedCents ?? p.reviewedCents) : p.reviewedCents) / 100,
         status,
-        decidedBy: decidedBy(p, names),
+        decidedBy: decidedBy(p, people),
         paypalId: p.paypal.captureId ?? p.paypal.authorizationId ?? "",
         paid,
+        here: p.here ?? true,
       },
     ];
   });

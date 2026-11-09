@@ -3,6 +3,8 @@ import { body, handle } from "@/lib/http";
 import { shopForOccasion } from "@/lib/purchases/occasions";
 import { FlowError } from "@/lib/purchases/service";
 import { currentHousehold } from "@/lib/store/current";
+import { dayWords, shopDay } from "@/lib/client/occasions";
+import { logEvent } from "@/lib/store/events";
 import { addOccasion, listOccasions, removeOccasion } from "@/lib/store/occasions";
 import { purchaseView } from "@/lib/views";
 
@@ -39,6 +41,12 @@ export async function POST(req: Request) {
     const household = await aiHousehold();
     if (a.action === "add") {
       if (!(await addOccasion(household.id, a))) throw new FlowError("That's as many occasions as this demo keeps. Remove one to add another.", 409);
+      await logEvent({
+        householdId: household.id,
+        type: "occasion_added",
+        actor: "reviewer",
+        message: `${household.reviewerName} put ${a.title} on the calendar for ${dayWords(a.date)}: ${a.job}. The AI shops for it on ${dayWords(shopDay(a.date, a.daysAhead))}.`,
+      });
     } else if (a.action === "remove") {
       await removeOccasion(household.id, a.id);
     } else {

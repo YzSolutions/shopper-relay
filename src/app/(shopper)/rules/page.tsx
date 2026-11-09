@@ -88,7 +88,9 @@ export default function RulesPage() {
     <div className="max-w-4xl space-y-12">
       <PageTitle
         lead={
-          shopperOwns
+          shopper === reviewer
+            ? "Your own limits, for your own money. Changes apply right away."
+            : shopperOwns
             ? `You decide when ${reviewer} takes a look. A stricter rule works right away. If you loosen one, or change who reviews something, ${reviewer} is told, and it starts after 24 hours unless ${reviewer} says yes sooner.`
             : `${reviewer} sets these rules for ${shopper}. ${reviewer}'s changes apply right away. ${shopper} can ask for a looser rule, which waits for ${reviewer}; a stricter one applies right away.`
         }

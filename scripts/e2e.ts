@@ -5,7 +5,7 @@
 //
 //   npm run dev                         (in another terminal)
 //   npm run e2e                         (BASE_URL defaults to http://localhost:3000)
-//   npm run e2e -- kids                 (just one: mom | kids | shopper | agent | standing | bills | ai | priya | isolation)
+//   npm run e2e -- kids                 (just one: mom | kids | shopper | agent | standing | bills | ai | priya | sarah | isolation)
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- this script reads the API's JSON loosely, like a browser would */
 import { existsSync, readFileSync } from "node:fs";
@@ -441,12 +441,20 @@ async function aiShopper() {
   expect(job.purchase?.state === "completed" && job.purchase.standing && job.purchase.paypal.captureId, `${job.purchase?.item.title}: bought, PayPal capture ${job.purchase?.paypal.captureId}`);
   expect(job.purchase.paypalCapturedCents === job.purchase.reviewedCents && job.purchase.reviewedCents <= 25_00, `PayPal took exactly the listed price, ${formatCents(job.purchase.reviewedCents)}`);
 
+  step("Sarah puts the office Secret Santa on her calendar, and the AI shops ahead for it");
+  const santa = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+  const added = (await api("/api/occasions", { method: "POST", json: { action: "add", title: "Office Secret Santa", date: santa, job: "a modern desk clock under $25", daysAhead: 7 } })).occasions;
+  const shopped = await api("/api/occasions", { method: "POST", json: { action: "shop", id: added[0].id } });
+  expect(shopped.purchase?.state === "completed" && shopped.purchase.reviewedCents <= 25_00, `${shopped.purchase?.item.title}: bought ahead for ${formatCents(shopped.purchase?.reviewedCents ?? 0)}`);
+  const again = await raw("/api/occasions", { method: "POST", json: { action: "shop", id: added[0].id } });
+  expect(again.status === 409, "and it's never shopped for twice");
+
   step("Outside the rule, the AI asks Sarah");
   const out = await api("/api/agent", { method: "POST", json: { goal: "gaming laptop" } });
   for (const s of out.steps) console.log(`    · [${s.kind}] ${s.text}`);
   expect(out.purchase?.state === "requested" && out.purchase.reviewerName === "Sarah", `${out.purchase?.item.title}: asked Sarah, nothing paid`);
   await api("/api/standing", { method: "POST", json: { action: "revoke" } });
-  await tourDone("rulesChanged", "standingOn", "goalBought", "goalAsked");
+  await tourDone("rulesChanged", "standingOn", "occasionAdded", "occasionShopped", "goalBought", "goalAsked");
 }
 
 /** The video's Priya story: $200 on her own, over that goes to Marcus, who sets a one-time limit, and PayPal releases the rest. */
@@ -494,6 +502,71 @@ async function priya() {
   await api("/api/standing", { method: "POST", json: { action: "revoke" } });
 }
 
+/** Sarah shops for herself, and her PayPal table shows what charged her account, from every relationship. */
+async function sarah() {
+  const ask = async (sourceId: string) => {
+    const p = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId } })).purchase;
+    return (await api(`/api/purchases/${p.id}/request`, { method: "POST" })).purchase;
+  };
+  const titled = (rows: any[], t: string) => rows.find((r: any) => r.item.title === t);
+
+  mode = "parent_child";
+  step("Leo asks for a pricey hoodie; Sarah says no, then pays for a cheaper one");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  const hoodies = (await search("kids hoodie")).filter((r) => r.product.offers[0]).sort((a, b) => a.product.offers[0].priceCents - b.product.offers[0].priceCents);
+  const pricey = hoodies[hoodies.length - 1];
+  const cheap = hoodies[0];
+  expect(pricey && cheap && pricey.product.sourceId !== cheap.product.sourceId, `${pricey.product.title} vs ${cheap.product.title}`);
+  const no = (await api(`/api${(await ask(pricey.product.sourceId)).reviewPath}`, { method: "POST", json: { decision: "decline" } })).purchase;
+  expect(no.state === "declined", `Sarah declined ${no.item.title} (${formatCents(no.reviewedCents)})`);
+  const yes = await reviewerPays((await ask(cheap.product.sourceId)).reviewPath);
+  expect(yes.state === "completed", `Sarah paid for ${yes.item.title} (${formatCents(yes.reviewedCents)})`);
+  const tech = (await search("wireless headphones")).find((r) => r.category.primary === "electronics");
+  let marcusPaid: string | null = null;
+  if (tech) {
+    const asked = await ask(tech.product.sourceId);
+    expect(asked.reviewerName === "Marcus", `${asked.item.title} goes to Marcus`);
+    marcusPaid = (await reviewerPays(asked.reviewPath)).item.title;
+  } else {
+    console.log("  (no electronics in today's catalog; skipped Marcus's purchase)");
+  }
+
+  mode = "family_elder";
+  step("Mom buys something with her own money");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  const glasses = (await search("reading glasses")).find((r) => r.preview?.outcome === "auto");
+  const momChose = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: glasses.product.sourceId } })).purchase;
+  const momPaid = await shopperPays(momChose.id);
+  expect(momPaid.state === "completed", `Mom paid for ${momPaid.item.title} herself`);
+
+  mode = "self";
+  step("Sarah shops for herself and pays with her own PayPal");
+  await api("/api/demo", { method: "POST", json: { action: "reset" } });
+  const session = await api("/api/session");
+  expect(session.household.shopperName === "Sarah" && session.relationship.payer === "shopper", "Sarah's own tab: she shops and pays");
+  const bed = (await search("bed set"))[0];
+  const chose = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: bed.product.sourceId } })).purchase;
+  expect(chose.decision.outcome === "auto", "her own rules let her buy it");
+  const bought = await shopperPays(chose.id);
+  expect(bought.state === "completed" && bought.paypal.captureId, `Sarah bought ${bought.item.title}: PayPal capture ${bought.paypal.captureId}`);
+
+  step("Sarah's PayPal table: everything charged to her account, and nothing else");
+  const mine = await api("/api/purchases/account");
+  expect(mine.holder === "Sarah", "the table is Sarah's PayPal");
+  expect(titled(mine.purchases, bought.item.title)?.people.for === "Sarah", "her bed set, for Sarah");
+  expect(titled(mine.purchases, no.item.title)?.state === "declined" && titled(mine.purchases, no.item.title).people.for === "Leo", "Leo's hoodie she said no to, for Leo");
+  expect(titled(mine.purchases, yes.item.title)?.state === "completed", "the cheaper hoodie she paid for");
+  expect(!titled(mine.purchases, momPaid.item.title), "not Mom's own shopping");
+  if (marcusPaid) expect(!titled(mine.purchases, marcusPaid), "not Leo's tech, which Marcus paid for");
+  expect(mine.purchases.every((p: any) => p.here === (p.people.shopper === "Sarah")), "only her own rows open from this tab");
+  await tourDone("boughtAlone");
+
+  mode = "personal_shopper";
+  const his = await api("/api/purchases/account");
+  expect(his.holder === "Marcus", "Priya's tab shows Marcus's PayPal");
+  if (marcusPaid) expect(titled(his.purchases, marcusPaid)?.people.for === "Leo", "with Leo's tech that Marcus paid for");
+}
+
 async function main() {
   const only = process.argv[2];
   if (!only || only === "isolation") await isolation();
@@ -505,6 +578,7 @@ async function main() {
   if (!only || only === "bills") await bills();
   if (!only || only === "ai") await aiShopper();
   if (!only || only === "priya") await priya();
+  if (!only || only === "sarah") await sarah();
   console.log("\nAll end-to-end checks passed.");
 }
 

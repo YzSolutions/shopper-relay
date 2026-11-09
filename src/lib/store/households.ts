@@ -51,6 +51,11 @@ export async function createHousehold(visitorId: string, relationship: Relations
   return toHousehold(existing);
 }
 
+/** All of this visitor's households (one per relationship they've opened). */
+export async function visitorHouseholds(visitorId: string): Promise<Household[]> {
+  return ((await db()`select * from households where visitor_id = ${visitorId}`) as Row[]).map(toHousehold);
+}
+
 export async function getHousehold(id: string): Promise<Household | null> {
   const rows = (await db()`select * from households where id = ${id}`) as Row[];
   return rows[0] ? toHousehold(rows[0]) : null;

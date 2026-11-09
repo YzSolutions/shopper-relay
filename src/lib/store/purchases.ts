@@ -149,6 +149,13 @@ export async function listPurchases(householdId: string, limit = 50): Promise<Pu
   return rows.map(toPurchase);
 }
 
+/** The newest purchases across several households, newest first. */
+export async function listPurchasesIn(householdIds: string[], limit = 200): Promise<Purchase[]> {
+  if (householdIds.length === 0) return [];
+  const rows = (await db()`select * from purchases where household_id = any(${householdIds}) order by created_at desc limit ${limit}`) as Row[];
+  return rows.map(toPurchase);
+}
+
 export function summarize(p: Purchase): PurchaseSummary {
   return {
     id: p.id,

@@ -1,10 +1,10 @@
-import { AI_SHOPPER_RULES, FAMILY_ELDER_RULES, PARENT_CHILD_RULES, PERSONAL_SHOPPER_RULES, type Role, type RuleSet } from "@/lib/policy";
+import { AI_SHOPPER_RULES, FAMILY_ELDER_RULES, PARENT_CHILD_RULES, PERSONAL_SHOPPER_RULES, SELF_RULES, type Role, type RuleSet } from "@/lib/policy";
 import type { Flow } from "@/lib/purchases/lifecycle";
 
-// One engine, four relationships. What differs is who finds products, whose
-// rules they are, who pays, and the words each person sees.
+// One engine, four relationships, plus Sarah shopping on her own. What differs is who
+// finds products, whose rules they are, who pays, and the words each person sees.
 
-export const RELATIONSHIP_IDS = ["family_elder", "parent_child", "personal_shopper", "ai_shopper"] as const;
+export const RELATIONSHIP_IDS = ["family_elder", "parent_child", "personal_shopper", "ai_shopper", "self"] as const;
 export type RelationshipId = (typeof RELATIONSHIP_IDS)[number];
 
 export function isRelationshipId(v: unknown): v is RelationshipId {
@@ -24,6 +24,8 @@ export interface Relationship {
   ruleOwner: Role;
   /** Who pays; their PayPal account is charged. */
   payer: Role;
+  /** Who the things bought are for (the "For" column of the PayPal table). */
+  buysFor: Role;
   /**
    * hold: the shopper pays; PayPal holds it while the reviewer looks.
    * request: the shopper asks; the reviewer approves and pays.
@@ -57,6 +59,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     reviewer: { role: "Trusted contact", demoName: "Sarah" },
     ruleOwner: "shopper",
     payer: "shopper",
+    buysFor: "shopper",
     flow: "hold",
     otpa: false,
     bills: false,
@@ -79,6 +82,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     reviewer: { role: "Parent", demoName: "Sarah" },
     ruleOwner: "reviewer",
     payer: "reviewer",
+    buysFor: "shopper",
     flow: "request",
     otpa: false,
     bills: false,
@@ -101,6 +105,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     reviewer: { role: "Customer", demoName: "Marcus" },
     ruleOwner: "reviewer",
     payer: "reviewer",
+    buysFor: "reviewer",
     flow: "request",
     otpa: true,
     bills: true,
@@ -123,6 +128,7 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
     reviewer: { role: "Owner", demoName: "Sarah" },
     ruleOwner: "reviewer",
     payer: "reviewer",
+    buysFor: "reviewer",
     flow: "request",
     otpa: true,
     bills: false,
@@ -133,6 +139,29 @@ export const RELATIONSHIPS: Record<RelationshipId, Relationship> = {
       suggestions: ["Modern desk clock under $25", "Gaming laptop", "Wireless mouse"],
       choose: (r) => `Ask ${r}`,
       sendRequest: (r) => `Send to ${r}`,
+    },
+  },
+  self: {
+    id: "self",
+    tab: "Sarah",
+    title: "Sarah, on her own",
+    summary: "Sarah shops for herself and pays with her own PayPal. Her PayPal table shows everything charged to her account, from every relationship.",
+    controlNote: "Sarah's money, Sarah's call.",
+    shopper: { role: "Owner", demoName: "Sarah" },
+    reviewer: { role: "Owner", demoName: "Sarah" },
+    ruleOwner: "shopper",
+    payer: "shopper",
+    buysFor: "shopper",
+    flow: "hold",
+    otpa: false,
+    bills: false,
+    defaultRules: SELF_RULES,
+    words: {
+      shopHeading: "What are you shopping for?",
+      placeholder: "For example, a bed set",
+      suggestions: ["Bed set", "Throw blanket", "Desk lamp", "Running shoes"],
+      choose: () => "Choose this",
+      sendRequest: () => "Pay with PayPal",
     },
   },
 };

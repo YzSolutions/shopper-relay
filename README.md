@@ -235,7 +235,11 @@ product photos.
 
 ## The spending table (AG Grid)
 
-History opens with every purchase in one table, built on AG Grid Community: what was bought, what PayPal
+History opens with one PayPal account's spending in one table, built on AG Grid Community. A purchase
+belongs to the account it charges, not the relationship it was made in: Sarah's table has Leo's requests she
+paid for or declined, what her AI shopper bought with her saved PayPal, and what she bought herself on her own
+**Sarah** tab, while Leo's tech that Marcus approves and pays shows on Marcus's table, and Mom's own shopping
+stays on Mom's (`src/lib/purchases/account.ts`). Each row shows what was bought, who it was for, what PayPal
 actually charged, its status, who decided (the shopper's own rules, a reviewer, a one-time limit or saved
 PayPal), and the PayPal capture or authorization ID. It sorts, filters by text, number and date, searches,
 keeps a pinned total of what was paid in the last 30 days, and downloads as CSV for a caregiver's records.

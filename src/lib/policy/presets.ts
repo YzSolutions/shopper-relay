@@ -94,6 +94,15 @@ export const AI_SHOPPER_RULES: RuleSet = {
 };
 
 /**
+ * Sarah on her own: she shops for herself with her own PayPal, so nothing
+ * needs anyone else's OK. She can still write herself limits on the Rules page.
+ */
+export const SELF_RULES: RuleSet = {
+  categories: { general: always("auto") },
+  caps: [],
+};
+
+/**
  * Personal shopper + customer. The shopper never buys on their own: every
  * find goes to the customer, who declines, approves and pays, or grants a
  * One-Time Purchase Authorization. The amounts are the customer's target

@@ -168,17 +168,18 @@ const PRIZES: Array<{
   },
   {
     prize: "Best Use of AG Grid",
-    title: "A spending record a caregiver can keep",
+    title: "Everything on Sarah's PayPal, in one table",
     points: [
-      "Every purchase in one table: what was bought, what PayPal charged, its status, who decided and the PayPal ID.",
+      "One table per PayPal account, across every relationship: Leo's requests Sarah paid or declined, her AI shopper's buys, and her own shopping. What Marcus pays for shows on his.",
+      "What was bought, who it was for, what PayPal charged, its status, who decided and the PayPal ID.",
       "Sort, filter by text, number and date, and search.",
       "A pinned total of what was paid in the last 30 days.",
       "Download as CSV for records or taxes. On a phone it keeps the date, item and amount.",
     ],
     shot: shotAgGrid,
-    alt: "The spending table on History: five purchases with amount, status, who decided and PayPal ID, and the 30-day total.",
-    mode: "parent_child",
-    tryLabel: "Try Leo + Sarah",
+    alt: "Sarah's PayPal table on History: her own comforter set, the clock her AI shopper bought, and Leo's hoodies, one paid and one declined, with who each was for, the amount, status, who decided, PayPal ID and the 30-day total.",
+    mode: "self",
+    tryLabel: "Try Sarah's own tab",
   },
   {
     prize: "Best Use of Bryntum",

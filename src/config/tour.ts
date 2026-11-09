@@ -24,6 +24,9 @@ export interface TourFacts {
   /** The AI Shopper bought within the rules, or asked because it couldn't. */
   goalBought: boolean;
   goalAsked: boolean;
+  /** The owner put a date on the Occasions calendar, and the AI shopped ahead of one. */
+  occasionAdded: boolean;
+  occasionShopped: boolean;
 }
 
 export const NO_FACTS: TourFacts = {
@@ -39,6 +42,8 @@ export const NO_FACTS: TourFacts = {
   standingOn: false,
   goalBought: false,
   goalAsked: false,
+  occasionAdded: false,
+  occasionShopped: false,
 };
 
 export function tourFacts(purchases: Array<Pick<Purchase, "flow" | "state" | "terms" | "decision">>, eventTypes: string[]): TourFacts {
@@ -58,6 +63,8 @@ export function tourFacts(purchases: Array<Pick<Purchase, "flow" | "state" | "te
     standingOn: types.has("standing_on"),
     goalBought: types.has("agent_goal_bought"),
     goalAsked: types.has("agent_goal_asked"),
+    occasionAdded: types.has("occasion_added"),
+    occasionShopped: types.has("occasion_shopped"),
   };
 }
 
@@ -161,16 +168,43 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
       fact: "standingOn",
     },
     {
-      title: "Send it shopping",
-      how: "Ask for a modern desk clock under $25. It's within the rule, so the AI buys it.",
-      go: { path: "/shop", label: "Go to AI Shopper" },
-      fact: "goalBought",
+      title: "Put Secret Santa on the calendar",
+      how: "On Occasions, tap Try the Secret Santa example, then Add occasion. The AI will shop for it a week before.",
+      go: { path: "/occasions", label: "Go to Occasions" },
+      fact: "occasionAdded",
+    },
+    {
+      title: "The AI shops ahead",
+      how: "Tap Shop now on Office Secret Santa. Normally the AI does this on its own a week before. A desk clock under $25 is within Sarah's rule, so it buys it.",
+      go: { path: "/occasions", label: "Go to Occasions" },
+      fact: "occasionShopped",
     },
     {
       title: "Outside the rule",
       how: "Ask for a gaming laptop. The rule doesn't cover it, so the AI asks Sarah instead.",
       go: { path: "/shop", label: "Go to AI Shopper" },
       fact: "goalAsked",
+    },
+  ],
+  self: [
+    {
+      title: "Sarah shops for herself",
+      how: "Search for a bed set, pick one, and pay with PayPal. It's her own money, so it goes straight through.",
+      go: { path: "/shop", label: "Go to Shop" },
+      pays: true,
+      fact: "boughtAlone",
+    },
+    {
+      title: "Catch a hidden charge",
+      how: "Use the example with a membership in the small print, then tap Buy it through ShopperRelay.",
+      go: { path: "/check", label: "Go to Check a checkout" },
+      fact: "checkedChosen",
+    },
+    {
+      title: "Everything on Sarah's PayPal",
+      how: "Open History. One table shows everything charged to Sarah's PayPal: her own shopping, what she paid for Leo, and what her AI shopper bought. Leo's tech that Marcus pays for, and Mom's own shopping, aren't there.",
+      go: { path: "/history", label: "Go to History" },
+      fact: "boughtAlone",
     },
   ],
 };

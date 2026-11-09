@@ -33,8 +33,11 @@ export async function POST(req: Request) {
     }
 
     const before = await currentRulesState(household);
-    const result = requestRuleChange(before, rules, by);
-    if (!result.ok) throw new FlowError(result.message, 403);
+    const changed = requestRuleChange(before, rules, by);
+    if (!changed.ok) throw new FlowError(changed.message, 403);
+    // Someone shopping for themselves has no one else to wait for: their change applies now.
+    const solo = household.shopperName === household.reviewerName;
+    const result = solo ? { ...changed, state: { ...changed.state, rules, pending: null } } : changed;
     await saveRulesState(household.id, result.state);
 
     const who = by === "shopper" ? household.shopperName : household.reviewerName;
