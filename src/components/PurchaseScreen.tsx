@@ -129,7 +129,7 @@ export function PurchaseScreen({ id }: { id: string }) {
             {session.budget.length > 0 && <BudgetBars lines={session.budget} title="Your budget" />}
             <p className="max-w-[38rem] text-ink-soft">
               {reviewer} gets the details and decides. Nothing is paid unless {reviewer} approves and pays with PayPal.
-              {outcome === "auto" && !standingOn && ` (${reviewer}'s rules would let you buy this, but ${reviewer} hasn't turned on standing permission yet.)`}
+              {outcome === "auto" && !standingOn && ` ${reviewer}'s rules let you buy this without asking, but that needs ${reviewer}'s saved PayPal: on ${reviewer}'s phone, tap Let ${shopper} buy without asking.`}
             </p>
             <Button onClick={() => act("send")} disabled={busy !== null}>
               {busy === "send" ? "Sending…" : words.sendRequest(reviewer)}

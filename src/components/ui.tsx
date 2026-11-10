@@ -40,7 +40,8 @@ export function Money({ cents, currency = "USD", className = "" }: { cents: numb
 export function outcomeText(outcome: Outcome, reviewer: string, flow: "hold" | "request" = "hold", standing = false): string {
   switch (outcome) {
     case "auto":
-      return flow === "hold" ? "You can buy this yourself" : standing ? `You can buy this; ${reviewer}'s saved PayPal pays` : `${reviewer} decides`;
+      // Without the payer's saved PayPal the rule can't work yet; say so, or it looks broken.
+      return flow === "hold" ? "You can buy this yourself" : standing ? `You can buy this; ${reviewer}'s saved PayPal pays` : `${reviewer} decides until ${reviewer}'s PayPal is saved`;
     case "review":
       return flow === "hold" ? `${reviewer} takes a look first` : `${reviewer} decides`;
     case "exception":
