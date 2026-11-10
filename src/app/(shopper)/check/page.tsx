@@ -92,7 +92,9 @@ export default function CheckPage() {
           ref={input}
           type="file"
           accept="image/png,image/jpeg,image/webp"
-          className="sr-only"
+          // Fully hidden: the visible button below opens it, so it's never a second, unlabeled Tab stop.
+          hidden
+          aria-label="Choose a screenshot"
           id="screenshot"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -103,7 +105,7 @@ export default function CheckPage() {
         <Button onClick={() => input.current?.click()} disabled={busy}>
           Choose a screenshot
         </Button>
-        <p className="text-base text-ink-soft">PNG, JPEG or WebP. The picture isn&apos;t kept, only what we read from it.</p>
+        <p className="text-base text-ink-soft">PNG, JPEG or WebP. Google&apos;s Gemini AI reads the picture for us; ShopperRelay doesn&apos;t keep it, only what was read from it. Crop out anything personal, like your address or card details.</p>
       </div>
 
       <div className="mt-6">
