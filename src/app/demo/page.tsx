@@ -79,7 +79,8 @@ export default function DemoPage() {
               <path d="M1 1.5 6 6.5 11 1.5" />
             </svg>
           </button>
-          <div role="tablist" aria-label="Which relationship" className="order-3 grid w-full grid-cols-2 gap-1 rounded-2xl bg-mist p-1 lg:order-2 lg:flex lg:w-auto">
+          {/* Plain buttons, not tabs: each switches the whole demo, and Tab moves between them. */}
+          <div role="group" aria-label="Which relationship" className="order-3 grid w-full grid-cols-2 gap-1 rounded-2xl bg-mist p-1 lg:order-2 lg:flex lg:w-auto">
             {session?.relationships.map((r) => {
               const on = r.id === session.relationship.id;
               const ring = on ? "ring-ink" : "ring-mist";
@@ -87,8 +88,7 @@ export default function DemoPage() {
               return (
                 <button
                   key={r.id}
-                  role="tab"
-                  aria-selected={on}
+                  aria-pressed={on}
                   disabled={busy}
                   onClick={() => {
                     clearSavedSearch();

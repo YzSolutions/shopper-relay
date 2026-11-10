@@ -73,12 +73,11 @@ export default function ReviewerInbox() {
     <PhoneShell title={`for ${reviewer}`}>
       <div className="space-y-6">
         {session.reviewers.length > 1 && (
-          <div className="flex gap-2" role="tablist" aria-label="Whose inbox">
+          <div className="flex gap-2" role="group" aria-label="Whose inbox">
             {session.reviewers.map((r) => (
               <button
                 key={r}
-                role="tab"
-                aria-selected={r === reviewer}
+                aria-pressed={r === reviewer}
                 onClick={() => setWho(r)}
                 className={`rounded-full px-4 py-1.5 font-semibold ${r === reviewer ? "bg-relay text-white" : "border-2 border-line"}`}
               >
