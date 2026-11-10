@@ -129,6 +129,8 @@ export async function insertPurchase(p: {
 }
 
 export async function getPurchase(id: string): Promise<Purchase | null> {
+  // Not an id at all: not found, rather than a database error.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
   const rows = (await db()`select * from purchases where id = ${id}`) as Row[];
   return rows[0] ? toPurchase(rows[0]) : null;
 }
