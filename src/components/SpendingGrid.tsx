@@ -128,6 +128,8 @@ export function SpendingGrid({ purchases, names, holder }: { purchases: LedgerPu
   function download() {
     grid.current?.api.exportDataAsCsv({
       fileName: "shopperrelay-spending.csv",
+      // The pinned "Paid, last 30 days" total is a summary, not a purchase; keep it out of the file.
+      skipPinnedBottom: true,
       // Plain values a spreadsheet can sort: ISO dates and numbers.
       processCellCallback: (p) => (p.value instanceof Date ? p.value.toISOString().slice(0, 10) : p.value),
     });
