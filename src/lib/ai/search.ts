@@ -13,13 +13,15 @@ export interface SearchTerms {
   maxPriceCents: number | null;
 }
 
-const PRICE_LIMIT = /\b(?:under|below|less than|no more than|max(?:imum)?|up to|at most|cheaper than)\s*\$?\s*(\d{1,5}(?:\.\d{1,2})?)\s*(?:dollars?|bucks|usd)?/i;
+const PRICE_LIMIT = /\b(under|below|less than|no more than|max(?:imum)?|up to|at most|cheaper than)\s*\$?\s*(\d{1,5}(?:\.\d{1,2})?)\s*(?:dollars?|bucks|usd)?/i;
+// "Under $40" leaves $40 itself out, as the rules do; "up to $40" keeps it.
+const STRICT = /^(under|below|less than|cheaper than)$/i;
 
 /** A price limit written in the search, read by code, not the AI. */
 export function priceLimit(text: string): number | null {
   const m = PRICE_LIMIT.exec(text);
   if (!m) return null;
-  const cents = Math.round(Number(m[1]) * 100);
+  const cents = Math.round(Number(m[2]) * 100) - (STRICT.test(m[1]) ? 1 : 0);
   return cents > 0 ? cents : null;
 }
 
