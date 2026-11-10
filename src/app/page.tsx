@@ -38,7 +38,7 @@ const SETUPS: Array<{ mode: RelationshipId; name: string; who: string; shops: st
     shops: "Mom",
     rules: "Mom's own",
     pays: "Mom",
-    how: "Within Mom's rules, a purchase goes straight through. Otherwise PayPal holds the payment while Sarah takes a look. Loosening a rule waits 24 hours, and Sarah can hold it 3 more days to talk, so nobody can pressure Mom out of a safeguard on the spot.",
+    how: "Within Mom's rules, a purchase goes straight through. Otherwise PayPal holds the payment while Sarah takes a look. Loosening a rule waits 24 hours, and Sarah can hold it up to 3 days to talk it over, so nobody can pressure Mom out of a safeguard on the spot.",
   },
   {
     mode: "parent_child",

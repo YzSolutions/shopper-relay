@@ -107,7 +107,7 @@ export default function RulesPage() {
               ? `You ${changeWords(summarizeChange(session.rules, pending.proposed))}.`
               : `${shopper} asked to ${changeWords(summarizeChange(session.rules, pending.proposed), "ask")}.`}{" "}
             {reviewer} has been told.{" "}
-            {pending.delayedAt && `${reviewer} asked for 3 more days to talk. `}
+            {pending.delayedAt && `${reviewer} asked for 3 days to talk it over. `}
             {pending.autoActivateAt
               ? `It starts on its own ${new Date(pending.autoActivateAt).toLocaleString([], { weekday: "long", hour: "numeric", minute: "2-digit" })}, or sooner if ${reviewer} says yes.`
               : `It starts when ${reviewer} says yes.`}{" "}
