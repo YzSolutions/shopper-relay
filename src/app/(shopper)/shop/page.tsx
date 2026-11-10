@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { RELATIONSHIPS } from "@/config/relationships";
@@ -197,6 +198,13 @@ export default function ShopPage() {
               </button>
             ))}
           </div>
+          <p className="mt-4 text-ink-soft">
+            Buying from another store?{" "}
+            <Link href="/check" className="font-semibold text-relay underline underline-offset-4">
+              Check its checkout first
+            </Link>{" "}
+            for hidden charges like memberships. Search results can&apos;t show those.
+          </p>
           {session && relationship && (
             <p className="mt-10 max-w-[36rem] text-ink-soft">
               {flow === "hold"

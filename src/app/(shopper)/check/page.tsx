@@ -6,9 +6,19 @@ import { Button, ErrorNotice, Money, Notice, OutcomeLine, PageTitle, Spinner } f
 import { api, type CheckResult, type PurchaseView } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
+// Sample checkouts from a made-up store. Product search can't show a subscription (store listings
+// carry no checkout terms), so these are how people try hidden-charge detection.
 const EXAMPLES = [
-  { src: "/demo/checkout-membership.png", label: "A checkout with a membership in the small print" },
-  { src: "/demo/checkout-one-time.png", label: "A plain one-time checkout" },
+  {
+    src: "/demo/checkout-membership.png",
+    label: "A checkout with a membership in the small print",
+    what: "A $149 blood pressure monitor. The small print adds a $39-a-month membership after a free trial.",
+  },
+  {
+    src: "/demo/checkout-one-time.png",
+    label: "A plain one-time checkout",
+    what: "The same $149 monitor with no repeat charges, to compare.",
+  },
 ];
 
 export default function CheckPage() {
@@ -97,17 +107,24 @@ export default function CheckPage() {
       </div>
 
       <div className="mt-6">
-        <p className="text-ink-soft">Or try an example (a made-up store):</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <h2 className="text-xl font-bold">No screenshot handy? Try one of these</h2>
+        <p className="mt-1 text-ink-soft">Two checkouts from a made-up store. Product search can&apos;t show memberships like this, so this is the place to test hidden charges.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {EXAMPLES.map((ex) => (
             <button
               key={ex.src}
               type="button"
               disabled={busy}
               onClick={() => void checkExample(ex.src)}
-              className="rounded-full border-2 border-line px-4 py-2 font-medium hover:border-relay hover:text-relay disabled:opacity-50"
+              className="flex min-w-0 flex-col overflow-hidden rounded-2xl border-2 border-line text-left hover:border-relay disabled:opacity-50"
             >
-              {ex.label}
+              {/* eslint-disable-next-line @next/next/no-img-element -- a small static sample shown as-is */}
+              <img src={ex.src} alt="" className="h-36 w-full object-cover object-top" />
+              <span className="space-y-1 border-t border-line p-4">
+                <span className="block font-semibold">{ex.label}</span>
+                <span className="block text-ink-soft">{ex.what}</span>
+                <span className="block pt-1 font-semibold text-relay">Check this checkout</span>
+              </span>
             </button>
           ))}
         </div>
