@@ -11,7 +11,8 @@ const OUTCOME_CLASS = {
 export function RulesTable({ rules, reviewer, caption, flow = "hold" }: { rules: RuleSet; reviewer: string; caption?: string; flow?: "hold" | "request" }) {
   const rows = ruleRows(rules);
   return (
-    <div>
+    // On the narrowest phones the table scrolls inside its own box instead of pushing the page wider.
+    <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
         {caption && <caption className="mb-2 text-left text-ink-soft">{caption}</caption>}
         <thead>

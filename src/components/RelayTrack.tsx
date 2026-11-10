@@ -93,10 +93,10 @@ export function RelayTrack(props: Props) {
                   ? "font-bold text-stop"
                   : "font-bold text-ink"
                 : s.skipped
-                  ? "text-ink-soft/50 line-through decoration-1"
+                  ? "text-ink-soft line-through decoration-1"
                   : i < at
                     ? "text-ink-soft"
-                    : "text-ink-soft/70"
+                    : "text-ink-soft font-normal"
             }
           >
             {s.label}

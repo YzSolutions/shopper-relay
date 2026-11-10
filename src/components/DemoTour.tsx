@@ -132,7 +132,7 @@ export function DemoTour({ session, onGo }: { session: Session; onGo: (path: str
             {go.label}
           </button>
         )}
-        <button type="button" onClick={() => hide(true)} className="text-[0.9375rem] font-semibold whitespace-nowrap text-ink-soft underline-offset-4 hover:text-ink hover:underline">
+        <button type="button" onClick={() => hide(true)} className="min-h-11 px-1 text-[0.9375rem] font-semibold whitespace-nowrap text-ink-soft underline-offset-4 hover:text-ink hover:underline">
           Hide the tour
         </button>
       </div>
@@ -157,7 +157,7 @@ function TestCard() {
   return (
     <p className="mt-0.5 text-[0.9375rem] leading-snug text-ink-soft">
       Test card: <span className="font-semibold tabular-nums">{TEST_CARD}</span>, any future date, any CVV.{" "}
-      <button type="button" onClick={() => void copy()} className="font-semibold text-relay underline-offset-4 hover:underline">
+      <button type="button" onClick={() => void copy()} className="inline-flex min-h-6 items-center px-1 font-semibold text-relay underline-offset-4 hover:underline">
         {copied ? "Copied" : "Copy"}
       </button>
     </p>

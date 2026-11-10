@@ -85,3 +85,14 @@ p {
     animation: none;
   }
 }
+
+/* The spinner's "taking longer than usual" line: hidden, then shown after 40 s without any script. */
+.slow-hint {
+  visibility: hidden;
+  animation: slow-hint 0s linear 40s forwards;
+}
+@keyframes slow-hint {
+  to {
+    visibility: visible;
+  }
+}
