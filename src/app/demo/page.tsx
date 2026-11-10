@@ -25,18 +25,28 @@ export default function DemoPage() {
   const { session, reload } = useSession();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // On a phone the two screens can't sit side by side, so one shows at a time, filling the screen.
+  const [view, setView] = useState<"shopper" | "phone">("shopper");
+  const screens = useRef<HTMLDivElement>(null);
   const hidden = session?.household.hideBrands ?? false;
+
+  /** On a phone, switch to that screen and bring it into view. */
+  function show(v: "shopper" | "phone") {
+    setView(v);
+    if (window.matchMedia("(max-width: 1023px)").matches) screens.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       const path = e.data?.openPhone;
       if (e.origin !== window.location.origin || typeof path !== "string" || !path.startsWith("/review/")) return;
       phone.current?.contentWindow?.location.replace(path);
-      phone.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (window.matchMedia("(max-width: 1023px)").matches) show("phone");
+      else phone.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- show only uses refs and a state setter
 
   async function run(label: string, json: unknown) {
     setBusy(true);
@@ -62,7 +72,7 @@ export default function DemoPage() {
   const span = days === 1 ? "24 hours" : `${days} days`;
 
   return (
-    <div className="flex h-dvh flex-col bg-mist">
+    <div className="flex min-h-dvh flex-col bg-mist lg:h-dvh">
       <header className="border-b border-line bg-white">
         <h1 className="sr-only">ShopperRelay demo</h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5">
@@ -165,18 +175,36 @@ export default function DemoPage() {
         </div>
       </header>
 
-      {session && <DemoTour key={session.relationship.id} session={session} onGo={(path) => left.current?.contentWindow?.location.replace(path)} />}
+      {session && <DemoTour key={session.relationship.id} session={session} onGo={(path) => {
+            left.current?.contentWindow?.location.replace(path);
+            show("shopper");
+          }} />}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <section aria-label={`${shopper}'s screen`} className="flex min-h-[28rem] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
-          <p className="border-b border-line px-4 py-2 text-base font-semibold text-ink-soft">
+      <div ref={screens} role="group" aria-label="Which screen" className="sticky top-0 z-10 flex scroll-mt-0 gap-1 border-b border-line bg-mist p-2 lg:hidden">
+        {(["shopper", "phone"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={view === v}
+            onClick={() => show(v)}
+            className={`min-h-11 flex-1 rounded-xl px-2 font-semibold ${view === v ? "bg-ink text-white" : "text-ink-soft hover:bg-white hover:text-ink"}`}
+          >
+            {v === "shopper" ? `${shopper}'s screen` : `${reviewer}'s phone`}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-6 p-2 lg:grid-cols-[minmax(0,1fr)_400px] lg:p-5">
+        <section aria-label={`${shopper}'s screen`} className={`${view === "shopper" ? "flex" : "hidden"} h-[calc(100dvh-4.5rem)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:flex lg:h-auto lg:min-h-[28rem]`}>
+          <p className="hidden border-b border-line px-4 py-2 text-base font-semibold text-ink-soft lg:block">
             {shopper}&apos;s screen{session && `: ${session.relationship.title}`}
           </p>
           <iframe ref={left} src="/shop" title={`${shopper}'s screen`} className="min-h-0 w-full flex-1" />
         </section>
-        <section aria-label={`${reviewer}'s phone`} className="flex min-h-0 flex-col items-center">
-          <p className="mb-2 text-base font-semibold text-ink-soft">{reviewer}&apos;s phone</p>
-          <div className="min-h-[28rem] w-[380px] max-w-full flex-1 overflow-hidden rounded-[2.5rem] border-[10px] border-ink bg-white shadow-xl lg:max-h-[780px]">
+        <section aria-label={`${reviewer}'s phone`} className={`${view === "phone" ? "flex" : "hidden"} h-[calc(100dvh-4.5rem)] min-h-0 flex-col items-center lg:flex lg:h-auto`}>
+          <p className="mb-2 hidden text-base font-semibold text-ink-soft lg:block">{reviewer}&apos;s phone</p>
+          {/* On a real phone, no phone frame inside the phone: the screen just fills it. */}
+          <div className="size-full overflow-hidden rounded-2xl border border-line bg-white lg:min-h-[28rem] lg:w-[380px] lg:max-w-full lg:flex-1 lg:rounded-[2.5rem] lg:border-[10px] lg:border-ink lg:shadow-xl lg:max-h-[780px]">
             <iframe ref={phone} src="/inbox" title={`${reviewer}'s phone`} className="size-full" />
           </div>
         </section>
