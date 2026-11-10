@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { modelNumberOf, normalizeChannel3 } from "./channel3";
-import { compareFor } from "./compare";
+import { compareFor, offerAt } from "./compare";
+import type { Offer, Product } from "./types";
 
 // Shaped like real Channel3 search results (names are fictional).
 const raw = (id: string, title: string, brand: string, offers: Array<[string, number, string?]>) => ({
@@ -64,5 +65,25 @@ describe("compareFor", () => {
       ["retailer-b.com", "same_catalog_product"],
     ]);
     expect(c.similar.map((p) => p.sourceId)).toEqual(["a3", "b1"]);
+  });
+});
+
+describe("the store the shopper picked", () => {
+  const offer = (merchant: string, priceCents: number): Offer => ({ merchant, url: `https://${merchant}/p1`, priceCents, compareAtCents: null, currency: "USD", available: true, condition: null });
+  const product = (offers: Offer[]): Product => ({ source: "channel3", sourceId: "p1", title: "Comforter Set", brand: null, modelNumber: null, description: null, imageUrl: null, categoryPath: [], keyFeatures: [], attributes: {}, offers });
+  const fresh = product([offer("store-b.com", 6715)]);
+
+  it("is found again by its real or its demo name", () => {
+    const shown = product([offer("Willowby Supply", 6715)]);
+    expect(offerAt(shown, fresh, "store-b.com")?.priceCents).toBe(6715);
+    expect(offerAt(shown, fresh, "Willowby Supply")?.priceCents).toBe(6715);
+  });
+
+  it("is missing, not swapped for another store, when its listing is gone", () => {
+    expect(offerAt(fresh, fresh, "store-a.com")).toBeNull();
+  });
+
+  it("is the best offer when the shopper didn't pick a store", () => {
+    expect(offerAt(fresh, fresh)?.merchant).toBe("store-b.com");
   });
 });

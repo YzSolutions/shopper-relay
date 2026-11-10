@@ -9,7 +9,7 @@ import { classifyProduct } from "../ai/products";
 import { recurringFinding, type AiTerms } from "../ai/terms";
 import { anonymizeProduct } from "../catalog/anonymize";
 import { createChannel3Source } from "../catalog/channel3";
-import { bestOffer } from "../catalog/compare";
+import { bestOffer, offerAt } from "../catalog/compare";
 import type { Product } from "../catalog/types";
 import { formatCents, numberToCents, parseToCents } from "../money";
 import { activeRules, categoryLabel, checkPayPalAmount, evaluatePurchase, resolveCategory, type CategoryId, type RecurringFinding } from "../policy";
@@ -77,10 +77,13 @@ export async function chooseCatalogItem(household: Household, sourceId: string, 
   if (!real) throw new FlowError("That product is no longer available.", 404);
   // In demo mode the browser only knows invented store names, so match either.
   const product = household.hideBrands ? anonymizeProduct(real) : real;
-  const offer =
-    (merchant ? product.offers.find((o, i) => o.available && (o.merchant === merchant || real.offers[i].merchant === merchant)) : null) ??
-    bestOffer(product);
-  if (!offer) throw new FlowError("That product is out of stock everywhere right now.", 409);
+  const offer = offerAt(product, real, merchant);
+  if (!offer) {
+    // The store's listing changed since the search. Never move the shopper to another store's price unannounced.
+    const now = bestOffer(product);
+    if (!now) throw new FlowError("That product is out of stock everywhere right now.", 409);
+    throw new FlowError(`${merchant} doesn't have it at that price any more. It's ${formatCents(now.priceCents)} at ${now.merchant} now. Search again to see the current prices.`, 409);
+  }
 
   // Catalog listings carry no purchase terms, so nothing recurring is known. Shown as "No recurring charge listed".
   const recurring: RecurringFinding = "no";

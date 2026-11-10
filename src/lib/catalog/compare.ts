@@ -49,3 +49,13 @@ export function compareFor(selected: Product, results: Product[]): Comparison {
 export function bestOffer(p: Product): Offer | null {
   return p.offers.find((o) => o.available) ?? null;
 }
+
+/**
+ * The store the shopper picked, from a fresh look at the product (`shown` may carry invented
+ * store names in demo mode; `real` has the real ones, offer for offer). With no pick, the best
+ * offer. Null when that store no longer has it, so the caller says so instead of switching stores.
+ */
+export function offerAt(shown: Product, real: Product, merchant?: string): Offer | null {
+  if (!merchant) return bestOffer(shown);
+  return shown.offers.find((o, i) => o.available && (o.merchant === merchant || real.offers[i]?.merchant === merchant)) ?? null;
+}
