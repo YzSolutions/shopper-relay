@@ -36,6 +36,7 @@ describe("the spending table", () => {
     expect(ledgerRows([purchase({ state: "requested", reviewerName: "Marcus" })], names)[0]).toMatchObject({ status: "Waiting", decidedBy: "Waiting for Marcus" });
     expect(ledgerRows([purchase({ state: "declined" })], names)[0]).toMatchObject({ status: "Declined", decidedBy: "Sarah" });
     expect(ledgerRows([purchase({ state: "expired" })], names)[0]).toMatchObject({ status: "Released", decidedBy: "No answer in time" });
+    expect(ledgerRows([purchase({ state: "canceled" })], names)[0]).toMatchObject({ status: "Canceled", decidedBy: "Leo canceled" });
   });
 
   it("in a PayPal table across relationships, uses each row's own people", () => {

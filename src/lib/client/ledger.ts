@@ -39,7 +39,7 @@ export interface LedgerRow {
   here: boolean;
 }
 
-export type LedgerStatus = "Paid" | "Held" | "Waiting" | "Declined" | "Released" | "Not allowed" | "Stopped";
+export type LedgerStatus = "Paid" | "Held" | "Waiting" | "Declined" | "Released" | "Canceled" | "Not allowed" | "Stopped";
 
 const STATUS: Partial<Record<PurchaseState, LedgerStatus>> = {
   completed: "Paid",
@@ -48,7 +48,8 @@ const STATUS: Partial<Record<PurchaseState, LedgerStatus>> = {
   requested: "Waiting",
   declined: "Declined",
   expired: "Released",
-  canceled: "Released",
+  // Taken back, often before PayPal held anything, so "Released" would be wrong.
+  canceled: "Canceled",
   blocked: "Not allowed",
   failed: "Stopped",
 };

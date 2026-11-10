@@ -61,6 +61,7 @@ const STATUS_CLASS: Record<LedgerStatus, string> = {
   Waiting: "bg-signal-wash text-signal-text",
   Declined: "bg-stop-wash text-stop",
   Released: "bg-mist text-ink-soft",
+  Canceled: "bg-mist text-ink-soft",
   "Not allowed": "bg-stop-wash text-stop",
   Stopped: "bg-stop-wash text-stop",
 };
