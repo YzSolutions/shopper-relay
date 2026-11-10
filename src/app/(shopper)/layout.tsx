@@ -26,7 +26,12 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
       <footer className="border-t border-line bg-mist">
         <div className="mx-auto max-w-5xl space-y-3 px-5 py-5 text-base text-ink-soft">
           <DemoSwitcher />
-          <p>Payments by PayPal (sandbox). In this prototype, {brand.name} receives the payment and placing the order with the store is simulated.</p>
+          <p>
+            Payments by PayPal (sandbox). In this prototype, {brand.name} receives the payment and placing the order with the store is simulated.{" "}
+            <Link href="/privacy" className="font-semibold text-relay underline underline-offset-4">
+              Privacy
+            </Link>
+          </p>
         </div>
       </footer>
     </div>

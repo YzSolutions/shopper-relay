@@ -494,7 +494,10 @@ export default function FrontPage() {
 
       <footer className="bg-mist">
         <div className="mx-auto max-w-6xl px-5 py-6 text-base text-ink-soft">
-          Built by InDigitual for the PayPal AI Hackathon. The code is MIT licensed. Payments run in the PayPal sandbox, so no real money moves.
+          Built by InDigitual for the PayPal AI Hackathon. The code is MIT licensed. Payments run in the PayPal sandbox, so no real money moves.{" "}
+          <Link href="/privacy" className="font-semibold text-relay underline underline-offset-4">
+            Privacy
+          </Link>
         </div>
       </footer>
     </div>
