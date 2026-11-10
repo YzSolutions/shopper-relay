@@ -99,7 +99,8 @@ export default function DemoPage() {
                   {/* Who's in it: blue is the person shopping, orange the person who takes a look, as everywhere else. */}
                   <span aria-hidden className="flex shrink-0">
                     <span className={`flex size-6 items-center justify-center rounded-full bg-relay pr-0.5 text-xs font-bold text-white ring-2 ${ring}`}>{shopperName[0]}</span>
-                    <span className={`relative -ml-1 flex size-6 items-center justify-center rounded-full bg-signal-text text-xs font-bold text-white ring-2 ${ring}`}>{reviewerName[0]}</span>
+                    {/* Sarah's own tab has just her. */}
+                    {reviewerName && <span className={`relative -ml-1 flex size-6 items-center justify-center rounded-full bg-signal-text text-xs font-bold text-white ring-2 ${ring}`}>{reviewerName[0]}</span>}
                   </span>
                   {r.tab}
                 </button>
