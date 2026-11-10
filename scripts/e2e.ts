@@ -223,6 +223,10 @@ async function shopper() {
   const p = (await api("/api/purchases", { method: "POST", json: { kind: "catalog", sourceId: pick.product.sourceId, merchant: offers[offers.length - 1].merchant } })).purchase;
   const sent = (await api(`/api/purchases/${p.id}/request`, { method: "POST" })).purchase;
   expect(sent.state === "requested", `Priya sent ${pick.product.title} at ${formatCents(p.reviewedCents)} to Marcus`);
+  for (const maxDollars of [0.001, 12.345]) {
+    const bad = await raw(`/api${sent.reviewPath}/pay`, { method: "POST", json: { kind: "otpa", maxDollars, details: "", expiresInDays: 7 } });
+    expect(bad.status === 400, `a limit of ${maxDollars} dollars is refused before PayPal`);
+  }
   const hunting = await reviewerPays(sent.reviewPath, { kind: "otpa", maxDollars: cheapest / 100, details: "Standard size", expiresInDays: 7 });
   expect(hunting.state === "hunting" && hunting.otpa.maxCents === cheapest, `PayPal is holding Marcus's maximum, ${formatCents(hunting.otpa.maxCents)}`);
   const options = (await api(`/api/purchases/${p.id}/otpa`)).options as any[];

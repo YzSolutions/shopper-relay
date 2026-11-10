@@ -10,7 +10,8 @@ const Pay = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("pay") }),
   z.object({
     kind: z.literal("otpa"),
-    maxDollars: z.number().positive().max(10_000),
+    // At least a cent, in whole cents: a fraction of a cent would round to a $0.00 hold.
+    maxDollars: z.number().min(0.01).max(10_000).refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, "Use dollars and cents, like 275 or 275.50."),
     details: z.string().max(160).default(""),
     expiresInDays: z.number().int().min(1).max(OTPA_MAX_DAYS),
   }),

@@ -7,6 +7,7 @@ import { RelayTrack } from "./RelayTrack";
 import { Button, ButtonLink, ErrorNotice, Money, Notice, Spinner } from "./ui";
 import { api, type BetterOption, type BudgetLine, type PurchaseView } from "@/lib/client/api";
 import { phoneName, phoneSpecs, whyWords } from "@/lib/client/describe";
+import { parseToCents } from "@/lib/money";
 
 interface ReviewData {
   household: { shopperName: string; reviewerName: string };
@@ -329,9 +330,15 @@ function OtpaForm({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const maxDollars = Number(max);
+    let maxCents = 0;
+    try {
+      maxCents = parseToCents(max);
+    } catch {
+      // not dollars and cents; handled just below
+    }
+    const maxDollars = maxCents / 100;
     const expiresInDays = Number(days);
-    if (!(maxDollars > 0)) return onError("Enter the most you'll pay.");
+    if (maxCents < 1) return onError("Enter the most you'll pay in dollars and cents, like 275 or 275.50.");
     if (!(expiresInDays >= 1 && expiresInDays <= 29)) return onError("Pick 1 to 29 days.");
     setReady({ maxDollars, details, expiresInDays });
   };
