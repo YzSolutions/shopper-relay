@@ -400,7 +400,7 @@ function Status({ purchase, shopper, reviewer, standingOn }: { purchase: Purchas
       );
     case "awaiting_review":
       return (
-        <Notice tone="signal" title={`Order placed. Waiting for ${reviewer} to confirm.`}>
+        <Notice tone="signal" title={`Sent to ${reviewer} to take a look.`}>
           <p>
             PayPal is holding the money; nothing has been charged. This page updates by itself.
             {purchase.reviewExpiresAt && <> If {reviewer} doesn&apos;t answer by {when(purchase.reviewExpiresAt)}, the hold is released.</>}
