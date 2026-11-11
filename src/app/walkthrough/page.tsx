@@ -185,7 +185,8 @@ const box = "size-5 accent-relay print:appearance-auto";
 
 export default function TestScriptPage() {
   return (
-    <main id="main" className="mx-auto max-w-4xl space-y-10 px-5 py-12 print:max-w-none print:space-y-6 print:p-0 print:text-sm">
+    // Print in Arial: Inter is a variable font, which prints to PDF as Type 3 glyphs that Firefox's viewer renders blurry.
+    <main id="main" className="mx-auto max-w-4xl space-y-10 px-5 py-12 print:max-w-none print:space-y-6 print:p-0 print:font-[Arial,Helvetica,sans-serif] print:text-sm">
       <Link href="/" aria-label="ShopperRelay home" className="inline-block rounded-full print:hidden">
         <Image src={symbol} alt="" className="size-12" priority />
       </Link>
@@ -244,9 +245,10 @@ export default function TestScriptPage() {
                 Video {t.video} · Tab: {t.tab}
               </p>
             </div>
-            <blockquote className="border-l-4 border-relay pl-4 text-lg italic print:text-sm">&ldquo;{t.claim}&rdquo;</blockquote>
+            {/* Not italic: the font has no italic face, and the slanted fallback prints garbled in some PDF viewers. */}
+            <blockquote className="border-l-4 border-relay pl-4 text-lg print:text-sm">&ldquo;{t.claim}&rdquo;</blockquote>
             {t.before && (
-              <p className="text-base">
+              <p className="text-base print:text-xs">
                 <b>Before you start:</b> {t.before}
               </p>
             )}
@@ -274,7 +276,7 @@ export default function TestScriptPage() {
                 ))}
               </tbody>
             </table>
-            <fieldset className="flex flex-wrap items-center gap-x-6 gap-y-2 text-base">
+            <fieldset className="flex flex-wrap items-center gap-x-6 gap-y-2 text-base print:text-xs">
               <legend className="sr-only">{t.id} result</legend>
               <span className="font-bold">Result</span>
               <label className="flex items-center gap-2">
