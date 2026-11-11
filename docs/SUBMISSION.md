@@ -11,6 +11,7 @@ Edit freely; the facts below match what the app does.
 enforce, people approve, PayPal executes.
 
 **Try it:** https://www.shopperrelay.com/demo (guided tour built in, no sign-in, PayPal sandbox only).
+**Test script:** https://www.shopperrelay.com/walkthrough checks each claim in the video, step by step.
 In PayPal's window, choose Debit or Credit Card and use the sandbox test card 4111 1111 1111 1111,
 any future expiry, any CVV.
 

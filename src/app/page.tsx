@@ -486,7 +486,7 @@ export default function FrontPage() {
               href="/walkthrough"
               className="inline-flex min-h-13 items-center rounded-xl border-2 border-white/60 px-6 py-3 text-lg font-semibold hover:border-white"
             >
-              Step-by-step walkthrough
+              Test script for judges
             </Link>
             <a
               href={REPO}
@@ -502,7 +502,7 @@ export default function FrontPage() {
         <div className="mx-auto max-w-6xl px-5 py-6 text-base text-ink-soft">
           Built by InDigitual for the PayPal AI Hackathon. The code is MIT licensed. Payments run in the PayPal sandbox, so no real money moves.{" "}
           <Link href="/walkthrough" className="font-semibold text-relay underline underline-offset-4">
-            Walkthrough
+            Test script
           </Link>{" "}
           <Link href="/privacy" className="font-semibold text-relay underline underline-offset-4">
             Privacy

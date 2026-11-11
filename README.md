@@ -15,6 +15,9 @@ Built for the PayPal AI Hackathon.
 - **Live site:** https://www.shopperrelay.com
 - **Live demo:** https://www.shopperrelay.com/demo (the shopper's screen and the reviewer's phone side
   by side, with a guided tour for each relationship)
+- **Test script for judges:** https://www.shopperrelay.com/walkthrough (each claim in the video as a
+  numbered test: steps, what you should see, pass or fail; also as a
+  [PDF](https://www.shopperrelay.com/shopperrelay-test-script.pdf))
 - **Backup address** (same app): https://shopper-relay.vercel.app
 - Everything runs on the PayPal **sandbox**. No real money moves. No sign-in needed.
 
