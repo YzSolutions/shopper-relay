@@ -70,10 +70,10 @@ export async function findBetter(household: Household, p: Purchase): Promise<Bet
 
   const lines = options.map(({ product, option }, i) => `L${i + 1} | ${product.title} | ${formatCents(option.priceCents)} | ${product.keyFeatures.slice(0, 5).join("; ")} | ${(product.description ?? "").slice(0, 200)}`);
   const { data: pick } = await generateJson({
-    task: "better-pick-v1",
+    task: "better-pick-v2",
     speed: "quick",
     schema: Pick,
-    system: "Someone is buying the product described, but it comes with a repeat charge. Choose the listing that does the same job just as well, so they lose nothing they need. It must work the same way: never a manual version of a digital product, an accessory, a part, a toy, or a lookalike for a different use. Price doesn't matter: never choose a listing because it's cheap. If none truly does the same job, answer with an empty listing.",
+    system: "Someone is buying the product described, but it comes with a repeat charge. Choose the listing that does the same job just as well, so they lose nothing they need. The repeat charge and anything that comes only with it (a membership, a subscription, an app plan) is exactly what they want to avoid, so a listing without it still does the same job. It must work the same way: never a manual version of a digital product, an accessory, a part, a toy, or a lookalike for a different use. Price doesn't matter: never choose a listing because it's cheap. If none truly does the same job, answer with an empty listing.",
     parts: [{ text: `${about}\n\nListings:\n${lines.join("\n")}` }],
   });
   return options[Number(pick.listing.replace(/\D/g, "") || 0) - 1]?.option ?? null;
