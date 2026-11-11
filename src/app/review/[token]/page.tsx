@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Review a purchase", robots: { index:
 
 export default function ReviewPage({ params }: PageProps<"/review/[token]">) {
   return (
-    <PhoneShell title="review">
+    <PhoneShell title="review" inboxLink>
       <Suspense fallback={<Spinner label="Loading the request…" />}>
         <WithToken params={params} />
       </Suspense>

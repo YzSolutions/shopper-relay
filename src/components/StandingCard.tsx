@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PayPalSaveButton } from "@/components/PayPalButton";
 import { Button, ErrorNotice, Money } from "@/components/ui";
 import { api, type PurchaseView, type Session } from "@/lib/client/api";
@@ -13,6 +13,11 @@ export function StandingCard({ session, purchases, onChange }: { session: Sessio
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  // Arriving from a request's "Let … buy without asking" link: open the card straight away.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the address is only known in the browser
+    if (new URLSearchParams(window.location.search).has("standing")) setOpen(true);
+  }, []);
   const shopper = session.household.shopperName;
   const standing = session.standing;
   const clientId = session.paypal.clientId;

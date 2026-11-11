@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { PayPalButton } from "./PayPalButton";
 import { ItemHeader } from "./PurchaseParts";
@@ -77,7 +78,18 @@ export function ReviewScreen({ token }: { token: string }) {
   return (
     <div className="space-y-6">
       {open ? (
-        <ShortMessage p={p} shopper={shopper} budget={data.budget} />
+        <>
+          <ShortMessage p={p} shopper={shopper} budget={data.budget} />
+          {/* The rules would let the shopper buy this without asking; only the payer's saved PayPal is missing. */}
+          {p.flow === "request" && p.decision?.outcome === "auto" && (p.reviewerName ?? reviewer) === reviewer && (
+            <Notice tone="relay" title={`Your rules let ${shopper} buy this without asking`}>
+              That needs your PayPal saved once. Until then, each purchase comes to you like this one.{" "}
+              <Link href="/inbox?standing=1" className="font-semibold text-relay underline underline-offset-4">
+                Let {shopper} buy without asking
+              </Link>
+            </Notice>
+          )}
+        </>
       ) : (
         <>
           <p className="text-lg font-semibold text-relay-deep">{shopper}&apos;s request</p>
