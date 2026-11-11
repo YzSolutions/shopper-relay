@@ -143,7 +143,10 @@ const TESTS: Test[] = [
     before: <>Needs the PayPal sandbox buyer login from the testing notes on Devpost, and a browser that allows PayPal&apos;s popup (Chrome or Edge).</>,
     steps: [
       [<>Choose the <b>AI Shopper + Sarah</b> tab. Open <b>Rules</b>, write &ldquo;The AI shopper can buy desk clocks under $25 without asking&rdquo;, tap <b>Check what I wrote</b>, then <b>Demo: save as Sarah</b>.</>, <>Desk clocks under $25: &ldquo;You buy, Sarah pays&rdquo;.</>],
-      [<>On Sarah&apos;s phone, tap <b>Let AI Shopper buy without asking</b> and log in to the PayPal sandbox in PayPal&apos;s window.</>, <>&ldquo;Standing permission is on&rdquo;. Sarah&apos;s PayPal is saved for purchases inside her rules only.</>],
+      [
+        <>On Sarah&apos;s phone, tap <b>Let AI Shopper buy without asking</b>. In PayPal&apos;s window, log in with the sandbox buyer account. There&apos;s no card option here: this saves a PayPal account for later, it doesn&apos;t pay.</>,
+        <>&ldquo;Standing permission is on&rdquo;. Sarah&apos;s PayPal is saved for purchases inside her rules only.</>,
+      ],
     ],
   },
   {
@@ -165,7 +168,13 @@ const TESTS: Test[] = [
     video: "2:16",
     tab: "AI Shopper + Sarah",
     claim: "The AI only buys on its own inside Sarah's rule. Anything else, it asks her.",
-    steps: [[<>Open <b>Shop</b> and ask the AI shopper for &ldquo;gaming laptops&rdquo;.</>, <>It finds one, but sends it to Sarah to decide instead of buying it.</>]],
+    before: <>UAT-11 done. Until Sarah saves her PayPal, everything the AI finds goes to her, so this test only means something after that.</>,
+    steps: [
+      [
+        <>Open <b>Shop</b> and ask the AI shopper for &ldquo;gaming laptops&rdquo;.</>,
+        <>It finds one, but sends it to Sarah to decide, with the reason it needs her (outside the desk-clock rule, or over the budget). Compare UAT-12, where the clock was bought without asking.</>,
+      ],
+    ],
   },
   {
     id: "UAT-14",
@@ -176,7 +185,7 @@ const TESTS: Test[] = [
     before: "UAT-12 done, or buy something on the Sarah tab first.",
     steps: [
       [<>Choose the <b>Sarah</b> tab, open <b>History</b>, and find <b>Sarah&apos;s PayPal</b>.</>, <>Every charge to Sarah&apos;s PayPal from every tab, with who it was for and who said yes. Leo&apos;s purchases that Marcus paid for are on Marcus&apos;s table instead.</>],
-      [<>Sort by <b>Amount</b>, search &ldquo;clock&rdquo;, and tap <b>Download as CSV</b>.</>, <>The rows sort and filter, and a CSV file downloads.</>],
+      [<>Sort by <b>Amount</b>, search a word from one of your rows (&ldquo;clock&rdquo; if you ran UAT-12), and tap <b>Download as CSV</b>.</>, <>The rows sort and filter, and a CSV file downloads.</>],
     ],
   },
 ];
@@ -220,8 +229,9 @@ export default function TestScriptPage() {
           <dd>Tabs at the top pick a relationship. The shopper&apos;s app is on the left and the reviewer&apos;s phone on the right. On a phone, switch between them.</dd>
           <dt className="font-bold">Paying</dt>
           <dd>
-            Use <b>Debit or Credit Card</b> (not Pay with PayPal): card <b>4111 1111 1111 1111</b>, any future date, any 3-digit CVV. Everything runs in the PayPal sandbox; no real
-            money moves.
+            Use <b>Debit or Credit Card</b> (not Pay with PayPal): card <b>4111 1111 1111 1111</b>, any future date, any 3-digit CVV. PayPal&apos;s card form also asks for an
+            email, name, US address and mobile number; made-up ones work, for example 1 Main St, San Jose, CA 95131 and 408 555 1234. Everything runs in the PayPal sandbox; no
+            real money moves. The one exception is UAT-11, which saves a PayPal account instead of paying.
           </dd>
           <dt className="font-bold">PayPal login</dt>
           <dd>Only UAT-11 needs one: the PayPal sandbox buyer login in the Devpost testing notes. Without it, UAT-12&apos;s clock goes to Sarah to approve instead.</dd>

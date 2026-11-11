@@ -6,6 +6,7 @@ import { RulesTable } from "@/components/RulesTable";
 import { Button, ErrorNotice, Notice, PageTitle, Spinner } from "@/components/ui";
 import { api, ApiError, type ParsedRules } from "@/lib/client/api";
 import { changeWords, summarizeChange } from "@/lib/policy/changes";
+import { usePolling } from "@/lib/client/usePolling";
 import { useSession } from "@/lib/client/useSession";
 
 const EXAMPLES: Record<string, string> = {
@@ -24,6 +25,8 @@ export default function RulesPage() {
   const [busy, setBusy] = useState<"read" | "save" | "pending" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  // While a change waits, the reviewer can delay or approve it from their phone; show that here without a reload.
+  usePolling(reload, 3000, !!session?.pending);
 
   if (!session) return loadError ? <ErrorNotice error={loadError} /> : <Spinner label="Loading your rules…" />;
   const reviewer = session.household.reviewerName;
