@@ -82,7 +82,7 @@ export async function chooseCatalogItem(household: Household, sourceId: string, 
     // The store's listing changed since the search. Never move the shopper to another store's price unannounced.
     const now = bestOffer(product);
     if (!now) throw new FlowError("That product is out of stock everywhere right now.", 409);
-    throw new FlowError(`${merchant} doesn't have it at that price any more. It's ${formatCents(now.priceCents)} at ${now.merchant} now. Search again to see the current prices.`, 409);
+    throw new FlowError(`${merchant} doesn't have it any more. It's ${formatCents(now.priceCents)} at ${now.merchant} now. Search again to see the current prices.`, 409);
   }
 
   // Catalog listings carry no purchase terms, so nothing recurring is known. Shown as "No recurring charge listed".

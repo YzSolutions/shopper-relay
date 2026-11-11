@@ -86,13 +86,14 @@ p {
   }
 }
 
-/* The spinner's "taking longer than usual" line: hidden, then shown after 40 s without any script. */
+/* The spinner's "taking longer than usual" line: absent, then shown after 75 s without any script
+   (AI shopper runs can take half a minute or more). A browser that can't animate display never shows it. */
 .slow-hint {
-  visibility: hidden;
-  animation: slow-hint 0s linear 40s forwards;
+  display: none;
+  animation: slow-hint 0s linear 75s forwards;
 }
 @keyframes slow-hint {
   to {
-    visibility: visible;
+    display: inline;
   }
 }

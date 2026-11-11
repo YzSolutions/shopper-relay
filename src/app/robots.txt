@@ -1,0 +1,7 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /review/
+Disallow: /inbox
+
+Sitemap: https://www.shopperrelay.com/sitemap.xml

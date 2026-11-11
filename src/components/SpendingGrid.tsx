@@ -143,7 +143,7 @@ export function SpendingGrid({ purchases, names, holder }: { purchases: LedgerPu
           <h2 id="spending" className="text-2xl font-bold">
             {holder}&apos;s PayPal
           </h2>
-          <p className="text-lg text-ink-soft">Everything charged to {holder}&apos;s PayPal, or asked of it, from every relationship.</p>
+          <p className="text-lg text-ink-soft">Every purchase charged to {holder}&apos;s PayPal, or waiting on it, from every relationship.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
@@ -162,7 +162,7 @@ export function SpendingGrid({ purchases, names, holder }: { purchases: LedgerPu
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="text-lg text-ink-soft">Nothing yet. Purchases show up here once they&apos;re paid from {holder}&apos;s PayPal or sent to {holder}.</p>
+        <p className="text-lg text-ink-soft">Nothing yet. Purchases paid from {holder}&apos;s PayPal, or waiting on it, show up here.</p>
       ) : (
         <AgGridReact<Row>
           ref={grid}

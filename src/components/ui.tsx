@@ -160,7 +160,7 @@ export function Spinner({ label }: { label: string }) {
     <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-soft" role="status">
       <span aria-hidden className="size-5 animate-spin rounded-full border-[3px] border-line border-t-relay" />
       {label}
-      {/* Shown by CSS alone after 40 s, so it still appears if the page's scripts never started. */}
+      {/* Shown by CSS alone after 75 s, so it still appears if the page's scripts never started. */}
       <span className="slow-hint">
         Taking longer than usual.{" "}
         <a href="" className="font-semibold text-relay underline underline-offset-4">
