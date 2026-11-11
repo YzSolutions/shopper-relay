@@ -14,11 +14,12 @@ export function PhoneShell({ title, inboxLink = false, children }: { title: stri
             <span className="text-ledger">Shopper</span>
             <span className="text-signal">Relay</span>
           </span>
-          <span className="font-semibold text-ink-soft"> {title}</span>
+          {/* With the All requests link, a phone has room for one line only, so the title waits for a wider screen. */}
+          <span className={`font-semibold text-ink-soft ${inboxLink ? "hidden sm:inline" : ""}`}> {title}</span>
         </p>
         {/* From a single request, the way back to everything waiting (and the "buy without asking" switch). */}
         {inboxLink && (
-          <Link href="/inbox" className="ml-auto inline-flex min-h-11 items-center font-semibold text-relay underline underline-offset-4">
+          <Link href="/inbox" className="ml-auto inline-flex min-h-11 items-center font-semibold whitespace-nowrap text-relay underline underline-offset-4">
             All requests
           </Link>
         )}
