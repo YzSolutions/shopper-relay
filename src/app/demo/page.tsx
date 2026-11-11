@@ -168,6 +168,9 @@ export default function DemoPage() {
               <Link href="/shop" className="block font-semibold text-relay underline-offset-4 hover:underline">
                 Open {shopper}&apos;s app on its own
               </Link>
+              <Link href="/walkthrough" className="block font-semibold text-relay underline-offset-4 hover:underline">
+                Step-by-step walkthrough of the video
+              </Link>
               <p>This demo is your own copy. Other visitors can&apos;t see or change it.</p>
               {session && <p className="text-sm">Build {session.build}</p>}
             </div>
