@@ -47,18 +47,33 @@ export function normalizeChannel3(p: Channel3Api.Product): Product {
   };
 }
 
+/**
+ * A second wording to try when a search finds nothing. Channel3 sometimes returns nothing for a
+ * singular ("gaming laptop") yet plenty for the plural ("gaming laptops"). Null when there's nothing to try.
+ */
+export function broaderQuery(query: string): string | null {
+  const q = query.trim();
+  if (!/[a-z]$/i.test(q) || /s$/i.test(q)) return null;
+  return `${q}s`;
+}
+
 export function createChannel3Source(apiKey = process.env.CHANNEL3_API_KEY): ProductSource {
   if (!apiKey) throw new Error("CHANNEL3_API_KEY is not set.");
   const client = new Channel3({ apiKey });
   return {
     name: "channel3",
     async search(query, { limit = 12, maxPriceCents } = {}) {
-      const page = await client.products.search({
-        query,
-        limit: Math.min(limit, 30),
-        filters: maxPriceCents ? { price: { max_price: maxPriceCents / 100 } } : undefined,
-      });
-      return page.response.products.map(normalizeChannel3).filter((p) => p.offers.length > 0);
+      const run = async (q: string) => {
+        const page = await client.products.search({
+          query: q,
+          limit: Math.min(limit, 30),
+          filters: maxPriceCents ? { price: { max_price: maxPriceCents / 100 } } : undefined,
+        });
+        return page.response.products.map(normalizeChannel3).filter((p) => p.offers.length > 0);
+      };
+      const found = await run(query);
+      const again = found.length === 0 ? broaderQuery(query) : null;
+      return again ? run(again) : found;
     },
     async get(sourceId) {
       try {

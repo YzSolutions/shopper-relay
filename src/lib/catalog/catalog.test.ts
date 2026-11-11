@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { modelNumberOf, normalizeChannel3 } from "./channel3";
+import { broaderQuery, modelNumberOf, normalizeChannel3 } from "./channel3";
 import { compareFor, offerAt } from "./compare";
 import type { Offer, Product } from "./types";
 
@@ -85,5 +85,16 @@ describe("the store the shopper picked", () => {
 
   it("is the best offer when the shopper didn't pick a store", () => {
     expect(offerAt(fresh, fresh)?.merchant).toBe("store-b.com");
+  });
+});
+
+describe("a broader wording for an empty search", () => {
+  it("tries the plural once", () => {
+    expect(broaderQuery("gaming laptop")).toBe("gaming laptops");
+    expect(broaderQuery(" desk clock ")).toBe("desk clocks");
+  });
+  it("has nothing to try when it's already plural or ends oddly", () => {
+    expect(broaderQuery("gaming laptops")).toBeNull();
+    expect(broaderQuery("monitor 2")).toBeNull();
   });
 });
