@@ -194,7 +194,7 @@ export default function DemoPage() {
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-6 p-2 lg:grid-cols-[minmax(0,1fr)_400px] lg:p-5">
+      <main id="main" className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-6 p-2 lg:grid-cols-[minmax(0,1fr)_400px] lg:p-5">
         <section aria-label={`${shopper}'s screen`} className={`${view === "shopper" ? "flex" : "hidden"} h-[calc(100dvh-4.5rem)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:flex lg:h-auto lg:min-h-[28rem]`}>
           <p className="hidden border-b border-line px-4 py-2 text-base font-semibold text-ink-soft lg:block">
             {shopper}&apos;s screen{session && `: ${session.relationship.title}`}
@@ -208,7 +208,7 @@ export default function DemoPage() {
             <iframe ref={phone} src="/inbox" title={`${reviewer}'s phone`} className="size-full" />
           </div>
         </section>
-      </div>
+      </main>
     </div>
   );
 }

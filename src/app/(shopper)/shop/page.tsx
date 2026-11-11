@@ -179,6 +179,10 @@ export default function ShopPage() {
           </Button>
         </div>
       </form>
+      {/* Search results arrive seconds later: say how many, for screen readers. Always present, so the change is announced. */}
+      <p role="status" className="sr-only">
+        {results && !busy ? `${results.length} ${results.length === 1 ? "result" : "results"}${looked.lookedFor ? ` for ${looked.lookedFor}` : ""}.` : ""}
+      </p>
 
       {!results && !busy && (
         <div className="mt-6">
@@ -207,7 +211,9 @@ export default function ShopPage() {
           </p>
           {session && relationship && (
             <p className="mt-10 max-w-[36rem] text-ink-soft">
-              {flow === "hold"
+              {relationship.id === "self"
+                ? "You shop with your own PayPal. Your own rules apply, and PayPal holds the payment until it's settled."
+                : flow === "hold"
                 ? `You choose what to buy. Your own rules decide when ${reviewer} takes a look first, and PayPal holds the payment until it's settled.`
                 : relationship.summary}
             </p>

@@ -35,10 +35,17 @@ const SECTIONS: Array<{ title: string; body: React.ReactNode }> = [
   {
     title: "What the demo keeps",
     body: (
-      <p>
-        What you do in your copy of the demo: the purchases you choose, the rules you write, occasions on the calendar, bills and the history of each step. It&apos;s tied only to that random
-        id, not to a name or email. <b>Reset this demo</b> (under Demo controls) deletes it for the tab you&apos;re on.
-      </p>
+      <div className="space-y-3">
+        <p>
+          What you do in your copy of the demo: the purchases you choose, the rules you write, occasions on the calendar, bills and the history of each step. It&apos;s tied only to that
+          random id, not to a name or email. <b>Reset this demo</b> (under Demo controls) deletes it for the tab you&apos;re on.
+        </p>
+        <p>
+          To save time and cost, Gemini&apos;s answers are kept in a shared cache that isn&apos;t tied to anyone: what was read from a screenshot, how a rule was understood, and how a
+          search was worded. Reset doesn&apos;t clear that cache. A PayPal account saved for &ldquo;buy without asking&rdquo; is deleted at PayPal when you turn it off on the reviewer&apos;s
+          phone; Reset only forgets it here, so turn it off first.
+        </p>
+      </div>
     ),
   },
   {
@@ -49,8 +56,8 @@ const SECTIONS: Array<{ title: string; body: React.ReactNode }> = [
           <b>PayPal</b> handles every payment and saved payment method, in its own window. Anything you type there goes to PayPal, not to us.
         </li>
         <li>
-          <b>Google Gemini</b> reads checkout screenshots, rules written in plain words, and product details. A screenshot is sent to Gemini to be read; ShopperRelay doesn&apos;t keep the
-          picture, only what was read from it.
+          <b>Google Gemini</b> reads checkout screenshots, rules written in plain words, what you type into search, and product details. A screenshot is sent to Gemini to be read;
+          ShopperRelay doesn&apos;t keep the picture, only what was read from it.
         </li>
         <li>
           <b>Channel3</b> runs product search, and product photos load from its servers.
@@ -65,7 +72,7 @@ const SECTIONS: Array<{ title: string; body: React.ReactNode }> = [
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-2xl space-y-8 px-5 py-12">
+    <main id="main" className="mx-auto max-w-2xl space-y-8 px-5 py-12">
       <Link href="/" aria-label="ShopperRelay home" className="inline-block rounded-full">
         <Image src={symbol} alt="" className="size-12" priority />
       </Link>

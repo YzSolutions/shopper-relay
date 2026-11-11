@@ -15,7 +15,13 @@ export const viewport: Viewport = { themeColor: "#0151c9" };
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} antialiased`}>
-      <body className="min-h-dvh bg-white">{children}</body>
+      <body className="min-h-dvh bg-white">
+        {/* Keyboard users skip the repeated header and navigation (WCAG 2.4.1). */}
+        <a href="#main" className="sr-only rounded-xl bg-ink px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50">
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

@@ -256,7 +256,7 @@ export default function FrontPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-5">
+      <main id="main" className="mx-auto max-w-6xl px-5">
         <section className="grid items-center gap-12 pt-10 pb-20 md:pt-16 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
           <div>
             <h1 className="text-[2.5rem] leading-[1.08] font-extrabold tracking-[-0.03em] md:text-[3.5rem]">{LINE}</h1>
