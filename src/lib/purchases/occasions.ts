@@ -19,21 +19,23 @@ export async function shopForOccasion(id: string, householdId?: string): Promise
     await finishOccasion(id, null, "Only the AI Shopper shops for occasions.");
     return null;
   }
+  let run: Awaited<ReturnType<typeof runGoal>>;
   try {
-    const run = await runGoal(household, claimed.job);
-    await finishOccasion(id, run.purchase?.id ?? null, run.purchase ? null : (run.steps.at(-1)?.text ?? "It found nothing within the rules."));
-    await logEvent({
-      householdId: household.id,
-      purchaseId: run.purchase?.id ?? null,
-      type: "occasion_shopped",
-      actor: "agent",
-      message: run.purchase ? `Shopped ahead for ${claimed.title}.` : `Shopped ahead for ${claimed.title}, and found nothing to buy.`,
-    });
-    return run;
+    run = await runGoal(household, claimed.job);
   } catch (err) {
-    await releaseOccasion(id); // the next run tries again
+    await releaseOccasion(id); // the AI never finished, so the next run tries again
     throw err;
   }
+  // From here it has shopped, maybe bought. Never release after this point, or the next run could buy twice.
+  await finishOccasion(id, run.purchase?.id ?? null, run.purchase ? null : (run.steps.at(-1)?.text ?? "It found nothing within the rules."));
+  await logEvent({
+    householdId: household.id,
+    purchaseId: run.purchase?.id ?? null,
+    type: "occasion_shopped",
+    actor: "agent",
+    message: run.purchase ? `Shopped ahead for ${claimed.title}.` : `Shopped ahead for ${claimed.title}, and found nothing to buy.`,
+  }).catch(() => undefined); // a lost log line must not report a shopped occasion as failed
+  return run;
 }
 
 /** The daily run: shops for every occasion whose day has come, a few at a time. */
