@@ -7,6 +7,7 @@ import { ErrorNotice, PageTitle, Spinner } from "@/components/ui";
 import { api, type LogEvent } from "@/lib/client/api";
 import type { LedgerPurchase } from "@/lib/client/ledger";
 import { useSession } from "@/lib/client/useSession";
+import { historySeenKey } from "@/config/tour";
 
 export default function HistoryPage() {
   const { session } = useSession();
@@ -23,6 +24,16 @@ export default function HistoryPage() {
       .then(setAccount)
       .catch(fail);
   }, []);
+
+  // For the guided tour's "Everything on … PayPal" step.
+  useEffect(() => {
+    if (!session) return;
+    try {
+      localStorage.setItem(historySeenKey(session.household.id), "1");
+    } catch {
+      // storage unavailable: the tour step just stays to do
+    }
+  }, [session]);
 
   const names = session ? { shopper: session.household.shopperName, reviewer: session.household.reviewerName } : undefined;
 

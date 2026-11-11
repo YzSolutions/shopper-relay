@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NO_FACTS, TOURS, type TourFacts } from "@/config/tour";
+import { historySeenKey, NO_FACTS, TOURS, type TourFacts } from "@/config/tour";
 import { api, type Session } from "@/lib/client/api";
 import { usePolling } from "@/lib/client/usePolling";
 
@@ -42,7 +42,14 @@ export function DemoTour({ session, onGo }: { session: Session; onGo: (path: str
 
   const check = useCallback(async () => {
     try {
-      const { facts: next, huntingId: hunting } = await api<{ facts: TourFacts; huntingId: string | null }>("/api/demo");
+      const { facts: fromServer, huntingId: hunting } = await api<{ facts: TourFacts; huntingId: string | null }>("/api/demo");
+      let historySeen = false;
+      try {
+        historySeen = localStorage.getItem(historySeenKey(session.household.id)) === "1";
+      } catch {
+        // storage unavailable: that step just stays to do
+      }
+      const next = { ...fromServer, historySeen };
       setFacts(next);
       setHuntingId(hunting);
       // Something changed: go back to following the next step to do.
@@ -51,7 +58,7 @@ export function DemoTour({ session, onGo }: { session: Session; onGo: (path: str
     } catch {
       // the tour is only a help: try again at the next check
     }
-  }, []);
+  }, [session.household.id]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads when the demo changes

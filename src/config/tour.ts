@@ -27,7 +27,12 @@ export interface TourFacts {
   /** The owner put a date on the Occasions calendar, and the AI shopped ahead of one. */
   occasionAdded: boolean;
   occasionShopped: boolean;
+  /** History has been opened. Only the browser knows (opening a page logs nothing), so the tour sets it. */
+  historySeen: boolean;
 }
+
+/** Where History notes it was opened, per household, for the tour to read. */
+export const historySeenKey = (householdId: string) => `sr_history_seen:${householdId}`;
 
 export const NO_FACTS: TourFacts = {
   boughtAlone: false,
@@ -44,6 +49,7 @@ export const NO_FACTS: TourFacts = {
   goalAsked: false,
   occasionAdded: false,
   occasionShopped: false,
+  historySeen: false,
 };
 
 export function tourFacts(purchases: Array<Pick<Purchase, "flow" | "state" | "terms" | "decision">>, eventTypes: string[]): TourFacts {
@@ -65,6 +71,7 @@ export function tourFacts(purchases: Array<Pick<Purchase, "flow" | "state" | "te
     goalAsked: types.has("agent_goal_asked"),
     occasionAdded: types.has("occasion_added"),
     occasionShopped: types.has("occasion_shopped"),
+    historySeen: false,
   };
 }
 
@@ -204,7 +211,7 @@ export const TOURS: Record<RelationshipId, TourStep[]> = {
       title: "Everything on Sarah's PayPal",
       how: "Open History. One table shows everything charged to Sarah's PayPal: her own shopping, what she paid for Leo, and what her AI shopper bought. Leo's tech that Marcus pays for, and Mom's own shopping, aren't there.",
       go: { path: "/history", label: "Go to History" },
-      fact: "boughtAlone",
+      fact: "historySeen",
     },
   ],
 };
