@@ -28,6 +28,9 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
           <DemoSwitcher />
           <p>
             Payments by PayPal (sandbox). In this prototype, {brand.name} receives the payment and placing the order with the store is simulated.{" "}
+            <a href="/walkthrough" target="_blank" rel="noopener" className="font-semibold text-relay underline underline-offset-4">
+              Test script<span className="sr-only"> (opens in a new tab)</span>
+            </a>{" "}
             <Link href="/privacy" className="font-semibold text-relay underline underline-offset-4">
               Privacy
             </Link>

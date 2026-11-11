@@ -18,13 +18,17 @@ export function FrontNav({ links }: { links: Array<{ href: string; label: string
 
   return (
     <>
-      <nav aria-label="Page" className="flex items-center gap-x-3 text-base font-semibold sm:gap-x-6 sm:text-lg">
+      <nav aria-label="Page" className="flex items-center gap-x-2 text-[0.9375rem] font-semibold sm:gap-x-6 sm:text-lg">
         {links.map((l) => (
           <a key={l.href} href={l.href} className="hidden text-ink-soft hover:text-ink xl:inline">
             {l.label}
           </a>
         ))}
-        <Link href="/demo" className="rounded-xl bg-relay px-3 py-2 whitespace-nowrap sm:px-4 text-white hover:bg-relay-deep">
+        {/* Always visible, not in the menu: judges who get lost should find it straight away. */}
+        <Link href="/walkthrough" className="rounded-xl border-2 border-line px-2 py-1.5 whitespace-nowrap text-ink hover:border-ink-soft sm:px-3.5">
+          Test script
+        </Link>
+        <Link href="/demo" className="rounded-xl bg-relay px-2.5 py-2 whitespace-nowrap sm:px-4 text-white hover:bg-relay-deep">
           Live demo
         </Link>
         <button

@@ -75,17 +75,27 @@ export default function DemoPage() {
     <div className="flex min-h-dvh flex-col bg-mist lg:h-dvh">
       <header className="border-b border-line bg-white">
         <h1 className="sr-only">ShopperRelay demo</h1>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-5 py-2.5 sm:gap-x-4">
           <Link href="/" aria-label="ShopperRelay home" className="shrink-0 rounded-full">
             <Image src={symbol} alt="" className="size-9" priority />
           </Link>
+          {/* A new tab, so the demo stays where it is while they read the steps. */}
+          <a
+            href="/walkthrough"
+            target="_blank"
+            rel="noopener"
+            className="order-2 ml-auto flex min-h-11 items-center rounded-xl border-2 border-line px-2 text-[0.9375rem] font-semibold whitespace-nowrap hover:border-ink-soft sm:px-3.5 sm:text-[1.0625rem] lg:order-3"
+          >
+            Test script<span className="sr-only"> (opens in a new tab)</span>
+          </a>
           <button
             type="button"
             popoverTarget="demo-controls"
-            className="order-2 ml-auto flex min-h-11 items-center gap-2 rounded-xl border-2 border-line px-3.5 text-[1.0625rem] font-semibold whitespace-nowrap hover:border-ink-soft lg:order-3"
+            className="order-2 flex min-h-11 items-center gap-2 rounded-xl border-2 border-line px-2 text-[0.9375rem] font-semibold whitespace-nowrap hover:border-ink-soft sm:px-3.5 sm:text-[1.0625rem] lg:order-3"
           >
             Demo controls
-            <svg aria-hidden viewBox="0 0 12 8" className="w-3 fill-none stroke-current stroke-2">
+            {/* No arrow on a phone, so Test script fits on the same row. */}
+            <svg aria-hidden viewBox="0 0 12 8" className="hidden w-3 fill-none stroke-current stroke-2 sm:block">
               <path d="M1 1.5 6 6.5 11 1.5" />
             </svg>
           </button>

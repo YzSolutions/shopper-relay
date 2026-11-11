@@ -8,6 +8,7 @@ import { FrontNav } from "@/components/FrontNav";
 import { TryDemoButton } from "@/components/TryDemoButton";
 import { ButtonLink } from "@/components/ui";
 import logo from "../../public/brand/shopperrelay-logo-trimmed.png";
+import symbol from "../../public/brand/shopperrelay-symbol.png";
 import shotAgent from "../../public/prizes/agent.jpg";
 import shotAgGrid from "../../public/prizes/aggrid.jpg";
 import shotBryntum from "../../public/prizes/bryntum.jpg";
@@ -250,7 +251,9 @@ export default function FrontPage() {
       <header className="sticky top-0 z-50 border-b border-line bg-white/95 backdrop-blur">
         <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-x-3 px-5 py-3 sm:gap-x-6">
           <Link href="/" aria-label={`${brand.name} home`} className="shrink-0">
-            <Image src={logo} alt={brand.name} priority className="h-8 w-auto sm:h-11" />
+            {/* On a phone, just the symbol, so Test script, Live demo and Menu all fit beside it. */}
+            <Image src={symbol} alt={brand.name} priority className="size-9 sm:hidden" />
+            <Image src={logo} alt={brand.name} priority className="hidden h-11 w-auto sm:block" />
           </Link>
           <FrontNav links={NAV} />
         </div>
