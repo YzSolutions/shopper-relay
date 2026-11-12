@@ -28,7 +28,11 @@ const SECTIONS: Array<{ title: string; body: React.ReactNode }> = [
         <li>
           <b>sr_mode</b> remembers which demo tab you&apos;re on (Mom, Leo, Priya, the AI shopper or Sarah). It lasts 30 days.
         </li>
-        <li>There are no advertising, analytics or tracking cookies.</li>
+        <li>ShopperRelay sets no advertising, analytics or tracking cookies.</li>
+        <li>
+          The video on the front page uses YouTube&apos;s privacy-enhanced mode: YouTube stores nothing on your device until you press play. After that, YouTube&apos;s own privacy
+          policy applies.
+        </li>
       </ul>
     ),
   },
@@ -61,6 +65,9 @@ const SECTIONS: Array<{ title: string; body: React.ReactNode }> = [
         </li>
         <li>
           <b>Channel3</b> runs product search, and product photos load from its servers.
+        </li>
+        <li>
+          <b>YouTube</b> plays the demo video on the front page.
         </li>
         <li>
           <b>Neon</b> stores the demo data, and <b>Vercel</b> hosts the site.

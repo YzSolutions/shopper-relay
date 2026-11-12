@@ -12,6 +12,7 @@ Built for the PayPal AI Hackathon.
 
 [![The ShopperRelay front page](docs/images/front-page.png)](https://www.shopperrelay.com)
 
+- **Demo video (2:57):** https://www.youtube.com/watch?v=rewtmUjOegY
 - **Live site:** https://www.shopperrelay.com
 - **Live demo:** https://www.shopperrelay.com/demo (the shopper's screen and the reviewer's phone side
   by side, with a guided tour for each relationship)

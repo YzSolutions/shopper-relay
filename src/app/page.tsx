@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { brand } from "@/config/brand";
+import { brand, VIDEO_ID, videoUrl } from "@/config/brand";
 import type { RelationshipId } from "@/config/relationships";
 import { FrontNav } from "@/components/FrontNav";
 import { TryDemoButton } from "@/components/TryDemoButton";
@@ -300,6 +300,38 @@ export default function FrontPage() {
             </ol>
             <figcaption className="sr-only">One purchase going through {brand.name}: AI understands, rules enforce, people approve, PayPal executes.</figcaption>
           </figure>
+        </section>
+
+        <section id="video" aria-labelledby="video-title" className="scroll-mt-20 pb-16 md:pb-20">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+            <h2 id="video-title" className="text-[2rem] font-extrabold md:text-[2.5rem]">
+              Watch it in 3 minutes
+            </h2>
+            <p className="text-lg text-ink-soft">
+              Every claim, step by step:{" "}
+              <Link href="/walkthrough" className="font-semibold text-relay underline underline-offset-4">
+                the test script
+              </Link>
+            </p>
+          </div>
+          {/* youtube-nocookie: nothing from YouTube loads cookies until someone presses play. */}
+          <div className="mt-8 aspect-video overflow-hidden rounded-3xl border-2 border-line bg-ink shadow-[0_24px_60px_-30px_rgba(1,62,163,0.35)]">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${VIDEO_ID}?rel=0`}
+              title={`${brand.name} demo video`}
+              loading="lazy"
+              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+              className="size-full"
+            />
+          </div>
+          <p className="mt-3 text-base text-ink-soft">
+            English subtitles: press CC in the player.{" "}
+            <a href={videoUrl()} className="font-semibold text-relay underline underline-offset-4">
+              Open it on YouTube
+            </a>
+          </p>
         </section>
 
         <Section

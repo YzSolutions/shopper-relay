@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { videoUrl } from "@/config/brand";
 import symbol from "../../../public/brand/shopperrelay-symbol.png";
+
+/** "1:35" → 95 */
+const seconds = (mmss: string) => mmss.split(":").reduce((t, n) => t * 60 + Number(n), 0);
 
 export const metadata: Metadata = {
   title: "Test script",
@@ -206,11 +210,16 @@ export default function TestScriptPage() {
           unless it says otherwise.
         </p>
         <p className="text-lg print:hidden">
+          <a href={videoUrl()} className="font-semibold text-relay underline underline-offset-4">
+            Watch the video
+          </a>{" "}
+          (each test&apos;s time opens it at that moment).{" "}
           <a href="/shopperrelay-test-script.pdf" className="font-semibold text-relay underline underline-offset-4">
             Download as PDF
           </a>{" "}
           or print this page.
         </p>
+        <p className="hidden text-sm print:block">Video: {videoUrl()}</p>
       </header>
 
       <section aria-labelledby="setup" className="space-y-3 rounded-2xl bg-mist p-6 text-lg print:break-inside-avoid print:p-4 print:text-sm">
@@ -252,7 +261,10 @@ export default function TestScriptPage() {
                 {t.id}: {t.title}
               </h2>
               <p className="text-base text-ink-soft print:text-xs">
-                Video {t.video} · Tab: {t.tab}
+                <a href={videoUrl(seconds(t.video))} className="text-relay underline-offset-4 hover:underline print:text-ink-soft">
+                  Video {t.video}
+                </a>{" "}
+                · Tab: {t.tab}
               </p>
             </div>
             {/* Not italic: the font has no italic face, and the slanted fallback prints garbled in some PDF viewers. */}
