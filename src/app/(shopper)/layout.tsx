@@ -32,7 +32,7 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
             <a href="/walkthrough" target="_blank" rel="noopener" className="font-semibold text-relay underline underline-offset-4">
               Test script<span className="sr-only"> (opens in a new tab)</span>
             </a>{" "}
-            <Link href="/privacy" className="font-semibold text-relay underline underline-offset-4">
+            <Link href="/privacy" target="_top" className="font-semibold text-relay underline underline-offset-4">
               Privacy
             </Link>
           </p>

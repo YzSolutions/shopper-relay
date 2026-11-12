@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import { useSession } from "@/lib/client/useSession";
 
@@ -8,7 +8,12 @@ import { useSession } from "@/lib/client/useSession";
 export function DemoSwitcher() {
   const { session } = useSession();
   const [busy, setBusy] = useState(false);
-  if (!session) return null;
+  // Inside the side-by-side demo's frame the demo's own header has the tabs; a second switcher here would
+  // change the frame without the page around it, and its demo link would nest the demo inside itself.
+  const [framed, setFramed] = useState(true);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- only known in the browser
+  useEffect(() => setFramed(window.self !== window.top), []);
+  if (!session || framed) return null;
 
   async function pick(mode: string) {
     setBusy(true);
@@ -41,7 +46,7 @@ export function DemoSwitcher() {
           {r.tab}
         </button>
       ))}
-      <a href="/demo" className="font-semibold text-relay underline-offset-4 hover:underline">
+      <a href="/demo" target="_top" className="font-semibold text-relay underline-offset-4 hover:underline">
         Side-by-side demo
       </a>
       <span className="ml-auto text-sm text-ink-soft">Build {session.build}</span>
