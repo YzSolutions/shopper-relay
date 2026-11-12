@@ -250,11 +250,12 @@ export default function FrontPage() {
       {/* Stays at the top while the page scrolls, so the sections are always a tap away. */}
       <header className="sticky top-0 z-50 border-b border-line bg-white/95 backdrop-blur">
         <div className="relative mx-auto flex max-w-6xl items-center justify-between gap-x-3 px-5 py-3 sm:gap-x-6">
-          <Link href="/" aria-label={`${brand.name} home`} className="shrink-0">
+          {/* Already home, so the logo goes back to the top ("#top" always scrolls there); a link to "/" would do nothing. */}
+          <a href="#top" aria-label={`${brand.name}: back to the top`} className="shrink-0">
             {/* On a phone, just the symbol, so Test script, Live demo and Menu all fit beside it. */}
             <Image src={symbol} alt={brand.name} priority className="size-9 sm:hidden" />
             <Image src={logo} alt={brand.name} priority className="hidden h-11 w-auto sm:block" />
-          </Link>
+          </a>
           <FrontNav links={NAV} />
         </div>
       </header>
