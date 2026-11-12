@@ -13,7 +13,8 @@ export default function ShopperLayout({ children }: LayoutProps<"/">) {
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-5 py-4">
-          <Link href="/shop" aria-label={`${brand.name} home`} className="shrink-0">
+          {/* The logo goes to the front page, like everywhere else. _top: inside the demo's frame it takes the whole window there. */}
+          <Link href="/" target="_top" aria-label={`${brand.name} home`} className="shrink-0">
             <Image src={logo} alt={brand.name} priority className="h-11 w-auto" />
           </Link>
           {/* The nav reads the URL to highlight the current page, so it streams in. */}
